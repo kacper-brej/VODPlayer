@@ -31,12 +31,12 @@ export default function RootLayout({
     >
       <body className="bg-background text-foreground flex antialiased selection:bg-primary/30">
       <div className="hidden md:block w-28 shrink-0"/>
-      <Sidebar/>
-      <div className="flex-1 flex flex-col min-h-dvh overflow-x-hidden">
-        <header className='w-full pt-4 md:pt-8 px-4 md:px-8 flex justify-start items-center shrink-0'>
+        <Sidebar/>
+      <div className="flex-1 flex flex-col min-h-dvh min-w-0 overflow-x-hidden">
+        <header className='sticky top-0 z-40 w-full pt-4 md:pt-8 px-4 md:px-8 flex justify-start items-center shrink-0'>
           <SearchBar/>
         </header>
-        <main className="flex-1 min-h-dvh overflow-x-hidden">
+        <main className="flex-1 min-h-dvh">
           {children}
         </main>
       </div>

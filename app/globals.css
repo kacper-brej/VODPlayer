@@ -1,5 +1,5 @@
 @import "tailwindcss";
-
+@source "../components";
 :root {
   /* TŁO */
   --background: #0B0715;
@@ -84,4 +84,10 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--primary);
+}
+@utility scrollbar-hide {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }

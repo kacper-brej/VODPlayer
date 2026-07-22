@@ -7,7 +7,12 @@ const nextConfig: NextConfig = {
                 protocol: 'https',
                 hostname: 'images.unsplash.com',
             },
+            {
+                protocol: 'https',
+                hostname: 'cdn.myanimelist.net',
+            },
         ],
     },
 };
+
 export default nextConfig;
