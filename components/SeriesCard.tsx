@@ -16,7 +16,7 @@ const SeriesCard = ({ id, title, coverImage, rating = "16+", year }: SeriesCardP
     const router = useRouter();
 
     const handleCardClick = () => {
-        router.push(`/watch/${id}`);
+        router.push(`/series/${id}`);
     }
 
     const handleInfoClick = (e: React.MouseEvent) => {
@@ -50,7 +50,7 @@ const SeriesCard = ({ id, title, coverImage, rating = "16+", year }: SeriesCardP
                 <div className="flex items-center justify-between w-full mb-3">
                     <div className="flex items-center gap-2">
                         <button
-                            onClick={(e) => { e.stopPropagation(); router.push(`/watch/${id}`); }}
+                            onClick={(e) => { e.stopPropagation(); router.push(`/watch?id=${id}&ep=1`); }}
                             className="w-7 h-7 md:w-9 md:h-9 bg-white cursor-pointer rounded-full flex items-center justify-center hover:bg-gray-300 transition-colors"
                         >
                             <Play size={16} className="fill-black text-black ml-0.5" />

@@ -1,20 +1,45 @@
 "use client";
 import { Play, Download, MoreHorizontal, Clock, Volume2, VolumeX } from "lucide-react";
 import Image from "next/image";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, MouseEvent } from "react";
+import { useRouter } from "next/navigation";
 
-const HeroBanerSection = () => {
+export interface LastWatchedData {
+    seriesId: string;
+    episodeFile: string;
+    progressPercent: number;
+    lastWatchedTime: number;
+    image: string;
+    video: string;
+    description: string;
+    tags: string[];
+}
 
-    const lastWatchedData = null;
+interface HeroBanerProps {
+    lastWatchedData: LastWatchedData | null;
+}
+
+const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
+
+    const router = useRouter();
+
     const randomShowcaseData = {
+        seriesId: "Neon Genesis: Cyber City",
+        episodeFile: "S1:E1",
+        progressPercent: 0,
+        lastWatchedTime: 0,
         image: "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?q=80&w=1974&auto=format&fit=crop",
-        video: 'https://www.w3schools.com/html/mov_bbb.mp4'
-    }
+        video: 'https://www.w3schools.com/html/mov_bbb.mp4',
+        description: "Kiedy dwa zwaśnione klony odkrywają tajny portal, podróżują przez magiczne wymiary, próbując odnaleźć drogę powrotną do domu, zanim system ulegnie całkowitemu resetowi.",
+        tags: ["Cyberpunk", "Action"]
+    };
+
     const activeContent = lastWatchedData || randomShowcaseData;
+
     const [isVideoActive, setIsVideoActive] = useState<boolean>(false);
     const hoverTimeout = useRef<NodeJS.Timeout | null>(null);
     const videoRef = useRef<HTMLVideoElement | null>(null);
-    const [isMuted, setIsMuted] = useState<boolean>(false);
+    const [isMuted, setIsMuted] = useState<boolean>(true); // Zmienione domyślnie na true, przeglądarki blokują autoplay z dźwiękiem
 
     const handleHover = () => {
         if (typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches) {
@@ -22,37 +47,47 @@ const HeroBanerSection = () => {
         }
         hoverTimeout.current = setTimeout(() => {
             setIsVideoActive(true);
-        }, 250)
+        }, 250);
     }
 
     const handleHoverEnd = () => {
         if (hoverTimeout.current) clearTimeout(hoverTimeout.current);
         setIsVideoActive(false);
-        setIsMuted(false);
+        setIsMuted(true);
     }
+
+    const handleLoadedMetadata = () => {
+        if (videoRef.current && activeContent.lastWatchedTime > 0) {
+            videoRef.current.currentTime = Math.max(0, activeContent.lastWatchedTime - 10);
+        }
+    };
 
     useEffect(() => {
         if(isVideoActive && videoRef.current){
             const playPromise = videoRef.current.play();
             if (playPromise !== undefined){
                 playPromise.catch((err) => {
-                    console.warn("Autoplay has been blocked, muted the video", err)
+                    console.warn("Autoplay has been blocked, muted the video", err);
                     setIsMuted(true);
                     if(videoRef.current){
                         videoRef.current.muted = true;
-                        videoRef.current.play();
+                        videoRef.current.play().catch(() => {});
                     }
-                })
+                });
             }
         }
-    },[isVideoActive]);
+    }, [isVideoActive]);
 
-    const toggleMute = (e: React.MouseEvent) => {
+    const toggleMute = (e: MouseEvent) => {
         e.preventDefault();
         if (videoRef.current) {
             videoRef.current.muted = !isMuted;
             setIsMuted(!isMuted);
         }
+    };
+
+    const handlePlayClick = () => {
+        router.push(`/watch?id=${encodeURIComponent(activeContent.seriesId)}&ep=${encodeURIComponent(activeContent.episodeFile)}`);
     };
 
     return (
@@ -64,7 +99,7 @@ const HeroBanerSection = () => {
         >
             <Image
                 src={activeContent.image}
-                alt={`current anime`}
+                alt={activeContent.seriesId}
                 fill
                 priority
                 className={`object-cover transition-all duration-700 ${isVideoActive ? 'scale-105 opacity-0' : 'scale-100 opacity-100'}`}
@@ -75,6 +110,8 @@ const HeroBanerSection = () => {
                     <video
                         ref={videoRef}
                         src={activeContent.video}
+                        onLoadedMetadata={handleLoadedMetadata}
+                        muted={isMuted}
                         loop
                         playsInline
                         className='w-full h-full object-cover'
@@ -95,25 +132,38 @@ const HeroBanerSection = () => {
             )}
 
             <div className="absolute inset-0 p-5 md:p-10 flex flex-col justify-end w-full md:max-w-3xl z-20 pointer-events-none">
-                <div className="flex items-center gap-2 bg-white/10 backdrop-blur border border-white/5 rounded-full px-3 py-1.5 w-fit mb-3 md:mb-4">
-                    <span className="text-xs font-medium text-foreground">Continue Watching</span>
-                </div>
+                {lastWatchedData && (
+                    <div className="flex items-center gap-2 bg-white/10 backdrop-blur border border-white/5 rounded-full px-3 py-1.5 w-fit mb-3 md:mb-4">
+                        <Clock size={14} className='text-primary' />
+                        <span className="text-xs font-medium text-foreground">Kontynuuj Oglądanie</span>
+                    </div>
+                )}
+
                 <div className="flex flex-wrap items-center gap-2 mb-2 md:mb-3">
-                    <span className="text-[0.625rem] md:text-xs font-medium px-2.5 py-1 bg-surface/50 backdrop-blur-md border border-white/5 rounded-full text-foreground/80">Cyberpunk</span>
-                    <span className="text-[0.625rem] md:text-xs font-medium px-2.5 py-1 bg-surface/50 backdrop-blur-md border border-white/5 rounded-full text-foreground/80">Action</span>
+                    {activeContent.tags.map((tag, idx) => (
+                        <span key={idx} className="text-[0.625rem] md:text-xs font-medium px-2.5 py-1 bg-surface/50 backdrop-blur-md border border-white/5 rounded-full text-foreground/80">
+                            {tag}
+                        </span>
+                    ))}
                 </div>
+
                 <h1 className="text-2xl sm:text-3xl md:text-5xl font-bold text-foreground mb-2 md:mb-3 leading-tight text-balance">
-                    Neon Genesis: <br className="hidden md:block" />
-                    Cyber City
+                    {activeContent.seriesId}
                 </h1>
+
                 <p className="text-xs md:text-base text-muted line-clamp-2 md:line-clamp-3 mb-6 md:mb-8 max-w-xl">
-                    Kiedy dwa zwaśnione klony odkrywają tajny portal, podróżują przez magiczne wymiary, próbując odnaleźć drogę powrotną do domu, zanim system ulegnie całkowitemu resetowi.
+                    {activeContent.description}
                 </p>
 
                 <div className="flex items-center gap-2 md:gap-3 w-full md:w-auto z-30 pointer-events-auto">
-                    <button className='flex-1 md:flex-none flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-foreground font-semibold cursor-pointer py-2.5 md:py-3 px-6 rounded-3xl transition-all duration-300 active:scale-95'>
+                    <button
+                        onClick={handlePlayClick}
+                        className='flex-1 md:flex-none flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-foreground font-semibold cursor-pointer py-2.5 md:py-3 px-6 rounded-3xl transition-all duration-300 active:scale-95'
+                    >
                         <Play size={18} fill='currentColor' className='md:w-5 md:h-5'/>
-                        <span className="text-sm md:text-base whitespace-nowrap">Resume S1:E4</span>
+                        <span className="text-sm md:text-base whitespace-nowrap">
+                            Wznów {activeContent.episodeFile.replace('.mp4', '')}
+                        </span>
                     </button>
 
                     <button className='flex items-center cursor-pointer justify-center bg-surface/50 hover:bg-white/10 border border-white/10 text-foreground w-11 h-11 md:w-12 md:h-12 rounded-xl transition-all duration-300 backdrop-blur-md shrink-0 active:scale-95'>
@@ -126,10 +176,16 @@ const HeroBanerSection = () => {
                 </div>
             </div>
 
-            <div className="absolute bottom-0 left-0 w-full h-1 md:h-1.5 bg-surface/50 z-30 pointer-events-none">
-                <div className="h-full bg-primary glow-primary w-[45%] rounded-r-full" />
-            </div>
+            {lastWatchedData && (
+                <div className="absolute bottom-0 left-0 w-full h-1 md:h-1.5 bg-surface/50 z-30 pointer-events-none">
+                    <div
+                        className="h-full bg-primary glow-primary rounded-r-full transition-all duration-1000"
+                        style={{ width: `${activeContent.progressPercent}%` }}
+                    />
+                </div>
+            )}
         </div>
     );
 };
+
 export default HeroBanerSection;

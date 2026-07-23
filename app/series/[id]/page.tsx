@@ -1,19 +1,13 @@
-"use client"
-
-import db from '@/db.json'
-import { useState } from "react";
 import Image from "next/image"
 import { Play } from "lucide-react";
-import SeasonSelector from "@/components/SeasonsSelector";
 import EpisodeList from "@/components/EpisodeList";
+import { getLocalUploads } from "@/lib/fetchLocalUploads";
 
-const SeriesPage = ({params}: {params:{id:string}}) => {
-    const seriesID = Number(params.id);
-    const seriesInfo = db.series.find((s) => s.id === seriesID);
-    const seriesEpisodes = (db.episodes as any)[seriesID] || [];
-
-    const [activeSeason, setActiveSeason] = useState(1);
-    const availableSeasons = [1];
+const SeriesPage = async ({params}: {params: Promise<{id:string}>}) => {
+    const resolvedParams = await params;
+    const seriesID = Number(resolvedParams.id);
+    const localUploads = await getLocalUploads();
+    const seriesInfo = localUploads.find(s => s.id === seriesID);
 
     if(!seriesInfo){
         return (
@@ -23,10 +17,19 @@ const SeriesPage = ({params}: {params:{id:string}}) => {
         )
     }
 
+    const seriesEpisodes = seriesInfo.localEpisodes.map((epName, index) => ({
+        id: `${seriesInfo.id}-${index + 1}`,
+        seriesId: seriesInfo.id,
+        episodeNumber: index + 1,
+        title: `Odcinek ${index + 1}`,
+        duration: "24 min",
+        description: epName,
+        thumbnail: seriesInfo.coverImage,
+    }));
+
     return (
         <main className='w-full min-h-screen bg-background pb-20'>
-
-            {/* maly hero baner */}
+            {/* Mały hero baner */}
             <div className="relative w-full h-[40vh] md:h-[50vh]">
                 <Image
                     src={seriesInfo.coverImage}
@@ -70,14 +73,10 @@ const SeriesPage = ({params}: {params:{id:string}}) => {
 
             <section className='mt-8 px-4 md:px-8 w-full max-w-5xl mx-auto'>
                 {seriesEpisodes.length > 0 ? (
-                    <>
-                        <SeasonSelector
-                            seasons={availableSeasons}
-                            activeSeason={activeSeason}
-                            onSeasonChange={setActiveSeason}
-                        />
-                        <EpisodeList episodes={seriesEpisodes} />
-                    </>
+                    <EpisodeList
+                        episodes={seriesEpisodes}
+                        seriesId={seriesInfo.id}
+                    />
                 ) : (
                     <p className="text-white/50 text-center py-10">Brak odcinków do wyświetlenia.</p>
                 )}
@@ -85,4 +84,5 @@ const SeriesPage = ({params}: {params:{id:string}}) => {
         </main>
     )
 }
+
 export default SeriesPage;

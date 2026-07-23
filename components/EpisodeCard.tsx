@@ -1,8 +1,11 @@
+"use client"
 import Image from "next/image"
 import {Play} from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export interface EpisodeProps {
     id: number | string;
+    seriesId: number | string;
     episodeNumber: number;
     title: string;
     duration: number | string;
@@ -11,9 +14,12 @@ export interface EpisodeProps {
     progress?: number;
 }
 
-const EpisodeCard = ({episodeNumber, title, duration, description, thumbnail, progress}: EpisodeProps) => {
+const EpisodeCard = ({seriesId, episodeNumber, title, duration, description, thumbnail, progress}: EpisodeProps) => {
+    const router = useRouter();
     return (
-        <div className="group flex flex-col md:flex-row gap-4 p-4 rounded-xl cursor-pointer  bg-surface/20 border border-white/5 hover:bg-surface/60 transition-all duration-300 relative">
+        <div
+            onClick={() => router.push(`/watch?id=${seriesId}&ep=${episodeNumber}`)}
+            className="group flex flex-col md:flex-row gap-4 p-4 rounded-xl cursor-pointer  bg-surface/20 border border-white/5 hover:bg-surface/60 transition-all duration-300 relative">
 
             {/*miniaturka*/}
             <div className="relative w-full md:w-48 aspect-video shrink-0 rounded-lg overflow-hidden bg-background">
