@@ -3,7 +3,8 @@ import {useRouter, useSearchParams} from "next/navigation"
 import {useEffect, useState} from "react"
 import {fetchMovieInfo} from "@/lib/fetchMovieInfo";
 import {Episode} from "@/lib/fetchMovieInfo";
-import {X, Play} from 'lucide-react'
+import {getEpisodeWatchedSeconds, secondsToProgressPercent, WATCHED_THRESHOLD_PERCENT} from "@/lib/watchProgress";
+import {X, Play, CheckCircle2, FileVideo} from 'lucide-react'
 import Image from "next/image";
 
 const SeriesModal = () => {
@@ -13,6 +14,7 @@ const SeriesModal = () => {
 
     const [movieData, setMovieData] = useState<any>(null)
     const [episodes, setEpisodes] = useState<Episode[]>([])
+    const [progressByEpisode, setProgressByEpisode] = useState<Record<string, number>>({})
     const [loading, setLoading] = useState(false)
     const [showAnimation, setShowAnimation] = useState(false)
 
@@ -33,7 +35,16 @@ const SeriesModal = () => {
             const data = await fetchMovieInfo(Number(movieId));
             setMovieData(data.details);
             setEpisodes(data.episodes);
+            setProgressByEpisode({});
             setLoading(false);
+
+            if (data.folderTitle) {
+                const entries = await Promise.all(data.episodes.map(async (ep) => {
+                    const watchedSeconds = await getEpisodeWatchedSeconds(data.folderTitle!, ep.title);
+                    return [ep.mal_id, secondsToProgressPercent(watchedSeconds)] as const;
+                }));
+                setProgressByEpisode(Object.fromEntries(entries));
+            }
         }
 
         void loadMovieData();
@@ -112,41 +123,62 @@ const SeriesModal = () => {
                                 Odcinki ({episodes.length})
                             </h2>
 
-                            <div className="flex flex-col gap-3">
-                                {episodes.map((ep) => (
-                                    <div
-                                        key={ep.mal_id}
-                                        className='flex items-center gap-4 p-3 md:p-4 bg-surface-light/50 rounded-lg border border-border hover:border-border-hover hover:bg-surface-light transition-all cursor-pointer group'
-                                    >
-                                        <div className="relative w-32 h-20 md:w-40 md:h-24 shrink-0 rounded-md overflow-hidden bg-background">
-                                            {ep.images?.jpg?.image_url ? (
-                                                <Image
-                                                    src={ep.images.jpg.image_url}
-                                                    alt={`Odcinek ${ep.episode}`}
-                                                    fill
-                                                    className='object-cover group-hover:scale-105 transition-transform duration-300 cursor-pointer'
-                                                    sizes="(max-width: 768px) 128px, 160px"
-                                                />
-                                            ) : (
-                                                <div className="flex items-center justify-center w-full h-full text-muted text-xs">
-                                                    Brak miniaturki
+                            <div className="flex flex-col gap-3 max-h-[40vh] overflow-y-auto pr-1 -mr-1 scrollbar-hide">
+                                {episodes.map((ep) => {
+                                    const progress = progressByEpisode[ep.mal_id];
+                                    const isWatched = progress !== undefined && progress >= WATCHED_THRESHOLD_PERCENT;
+
+                                    return (
+                                        <div
+                                            key={ep.mal_id}
+                                            className='flex items-center gap-4 p-3 md:p-4 bg-surface-light/50 rounded-lg border border-border hover:border-border-hover hover:bg-surface-light transition-all cursor-pointer group'
+                                        >
+                                            <div className={`relative w-32 h-20 md:w-40 md:h-24 shrink-0 rounded-md overflow-hidden bg-background transition-all ${isWatched ? 'opacity-70 ring-2 ring-success/60 shadow-[0_0_16px_-2px_var(--success)]' : ''}`}>
+                                                {ep.images?.jpg?.image_url ? (
+                                                    <Image
+                                                        src={ep.images.jpg.image_url}
+                                                        alt={`Odcinek ${ep.episode}`}
+                                                        fill
+                                                        className='object-cover group-hover:scale-105 transition-transform duration-300 cursor-pointer'
+                                                        sizes="(max-width: 768px) 128px, 160px"
+                                                    />
+                                                ) : (
+                                                    <div className="flex items-center justify-center w-full h-full text-muted text-xs">
+                                                        Brak miniaturki
+                                                    </div>
+                                                )}
+                                                <div className="absolute inset-0 bg-background/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 cursor-pointer">
+                                                    <div className={`w-10 h-10 flex items-center justify-center rounded-full border-2 backdrop-blur-sm ${isWatched ? 'border-success/70 bg-success/10 text-success' : 'border-foreground/60 bg-background/30 text-foreground'}`}>
+                                                        <Play size={16} className='fill-current'/>
+                                                    </div>
                                                 </div>
-                                            )}
-                                            <div className="absolute inset-0 bg-background/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 cursor-pointer">
-                                                <Play size={24} className='fill-foreground text-foreground'/>
+
+                                                {isWatched && (
+                                                    <span className="absolute top-1.5 right-1.5 z-10 flex items-center gap-1 text-[9px] md:text-[10px] font-semibold text-success bg-success/20 backdrop-blur-md border border-success/40 rounded-full px-2 py-0.5">
+                                                        <CheckCircle2 size={10} />
+                                                        Obejrzane
+                                                    </span>
+                                                )}
+
+                                                {progress !== undefined && progress > 0 && (
+                                                    <div className='absolute bottom-0 left-0 w-full h-1 bg-black/50'>
+                                                        <div className="h-full bg-primary" style={{width: `${progress}%`}} />
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="flex flex-col flex-1">
+                                                <span className="text-foreground font-semibold text-sm md:text-base line-clamp-2">
+                                                    {ep.episode}. {ep.title_english ? ep.title_english : ep.title}
+                                                </span>
+                                                <span className='flex items-center gap-1.5 text-xs text-muted mt-1'>
+                                                    <FileVideo size={12} />
+                                                    Wideo MP4
+                                                </span>
                                             </div>
                                         </div>
-
-                                        <div className="flex flex-col flex-1">
-                                            <span className="text-foreground font-semibold text-sm md:text-base line-clamp-2">
-                                                {ep.episode}. {ep.title_english ? ep.title_english : ep.title}
-                                            </span>
-                                            <span className='text-xs text-muted mt-1'>
-                                                Odcinek
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
 
                                 {episodes.length === 0 && (
                                     <div className="text-muted text-sm py-4">

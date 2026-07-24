@@ -113,7 +113,7 @@ const UploadPage = () => {
 
                 {isSuccess && (
                     <div className="absolute inset-0 bg-surface/95 backdrop-blur-sm z-50 flex flex-col items-center justify-center animate-in fade-in duration-500">
-                        <CheckCircle className="text-green-500 w-24 h-24 mb-4 animate-in zoom-in duration-500" />
+                        <CheckCircle className="text-success w-24 h-24 mb-4 animate-in zoom-in duration-500" />
                         <h2 className="text-3xl font-bold text-foreground">Wgrano pomyślnie!</h2>
                         <p className="text-muted mt-2">Pliki są już gotowe na serwerze.</p>
                     </div>
@@ -191,7 +191,7 @@ const UploadPage = () => {
                                         <button
                                             type="button"
                                             onClick={() => removeFile(idx)}
-                                            className="text-muted hover:text-red-500 transition-colors p-1"
+                                            className="text-muted hover:text-danger transition-colors p-1"
                                         >
                                             <X size={18} />
                                         </button>
@@ -208,7 +208,7 @@ const UploadPage = () => {
                                 </div>
                                 <div className="w-full bg-background border border-border rounded-full h-4 overflow-hidden relative">
                                     <div
-                                        className="h-full rounded-full transition-all duration-300 ease-out relative bg-linear-to-t from-indigo-500 via-primary to-purple-500"
+                                        className="h-full rounded-full transition-all duration-300 ease-out relative bg-linear-to-t from-accent via-primary to-primary-hover"
                                         style={{ width: `${progress}%` }}
                                     >
                                         <div className="absolute inset-0 bg-white/20 w-full animate-pulse"></div>

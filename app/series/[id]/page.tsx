@@ -2,6 +2,7 @@ import Image from "next/image"
 import { Play } from "lucide-react";
 import EpisodeList from "@/components/EpisodeList";
 import { getLocalUploads } from "@/lib/fetchLocalUploads";
+import { getEpisodeWatchedSeconds, secondsToProgressPercent } from "@/lib/watchProgress";
 
 const SeriesPage = async ({params}: {params: Promise<{id:string}>}) => {
     const resolvedParams = await params;
@@ -11,20 +12,25 @@ const SeriesPage = async ({params}: {params: Promise<{id:string}>}) => {
 
     if(!seriesInfo){
         return (
-            <div className='w-full min-h-screen bg-background flex items-center justify-center text-white'>
+            <div className='w-full min-h-screen bg-background flex items-center justify-center text-foreground'>
                 <h1 className="text-2xl font-bold">Nie znaleziono serialu</h1>
             </div>
         )
     }
 
-    const seriesEpisodes = seriesInfo.localEpisodes.map((epName, index) => ({
-        id: `${seriesInfo.id}-${index + 1}`,
-        seriesId: seriesInfo.id,
-        episodeNumber: index + 1,
-        title: `Odcinek ${index + 1}`,
-        duration: "24 min",
-        description: epName,
-        thumbnail: seriesInfo.coverImage,
+    const seriesEpisodes = await Promise.all(seriesInfo.localEpisodes.map(async (epName, index) => {
+        const watchedSeconds = await getEpisodeWatchedSeconds(String(seriesInfo.title), epName);
+
+        return {
+            id: `${seriesInfo.id}-${index + 1}`,
+            seriesId: seriesInfo.id,
+            episodeNumber: index + 1,
+            title: `Odcinek ${index + 1}`,
+            duration: "24 min",
+            description: epName,
+            thumbnail: seriesInfo.coverImage,
+            progress: watchedSeconds > 0 ? secondsToProgressPercent(watchedSeconds) : undefined,
+        };
     }));
 
     return (
@@ -54,7 +60,7 @@ const SeriesPage = async ({params}: {params: Promise<{id:string}>}) => {
                         <h1 className="text-3xl md:text-5xl font-bold text-foreground drop-shadow-lg">
                             {seriesInfo.title}
                         </h1>
-                        <div className="flex items-center gap-3 text-sm text-white/80">
+                        <div className="flex items-center gap-3 text-sm text-foreground/80">
                             {seriesInfo.year && <span>{seriesInfo.year}</span>}
                             {seriesInfo.rating && (
                                 <span className='px-1.5 py-0.5 border border-white/30 rounded bg-black/40 backdrop-blur-sm'>
@@ -62,9 +68,9 @@ const SeriesPage = async ({params}: {params: Promise<{id:string}>}) => {
                                 </span>
                             )}
                         </div>
-                        <button className="mt-2 w-fit flex items-center gap-2 bg-primary hover:bg-primary-hover text-white px-6 py-2.5
+                        <button className="mt-2 w-fit flex items-center gap-2 bg-primary hover:bg-primary-hover text-foreground px-6 py-2.5
                         rounded-lg font-semibold transition-colors shadow-lg shadow-primary/30">
-                            <Play size={20} className='fill-white'/>
+                            <Play size={20} className='fill-foreground'/>
                             Oglądaj od początku
                         </button>
                     </div>
@@ -78,7 +84,7 @@ const SeriesPage = async ({params}: {params: Promise<{id:string}>}) => {
                         seriesId={seriesInfo.id}
                     />
                 ) : (
-                    <p className="text-white/50 text-center py-10">Brak odcinków do wyświetlenia.</p>
+                    <p className="text-muted text-center py-10">Brak odcinków do wyświetlenia.</p>
                 )}
             </section>
         </main>

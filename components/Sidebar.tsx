@@ -2,11 +2,13 @@
 import {MENU_SECTIONS} from "@/config/menu";
 import {useState} from "react";
 import Link from "next/link";
+import {usePathname} from "next/navigation";
 import { Tv, Settings, LogOut, Menu} from "lucide-react";
 
 const Sidebar = () => {
     const [isMobileOpen, setIsMobileOpen] = useState<boolean>(false);
     const [isDesktopExpanded, setIsDesktopExpanded] = useState<boolean>(false);
+    const pathname = usePathname();
 
     return (
         <>
@@ -58,7 +60,9 @@ const Sidebar = () => {
                         {MENU_SECTIONS.map((section, i) => (
                             <div key={i}>
                                 <ul>
-                                    {section.items.map(({ name, href, isActive, icon: Icon }) => (
+                                    {section.items.map(({ name, href, icon: Icon }) => {
+                                        const isActive = pathname === href;
+                                        return (
                                         <li key={name}>
                                             <Link
                                                 href={href}
@@ -80,7 +84,8 @@ const Sidebar = () => {
                                               </span>
                                             </Link>
                                         </li>
-                                    ))}
+                                        );
+                                    })}
                                 </ul>
                             </div>
                         ))}

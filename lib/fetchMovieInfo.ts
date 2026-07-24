@@ -1,4 +1,5 @@
 import { JikanAnimeData } from '@/lib/fetchMoviePopular'
+import { fetchJikan } from '@/lib/jikanClient'
 
 export interface Episode {
     mal_id: number;
@@ -13,9 +14,7 @@ export interface Episode {
     };
 }
 
-const BASE_URL = process.env.NEXT_PUBLIC_MOVIE_API_URL;
-
-export const fetchMovieInfo = async (id: number): Promise<{ details: JikanAnimeData | null, episodes: Episode[] }> => {
+export const fetchMovieInfo = async (id: number): Promise<{ details: JikanAnimeData | null, episodes: Episode[], folderTitle?: string }> => {
     try {
         if (id >= 90000) {
             const localRes = await fetch("https://vids.kacper-brej.pl/sync.php", { cache: 'no-store' });
@@ -32,18 +31,15 @@ export const fetchMovieInfo = async (id: number): Promise<{ details: JikanAnimeD
                 synopsis: "Ten serial jest streamowany z Twojej prywatnej biblioteki na serwerze.",
                 images: {
                     webp: {
-                        large_image_url: 'https://images.unsplash.com/photo-1542931287-023b922fa89b?q=80&w=600&h=400&auto=format&fit=crop'
+                        large_image_url: '/fallback-cover.jpg'
                     }
                 }
             };
 
             try {
-                const jikanRes = await fetch(`${BASE_URL}/anime?q=${encodeURIComponent(series.title)}&limit=1`);
-                if (jikanRes.ok) {
-                    const jikanData = await jikanRes.json();
-                    if (jikanData.data && jikanData.data.length > 0) {
-                        detailsMock = jikanData.data[0];
-                    }
+                const jikanData = await fetchJikan(`/anime?q=${encodeURIComponent(series.title)}&limit=1`);
+                if (jikanData?.data && jikanData.data.length > 0) {
+                    detailsMock = jikanData.data[0];
                 }
             } catch (e) {
                 console.error(e);
@@ -64,24 +60,37 @@ export const fetchMovieInfo = async (id: number): Promise<{ details: JikanAnimeD
 
             return {
                 details: detailsMock,
-                episodes: episodesMock
+                episodes: episodesMock,
+                folderTitle: series.title
             };
         }
 
-        const detailRes = await fetch(`${BASE_URL}/anime/${id}`, {
-            next: { revalidate: 3600 }
-        });
-        const detailsJson = await detailRes.json();
+        const detailsJson = await fetchJikan(`/anime/${id}`);
+        const details = detailsJson?.data || null;
+        const fallbackImage = details?.images?.jpg?.image_url || details?.images?.webp?.large_image_url || '';
 
-        const episodesRes = await fetch(`${BASE_URL}/anime/${id}/videos/episodes`, {
-            next: { revalidate: 3600 }
-        });
-        const episodeJson = await episodesRes.json();
+        const episodes: Episode[] = [];
+        let page = 1;
+        const MAX_PAGES = 20;
 
-        return {
-            details: detailsJson.data || null,
-            episodes: episodeJson.data || []
-        };
+        while (page <= MAX_PAGES) {
+            const episodeJson = await fetchJikan(`/anime/${id}/episodes?page=${page}`);
+            const pageEpisodes = episodeJson?.data || [];
+
+            episodes.push(...pageEpisodes.map((ep: { mal_id: number; title: string; url?: string }): Episode => ({
+                mal_id: ep.mal_id,
+                episode: String(ep.mal_id),
+                title: ep.title || `Odcinek ${ep.mal_id}`,
+                title_english: ep.title || null,
+                url: ep.url,
+                images: { jpg: { image_url: fallbackImage } },
+            })));
+
+            if (!episodeJson?.pagination?.has_next_page) break;
+            page++;
+        }
+
+        return { details, episodes };
     } catch (err) {
         console.error("Error in fetchMovieInfo", err);
         return { details: null, episodes: [] };

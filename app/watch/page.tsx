@@ -1,4 +1,4 @@
-import { getLocalUploads } from "@/lib/fetchLocalUploads";
+import { getLocalSeriesRaw } from "@/lib/fetchLocalUploads";
 import WatchClient from "@/app/watch/WatchClient";
 
 const WatchPage = async ({ searchParams }: { searchParams: Promise<{ id: string, ep: string }> }) => {
@@ -8,15 +8,15 @@ const WatchPage = async ({ searchParams }: { searchParams: Promise<{ id: string,
     const epQuery = resolvedSearchParams.ep;
 
     if (!seriesQueryId) {
-        return <div className="fixed inset-0 z-[999] bg-black min-h-screen flex items-center justify-center text-white">Błędny link</div>;
+        return <div className="fixed inset-0 z-[999] bg-black min-h-screen flex items-center justify-center text-foreground">Błędny link</div>;
     }
 
-    const localUploads = await getLocalUploads();
+    const localUploads = await getLocalSeriesRaw();
 
     const seriesInfo = localUploads.find(s => String(s.title) === seriesQueryId || String(s.id) === seriesQueryId);
 
     if (!seriesInfo) {
-        return <div className="fixed inset-0 z-[999] bg-black min-h-screen flex items-center justify-center text-white">Nie znaleziono serialu: {seriesQueryId}</div>;
+        return <div className="fixed inset-0 z-[999] bg-black min-h-screen flex items-center justify-center text-foreground">Nie znaleziono serialu: {seriesQueryId}</div>;
     }
 
     let epFileName = "";
@@ -32,7 +32,7 @@ const WatchPage = async ({ searchParams }: { searchParams: Promise<{ id: string,
     }
 
     if (!epFileName) {
-        return <div className="fixed inset-0 z-[999] bg-black min-h-screen flex items-center justify-center text-white">Nie znaleziono pliku odcinka na serwerze</div>;
+        return <div className="fixed inset-0 z-[999] bg-black min-h-screen flex items-center justify-center text-foreground">Nie znaleziono pliku odcinka na serwerze</div>;
     }
 
     const baseUrl = "https://vids.kacper-brej.pl/uploads";
@@ -57,6 +57,8 @@ const WatchPage = async ({ searchParams }: { searchParams: Promise<{ id: string,
         console.error("Błąd pobierania czasu:", e);
     }
 
+    const startTime = Math.max(0, savedTime - 10);
+
     return (
         <WatchClient
             videoSrc={videoUrl}
@@ -66,7 +68,7 @@ const WatchPage = async ({ searchParams }: { searchParams: Promise<{ id: string,
             totalEpisodes={totalEpisodes}
             folderName={seriesInfo.title}
             fileName={epFileName}
-            startTime={savedTime}
+            startTime={startTime}
         />
     );
 };

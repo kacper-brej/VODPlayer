@@ -1,4 +1,4 @@
-const BASE_URL = process.env.NEXT_PUBLIC_MOVIE_API_URL;
+import { fetchJikan } from "@/lib/jikanClient";
 
 export interface MovieMappers {
     id:number,
@@ -30,13 +30,10 @@ export interface JikanAnimeData {
 export const getTopMovie = async (): Promise<MovieMappers[]> => {
 
     try {
-        const res = await fetch(`${BASE_URL}/top/anime?limit=20`, {
-            next :{revalidate: 3600}
-        })
+        const data = await fetchJikan(`/top/anime?limit=20`);
 
-        if(!res.ok) throw new Error(`Could not find top-movie for ${BASE_URL}`);
+        if(!data) throw new Error(`Could not find top-movie`);
 
-        const data = await res.json();
         return data.data.map((movie: JikanAnimeData) => ({
             id: movie.mal_id,
             title: movie.title_english || movie.title,

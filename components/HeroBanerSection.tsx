@@ -1,8 +1,8 @@
 "use client";
 import { Play, Download, MoreHorizontal, Clock, Volume2, VolumeX } from "lucide-react";
-import Image from "next/image";
 import { useState, useRef, useEffect, MouseEvent } from "react";
 import { useRouter } from "next/navigation";
+import { hasPageInteraction } from "@/lib/pageInteraction";
 
 export interface LastWatchedData {
     seriesId: string;
@@ -28,7 +28,7 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
         episodeFile: "S1:E1",
         progressPercent: 0,
         lastWatchedTime: 0,
-        image: "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?q=80&w=1974&auto=format&fit=crop",
+        image: "/fallback-cover.jpg",
         video: 'https://www.w3schools.com/html/mov_bbb.mp4',
         description: "Kiedy dwa zwaśnione klony odkrywają tajny portal, podróżują przez magiczne wymiary, próbując odnaleźć drogę powrotną do domu, zanim system ulegnie całkowitemu resetowi.",
         tags: ["Cyberpunk", "Action"]
@@ -36,34 +36,53 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
 
     const activeContent = lastWatchedData || randomShowcaseData;
 
-    const [isVideoActive, setIsVideoActive] = useState<boolean>(false);
+    const [hasMounted, setHasMounted] = useState(false);
+
+    useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setHasMounted(true);
+    }, []);
+
+    const [isPlaying, setIsPlaying] = useState<boolean>(false);
     const hoverTimeout = useRef<NodeJS.Timeout | null>(null);
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const [isMuted, setIsMuted] = useState<boolean>(true); // Zmienione domyślnie na true, przeglądarki blokują autoplay z dźwiękiem
+
+    const THUMBNAIL_FRAME_SECONDS = 3;
+
+    const showThumbnailFrame = () => {
+        if (videoRef.current) {
+            videoRef.current.currentTime = THUMBNAIL_FRAME_SECONDS;
+        }
+    };
+
+    const seekToResumePoint = () => {
+        if (videoRef.current) {
+            videoRef.current.currentTime = Math.max(0, activeContent.lastWatchedTime - 10);
+        }
+    };
 
     const handleHover = () => {
         if (typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches) {
             return;
         }
         hoverTimeout.current = setTimeout(() => {
-            setIsVideoActive(true);
+            setIsMuted(!hasPageInteraction());
+            seekToResumePoint();
+            setIsPlaying(true);
         }, 250);
     }
 
     const handleHoverEnd = () => {
         if (hoverTimeout.current) clearTimeout(hoverTimeout.current);
-        setIsVideoActive(false);
+        setIsPlaying(false);
         setIsMuted(true);
+        videoRef.current?.pause();
+        showThumbnailFrame();
     }
 
-    const handleLoadedMetadata = () => {
-        if (videoRef.current && activeContent.lastWatchedTime > 0) {
-            videoRef.current.currentTime = Math.max(0, activeContent.lastWatchedTime - 10);
-        }
-    };
-
     useEffect(() => {
-        if(isVideoActive && videoRef.current){
+        if(isPlaying && videoRef.current){
             const playPromise = videoRef.current.play();
             if (playPromise !== undefined){
                 playPromise.catch((err) => {
@@ -76,7 +95,7 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
                 });
             }
         }
-    }, [isVideoActive]);
+    }, [isPlaying]);
 
     const toggleMute = (e: MouseEvent) => {
         e.preventDefault();
@@ -97,32 +116,31 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
             className={`rounded-3xl shadow-2xl m-auto mt-15 relative bg-surface w-[85%] border border-white/5 h-[50vh] md:h-[60vh] overflow-hidden group  
             duration-700 cursor-pointer hover:scale-105 hover:shadow-[0_0_50px_var(--primary)]`}
         >
-            <Image
-                src={activeContent.image}
-                alt={activeContent.seriesId}
-                fill
-                priority
-                className={`object-cover transition-all duration-700 ${isVideoActive ? 'scale-105 opacity-0' : 'scale-100 opacity-100'}`}
-            />
-
-            {isVideoActive && (
-                <div className='absolute inset-0 w-full h-full scale-105 animate-[fade-in_500ms_ease-in-out]'>
-                    <video
-                        ref={videoRef}
-                        src={activeContent.video}
-                        onLoadedMetadata={handleLoadedMetadata}
-                        muted={isMuted}
-                        loop
-                        playsInline
-                        className='w-full h-full object-cover'
-                    />
-                </div>
+            {hasMounted ? (
+                <video
+                    ref={videoRef}
+                    src={activeContent.video}
+                    poster={activeContent.image}
+                    onLoadedMetadata={showThumbnailFrame}
+                    muted={isMuted}
+                    loop
+                    playsInline
+                    preload="auto"
+                    className={`w-full h-full object-cover transition-transform duration-700 ${isPlaying ? 'scale-105' : 'scale-100'}`}
+                />
+            ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                    src={activeContent.image}
+                    alt={activeContent.seriesId}
+                    className="w-full h-full object-cover"
+                />
             )}
 
             <div className="absolute inset-x-0 bg-linear-to-t from-background/95 via-background/40 to-transparent md:bg-linear-to-r md:from-background md:via-background/80 md:to-transparent z-10 pointer-events-none"/>
             <div className="absolute inset-0 bg-linear-to-t from-background via-transparent to-transparent opacity-100 md:opacity-80 z-10 pointer-events-none"/>
 
-            {isVideoActive && (
+            {isPlaying && (
                 <button
                     onClick={toggleMute}
                     className="absolute cursor-pointer bottom-6 right-6 z-40 hidden md:flex items-center justify-center w-10 h-10 bg-surface/50 hover:bg-surface/80 backdrop-blur-md border border-white/10 rounded-full text-foreground transition-all duration-300 active:scale-95"

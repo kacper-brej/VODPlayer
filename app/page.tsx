@@ -9,7 +9,7 @@ import {getLocalUploads} from "@/lib/fetchLocalUploads";
 
 const getLastWatched = async () => {
     try {
-        const key = process.env.UPLOAD_SECRET;
+        const key = process.env.NEXT_PUBLIC_UPLOAD_SECRET;
         const res = await fetch(`https://vids.kacper-brej.pl/sync_progress.php?key=${key}&action=get_latest&profile=Kacper`, {
             cache: 'no-store'
         });
@@ -23,7 +23,7 @@ const getLastWatched = async () => {
                     episodeFile: data.fileID,
                     lastWatchedTime: data.time || 0,
                     progressPercent: 0,
-                    image: "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?q=80&w=1974&auto=format&fit=crop",
+                    image: "/fallback-cover.jpg",
                     video: `https://vids.kacper-brej.pl/uploads/${encodeURIComponent(data.seriesId)}/${encodeURIComponent(data.fileID)}`,
                     description: "Kontynuuj oglądanie",
                     tags: ["Wznowione"]
@@ -46,14 +46,22 @@ export default async function Home() {
         getLastWatched()
     ]);
 
+    const localSeriesWithProgress = lastWatched
+        ? localSeries.map((item) =>
+            String(item.title) === lastWatched.seriesId
+                ? { ...item, watchedSeconds: lastWatched.lastWatchedTime }
+                : item
+          )
+        : localSeries;
+
     return (
         <>
             <main className='w-full min-w-0 max-w-full min-h-screen bg-background pb-20 overflow-x-hidden'>
                 <HeroBanerSection lastWatchedData={lastWatched}/>
 
                 <div className="mt-8 md:mt-12 flex flex-col gap-6 px-8">
-                    {localSeries && localSeries.length > 0 && (
-                        <ContentRow title='Biblioteka' series={localSeries} />
+                    {localSeriesWithProgress && localSeriesWithProgress.length > 0 && (
+                        <ContentRow title='Biblioteka' series={localSeriesWithProgress} />
                     )}
                     <ContentRow title='Hot takes' series={topMovie}/>
                     <ContentRow title='Nowości' series={newestMovie}/>

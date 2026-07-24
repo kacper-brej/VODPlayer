@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 @source "../components";
 :root {
   /* TŁO */
@@ -29,6 +30,18 @@
   /* GLOW */
   --glow-primary: rgba(139, 92, 246, 0.35);
   --glow-accent: rgba(56, 189, 248, 0.35);
+
+  --media-brand: var(--primary);
+  --media-focus-ring: 0 0 0 3px var(--glow-primary);
+  --media-font-family: Arial, Helvetica, sans-serif;
+  --media-menu-bg: var(--surface);
+  --media-tooltip-bg-color: var(--surface-light);
+  --media-live-button-bg: var(--primary);
+  --media-slider-thumb-bg: var(--foreground);
+  --media-slider-track-fill-bg: var(--primary);
+  --media-slider-track-bg: rgba(255, 255, 255, 0.2);
+
+  --media-button-border-radius: 9999px;
 }
 
 @theme inline {
@@ -89,5 +102,14 @@ body {
   scrollbar-width: none;
   &::-webkit-scrollbar {
     display: none;
+  }
+}
+
+@keyframes next-episode-fill {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
   }
 }

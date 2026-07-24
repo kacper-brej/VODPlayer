@@ -17,7 +17,7 @@ export const MENU_SECTIONS = [
     {
         title: 'Menu',
         items: [
-            { name: "Home", icon: Home, href: "/", isActive: true },
+            { name: "Home", icon: Home, href: "/" },
             { name: "Explore", icon: Compass, href: "/explore" },
             { name: "Genres", icon: LayoutGrid, href: "/genres" },
             { name: "Favourites", icon: Bookmark, href: "/favourites" },

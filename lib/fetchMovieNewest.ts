@@ -1,14 +1,11 @@
 import {JikanAnimeData, MovieMappers} from "@/lib/fetchMoviePopular";
-const BASE_URL = process.env.NEXT_PUBLIC_MOVIE_API_URL;
+import { fetchJikan } from "@/lib/jikanClient";
 
 export const getMovieNewest = async (): Promise<MovieMappers[]> => {
     try {
-        const res = await fetch(`${BASE_URL}/seasons/now?limit=20`, {
-            next :{revalidate: 3600}
-        });
+        const resData = await fetchJikan(`/seasons/now?limit=20`);
 
-        if(!res.ok) throw new Error('Could not find new anime ');
-        const resData = await res.json();
+        if(!resData) throw new Error('Could not find new anime ');
         return resData.data
             .sort((a:JikanAnimeData, b:JikanAnimeData) => (b.score || 0) - (a.score || 0))
             .map((movie:JikanAnimeData) => ({
