@@ -4,7 +4,7 @@ import {useEffect, useState} from "react"
 import {fetchMovieInfo} from "@/lib/fetchMovieInfo";
 import {Episode} from "@/lib/fetchMovieInfo";
 import {getEpisodeWatchedSeconds, secondsToProgressPercent, WATCHED_THRESHOLD_PERCENT} from "@/lib/watchProgress";
-import {X, Play, CheckCircle2, FileVideo} from 'lucide-react'
+import {X, Play, CheckCircle2, FileVideo, ArrowUpRight} from 'lucide-react'
 import Image from "next/image";
 
 const SeriesModal = () => {
@@ -22,6 +22,14 @@ const SeriesModal = () => {
         setShowAnimation(false);
         setTimeout(() => {
             router.push("/", {scroll:false})
+        }, 200);
+    }
+
+    const goToSeriesPage = () => {
+        if (!movieId) return;
+        setShowAnimation(false);
+        setTimeout(() => {
+            router.push(`/series/${movieId}`);
         }, 200);
     }
 
@@ -115,9 +123,17 @@ const SeriesModal = () => {
                             <h1 className="text-2xl md:text-4xl font-bold mb-2 drop-shadow-lg text-foreground">
                                 {movieData?.title || "Brak tytułu"}
                             </h1>
-                            <p className='text-sm md:text-base text-muted mb-8 line-clamp-4 md:line-clamp-none'>
+                            <p className='text-sm md:text-base text-muted mb-6 line-clamp-4 md:line-clamp-none'>
                                 {movieData?.synopsis || "Brak opisu."}
                             </p>
+
+                            <button
+                                onClick={goToSeriesPage}
+                                className="mb-8 flex items-center gap-2 w-fit bg-surface-light hover:bg-primary text-foreground px-4 md:px-5 py-2 md:py-2.5 text-sm md:text-base rounded-lg font-semibold border border-border hover:border-primary transition-colors cursor-pointer"
+                            >
+                                Przejdź do strony serialu
+                                <ArrowUpRight size={18} />
+                            </button>
 
                             <h2 className="text-lg md:text-xl font-semibold mb-4 text-foreground" >
                                 Odcinki ({episodes.length})

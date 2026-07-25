@@ -40,7 +40,10 @@ const WatchClient = ({ videoSrc, title, seriesId, currentEpisode, totalEpisodes,
 
     useEffect(() => {
         const handleGlobalError = (event: ErrorEvent) => {
-            if (event.message?.includes("setAttribute") && event.filename?.includes("vidstack")) {
+            const isVidstackNoise = event.filename?.includes("vidstack") && (
+                event.message?.includes("setAttribute") || event.message?.includes("$state[prop]")
+            );
+            if (isVidstackNoise) {
                 event.preventDefault();
             }
         };

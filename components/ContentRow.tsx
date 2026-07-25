@@ -2,7 +2,6 @@
 import SeriesCard, { SeriesCardProps } from "./SeriesCard";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRef } from "react";
-// ZMIANA 1: Importujemy useRouter z next/navigation
 import { useRouter } from "next/navigation";
 
 interface ContentRowProps {
