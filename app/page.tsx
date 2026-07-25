@@ -1,8 +1,8 @@
-import HeroBanerSection from "@/components/HeroBanerSection";
-import ContentRow from "@/components/ContentRow";
+import HeroBanerSection from "@/components/series/HeroBanerSection";
+import ContentRow from "@/components/series/ContentRow";
 import {getTopMovie} from "@/lib/fetchMoviePopular";
 import {getMovieNewest} from "@/lib/fetchMovieNewest";
-import SeriesModal from "@/components/SeriesModal";
+import SeriesModal from "@/components/series/SeriesModal";
 import {Suspense} from "react";
 import {getLocalUploads} from "@/lib/fetchLocalUploads";
 

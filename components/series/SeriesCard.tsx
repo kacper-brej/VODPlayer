@@ -56,9 +56,7 @@ const SeriesCard = ({ id, title, coverImage, rating = "16+", year, previewVideoU
     };
 
     useEffect(() => {
-        if (watchedSeconds !== undefined) {
-            loadVideoIfNeeded();
-        }
+        loadVideoIfNeeded();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -99,7 +97,7 @@ const SeriesCard = ({ id, title, coverImage, rating = "16+", year, previewVideoU
                     muted
                     loop
                     playsInline
-                    preload="none"
+                    preload="metadata"
                     className={`w-full h-full object-cover transition-transform duration-300 ${isPlaying ? 'scale-105' : 'scale-100'}`}
                 />
             ) : (

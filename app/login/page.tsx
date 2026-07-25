@@ -1,5 +1,10 @@
-import { SignInCard } from "@/components/SignInCard";
+import { Suspense } from "react";
+import { SignInCard } from "@/components/auth/SignInCard";
 
 export default function LoginPage() {
-    return <SignInCard />;
+    return (
+        <Suspense>
+            <SignInCard />
+        </Suspense>
+    );
 }

@@ -1,6 +1,6 @@
 import Image from "next/image"
 import { Play } from "lucide-react";
-import EpisodeList from "@/components/EpisodeList";
+import EpisodeList from "@/components/episodes/EpisodeList";
 import { getLocalUploads } from "@/lib/fetchLocalUploads";
 import { getEpisodeWatchedSeconds, secondsToProgressPercent } from "@/lib/watchProgress";
 

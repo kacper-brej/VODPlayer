@@ -1,4 +1,4 @@
-import EpisodeCard, {EpisodeProps} from "@/components/EpisodeCard";
+import EpisodeCard, {EpisodeProps} from "@/components/episodes/EpisodeCard";
 
 interface EpisodeListProps {
     episodes: Omit<EpisodeProps, 'episodeId'>[];

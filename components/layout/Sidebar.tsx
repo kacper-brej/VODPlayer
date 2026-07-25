@@ -2,13 +2,21 @@
 import {MENU_SECTIONS} from "@/config/menu";
 import {useState} from "react";
 import Link from "next/link";
-import {usePathname} from "next/navigation";
+import {usePathname, useRouter} from "next/navigation";
 import { Tv, Settings, LogOut, Menu} from "lucide-react";
+import { useAuth } from "@/lib/AuthContext";
 
 const Sidebar = () => {
     const [isMobileOpen, setIsMobileOpen] = useState<boolean>(false);
     const [isDesktopExpanded, setIsDesktopExpanded] = useState<boolean>(false);
     const pathname = usePathname();
+    const router = useRouter();
+    const { logout } = useAuth();
+
+    const handleLogout = async () => {
+        await logout();
+        router.push("/login");
+    };
 
     return (
         <>
@@ -114,6 +122,7 @@ const Sidebar = () => {
                       </span>
                     </Link>
                     <button
+                        onClick={handleLogout}
                         title={!isDesktopExpanded ? 'Logout' : undefined}
                         className={`flex cursor-pointer items-center py-3 px-3 rounded-xl text-muted hover:text-danger hover:bg-danger/10 transition-all duration-300 relative overflow-hidden mx-auto ${
                             isDesktopExpanded ? 'w-full' : 'w-11'
