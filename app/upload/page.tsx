@@ -1,6 +1,7 @@
 "use client"
 import { useState, FormEvent, useRef } from "react";
 import { UploadCloud, CheckCircle, Film, FileVideo, X } from 'lucide-react'
+import getUploadKeyAction from "@/lib/getUploadKeyAction";
 
 const CHUNK_SIZE = 5 * 1024 * 1024;
 
@@ -45,7 +46,7 @@ const UploadPage = () => {
         setEpisodes(prev => prev.filter((_, index) => index !== indexToRemove));
     };
 
-    const uploadFileChunks = async (file: File, folder: string) => {
+    const uploadFileChunks = async (file: File, folder: string, key: string) => {
         const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
 
         for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
@@ -54,7 +55,7 @@ const UploadPage = () => {
             const chunk = file.slice(start, end);
 
             const formData = new FormData();
-            formData.append("key", process.env.NEXT_PUBLIC_UPLOAD_SECRET || "");
+            formData.append("key", key);
             formData.append("folder", folder);
             formData.append("filename", file.name);
             formData.append("chunkIndex", chunkIndex.toString());
@@ -85,9 +86,14 @@ const UploadPage = () => {
         setIsSuccess(false);
 
         try {
+            const key = await getUploadKeyAction();
+            if (!key) {
+                throw new Error("Brak autoryzacji - zaloguj się ponownie");
+            }
+
             for (let i = 0; i < episodes.length; i++) {
                 setStatusText(`Przesyłanie: ${episodes[i].name} (${i + 1}/${episodes.length})`);
-                await uploadFileChunks(episodes[i], title);
+                await uploadFileChunks(episodes[i], title, key);
             }
 
             setIsSuccess(true);

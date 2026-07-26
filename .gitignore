@@ -37,7 +37,11 @@ yarn-error.log*
 .vercel
 
 backend-php/config.php
+backend-php/vendor/
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# claude code local tooling
+/.claude/

@@ -9,7 +9,7 @@ import {getLocalUploads} from "@/lib/fetchLocalUploads";
 
 const getLastWatched = async () => {
     try {
-        const key = process.env.NEXT_PUBLIC_UPLOAD_SECRET;
+        const key = process.env.UPLOAD_SECRET;
         const res = await fetch(`https://vids.kacper-brej.pl/sync_progress.php?key=${key}&action=get_latest&profile=Kacper`, {
             cache: 'no-store'
         });
@@ -38,13 +38,13 @@ const getLastWatched = async () => {
 }
 
 
-export default async function Home() {
-    const [topMovie, newestMovie, localSeries, lastWatched] = await Promise.all([
-        getTopMovie(),
-        getMovieNewest(),
-        getLocalUploads(),
-        getLastWatched()
-    ]);
+const Hero = async () => {
+    const lastWatched = await getLastWatched();
+    return <HeroBanerSection lastWatchedData={lastWatched}/>;
+}
+
+const LibraryRow = async () => {
+    const [localSeries, lastWatched] = await Promise.all([getLocalUploads(), getLastWatched()]);
 
     const localSeriesWithProgress = lastWatched
         ? localSeries.map((item) =>
@@ -54,23 +54,47 @@ export default async function Home() {
           )
         : localSeries;
 
+    if (!localSeriesWithProgress || localSeriesWithProgress.length === 0) return null;
+
+    return <ContentRow title='Biblioteka' series={localSeriesWithProgress} />;
+}
+
+const TopMovieRows = async () => {
+    const topMovie = await getTopMovie();
     return (
         <>
-            <main className='w-full min-w-0 max-w-full min-h-screen bg-background pb-20 overflow-x-hidden'>
-                <HeroBanerSection lastWatchedData={lastWatched}/>
-
-                <div className="mt-8 md:mt-12 flex flex-col gap-6 px-8">
-                    {localSeriesWithProgress && localSeriesWithProgress.length > 0 && (
-                        <ContentRow title='Biblioteka' series={localSeriesWithProgress} />
-                    )}
-                    <ContentRow title='Hot takes' series={topMovie}/>
-                    <ContentRow title='Nowości' series={newestMovie}/>
-                    <ContentRow title='Obejrzyj ponownie' series={topMovie}/>
-                </div>
-                <Suspense fallback={null}>
-                    <SeriesModal />
-                </Suspense>
-            </main>
+            <ContentRow title='Hot takes' series={topMovie}/>
+            <ContentRow title='Obejrzyj ponownie' series={topMovie}/>
         </>
+    );
+}
+
+const NewestRow = async () => {
+    const newestMovie = await getMovieNewest();
+    return <ContentRow title='Nowości' series={newestMovie}/>;
+}
+
+export default function Home() {
+    return (
+        <main className='w-full min-w-0 max-w-full min-h-screen bg-background pb-20 overflow-x-hidden'>
+            <Suspense fallback={null}>
+                <Hero/>
+            </Suspense>
+
+            <div className="mt-8 md:mt-12 flex flex-col gap-6 px-8">
+                <Suspense fallback={null}>
+                    <LibraryRow/>
+                </Suspense>
+                <Suspense fallback={null}>
+                    <TopMovieRows/>
+                </Suspense>
+                <Suspense fallback={null}>
+                    <NewestRow/>
+                </Suspense>
+            </div>
+            <Suspense fallback={null}>
+                <SeriesModal/>
+            </Suspense>
+        </main>
     );
 }

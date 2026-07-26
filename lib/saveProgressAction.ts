@@ -1,6 +1,6 @@
 "use server"
 const saveProgressAction = async (currentTime: number, folderName: string, fileName:string, profile:string) => {
-    const key = process.env.NEXT_PUBLIC_UPLOAD_SECRET;
+    const key = process.env.UPLOAD_SECRET;
 
     if(!key){
         console.error("key is required");

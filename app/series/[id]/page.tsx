@@ -2,7 +2,8 @@ import Image from "next/image"
 import { Play } from "lucide-react";
 import EpisodeList from "@/components/episodes/EpisodeList";
 import { getLocalUploads } from "@/lib/fetchLocalUploads";
-import { getEpisodeWatchedSeconds, secondsToProgressPercent } from "@/lib/watchProgress";
+import { secondsToProgressPercent } from "@/lib/watchProgress";
+import getProgressAction from "@/lib/getProgressAction";
 
 const SeriesPage = async ({params}: {params: Promise<{id:string}>}) => {
     const resolvedParams = await params;
@@ -19,7 +20,7 @@ const SeriesPage = async ({params}: {params: Promise<{id:string}>}) => {
     }
 
     const seriesEpisodes = await Promise.all(seriesInfo.localEpisodes.map(async (epName, index) => {
-        const watchedSeconds = await getEpisodeWatchedSeconds(String(seriesInfo.title), epName);
+        const watchedSeconds = await getProgressAction(String(seriesInfo.title), epName);
 
         return {
             id: `${seriesInfo.id}-${index + 1}`,

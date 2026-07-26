@@ -3,7 +3,8 @@ import {useRouter, useSearchParams} from "next/navigation"
 import {useEffect, useState} from "react"
 import {fetchMovieInfo} from "@/lib/fetchMovieInfo";
 import {Episode} from "@/lib/fetchMovieInfo";
-import {getEpisodeWatchedSeconds, secondsToProgressPercent, WATCHED_THRESHOLD_PERCENT} from "@/lib/watchProgress";
+import {secondsToProgressPercent, WATCHED_THRESHOLD_PERCENT} from "@/lib/watchProgress";
+import getProgressAction from "@/lib/getProgressAction";
 import {X, Play, CheckCircle2, FileVideo, ArrowUpRight} from 'lucide-react'
 import Image from "next/image";
 
@@ -48,7 +49,7 @@ const SeriesModal = () => {
 
             if (data.folderTitle) {
                 const entries = await Promise.all(data.episodes.map(async (ep) => {
-                    const watchedSeconds = await getEpisodeWatchedSeconds(data.folderTitle!, ep.title);
+                    const watchedSeconds = await getProgressAction(data.folderTitle!, ep.title);
                     return [ep.mal_id, secondsToProgressPercent(watchedSeconds)] as const;
                 }));
                 setProgressByEpisode(Object.fromEntries(entries));

@@ -40,7 +40,7 @@ const WatchPage = async ({ searchParams }: { searchParams: Promise<{ id: string,
     const title = `${seriesInfo.title} - Odcinek ${currentEpisode}`;
     const totalEpisodes = seriesInfo.localEpisodes.length;
 
-    const key = process.env.NEXT_PUBLIC_UPLOAD_SECRET;
+    const key = process.env.UPLOAD_SECRET;
     let savedTime = 0;
 
     try {

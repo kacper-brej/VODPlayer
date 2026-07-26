@@ -5,10 +5,24 @@ const CACHE_TTL_MS = 60 * 60 * 1000;
 const MAX_RETRIES = 3;
 
 const cache = new Map<string, { data: any; expiresAt: number }>();
-let queue: Promise<void> = Promise.resolve();
+const pending = new Map<string, Promise<any>>();
+let schedule: Promise<void> = Promise.resolve();
 let lastRequestAt = 0;
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const scheduleStart = () => {
+    const turn = schedule.then(async () => {
+        const elapsed = Date.now() - lastRequestAt;
+        if (elapsed < MIN_REQUEST_INTERVAL_MS) {
+            await wait(MIN_REQUEST_INTERVAL_MS - elapsed);
+        }
+        lastRequestAt = Date.now();
+    });
+
+    schedule = turn;
+    return turn;
+};
 
 export const fetchJikan = async (path: string, options?: RequestInit): Promise<any> => {
     const cached = cache.get(path);
@@ -16,17 +30,15 @@ export const fetchJikan = async (path: string, options?: RequestInit): Promise<a
         return cached.data;
     }
 
-    let result: any = null;
+    const inFlight = pending.get(path);
+    if (inFlight) {
+        return inFlight;
+    }
 
-    const run = queue.then(async () => {
-        const elapsed = Date.now() - lastRequestAt;
-        if (elapsed < MIN_REQUEST_INTERVAL_MS) {
-            await wait(MIN_REQUEST_INTERVAL_MS - elapsed);
-        }
+    const run = (async () => {
+        await scheduleStart();
 
         for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-            lastRequestAt = Date.now();
-
             try {
                 const res = await fetch(`${BASE_URL}${path}`, options);
 
@@ -35,21 +47,22 @@ export const fetchJikan = async (path: string, options?: RequestInit): Promise<a
                     continue;
                 }
 
-                if (!res.ok) return;
+                if (!res.ok) return null;
 
                 const data = await res.json();
                 cache.set(path, { data, expiresAt: Date.now() + CACHE_TTL_MS });
-                result = data;
-                return;
+                return data;
             } catch (error) {
                 console.error("fetchJikan error:", error);
-                return;
+                return null;
             }
         }
-    });
 
-    queue = run.catch(() => {});
-    await run;
+        return null;
+    })();
 
-    return result;
+    pending.set(path, run);
+    run.finally(() => pending.delete(path));
+
+    return run;
 }
