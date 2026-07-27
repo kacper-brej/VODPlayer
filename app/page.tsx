@@ -1,104 +1,109 @@
+import { Suspense } from "react";
 import HeroBanerSection from "@/components/series/HeroBanerSection";
 import ContentRow from "@/components/series/ContentRow";
-import {getTopMovie} from "@/lib/fetchMoviePopular";
-import {getMovieNewest} from "@/lib/fetchMovieNewest";
-import SeriesModal from "@/components/series/SeriesModal";
-import {Suspense} from "react";
-import {getLocalUploads} from "@/lib/fetchLocalUploads";
 import ContentRowSkeleton from "@/components/series/ContentRowSkeleton";
-
-
-const getLastWatched = async () => {
-    try {
-        const key = process.env.UPLOAD_SECRET;
-        const res = await fetch(`https://vids.kacper-brej.pl/sync_progress.php?key=${key}&action=get_latest&profile=Kacper`, {
-            cache: 'no-store'
-        });
-
-        if (res.ok) {
-            const data = await res.json();
-
-            if (data && data.seriesId) {
-                return {
-                    seriesId: data.seriesId,
-                    episodeFile: data.fileID,
-                    lastWatchedTime: data.time || 0,
-                    progressPercent: 0,
-                    image: "/fallback-cover.jpg",
-                    video: `https://vids.kacper-brej.pl/uploads/${encodeURIComponent(data.seriesId)}/${encodeURIComponent(data.fileID)}`,
-                    description: "Kontynuuj oglądanie",
-                    tags: ["Wznowione"]
-                };
-            }
-        }
-    } catch (e) {
-        console.error("Failed to download history:", e);
-    }
-
-    return null;
-}
-
+import SeriesModal from "@/components/series/SeriesModal";
+import HomeRefresher from "@/components/series/HomeRefresher";
+import { getTopMovie } from "@/lib/fetchMoviePopular";
+import { getMovieNewest } from "@/lib/fetchMovieNewest";
+import { getCatalog, FALLBACK_COVER } from "@/lib/catalog";
+import { getLatestResume, getResumeMap } from "@/lib/continueWatching";
+import { progressPercent } from "@/lib/watchProgress";
+import type { SeriesCardProps } from "@/components/series/SeriesCard";
 
 const Hero = async () => {
-    const lastWatched = await getLastWatched();
-    return <HeroBanerSection lastWatchedData={lastWatched}/>;
-}
+    const [resume, catalog] = await Promise.all([getLatestResume(), getCatalog()]);
 
-const LibraryRow = async () => {
-    const [localSeries, lastWatched] = await Promise.all([getLocalUploads(), getLastWatched()]);
+    if (!resume) return <HeroBanerSection lastWatchedData={null} />;
 
-    const localSeriesWithProgress = lastWatched
-        ? localSeries.map((item) =>
-            String(item.title) === lastWatched.seriesId
-                ? { ...item, watchedSeconds: lastWatched.lastWatchedTime }
-                : item
-          )
-        : localSeries;
-
-    if (!localSeriesWithProgress || localSeriesWithProgress.length === 0) return null;
+    const series = catalog.find((item) => item.key === resume.seriesKey);
+    const episode = series?.episodes.find((item) => item.key === resume.episodeKey);
 
     return (
-        <div className='animate-in fade-in duration-700 ease-out'>
-            <ContentRow title='Biblioteka' series={localSeriesWithProgress} />
+        <HeroBanerSection
+            lastWatchedData={{
+                seriesId: resume.seriesKey,
+                episodeFile: resume.episodeKey,
+                lastWatchedTime: resume.positionSeconds,
+                progressPercent: progressPercent(resume.positionSeconds, resume.durationSeconds),
+                image: series?.bannerImage || series?.coverImage || FALLBACK_COVER,
+                video: episode?.url ?? "",
+                description: series?.synopsis || "Kontynuuj oglądanie tam, gdzie skończyłeś.",
+                tags: ["Kontynuuj"],
+            }}
+        />
+    );
+};
+
+const LibraryRow = async () => {
+    const [catalog, resumeMap] = await Promise.all([getCatalog(), getResumeMap()]);
+
+    if (catalog.length === 0) return null;
+
+    const cards: SeriesCardProps[] = catalog.map((series) => {
+        const resume = resumeMap.get(series.key);
+        const episode = series.episodes.find((item) => item.key === resume?.episodeKey) ?? series.episodes[0];
+
+        return {
+            id: series.id,
+            title: series.title,
+            seriesKey: series.key,
+            coverImage: series.coverImage,
+            rating: series.rating,
+            year: series.year ?? undefined,
+            previewVideoUrl: episode?.url,
+            resumeEpisodeKey: episode?.key,
+            watchedSeconds: resume?.positionSeconds,
+            durationSeconds: resume?.durationSeconds ?? undefined,
+        };
+    });
+
+    return (
+        <div className="animate-in fade-in duration-700 ease-out">
+            <ContentRow title="Biblioteka" series={cards} />
         </div>
     );
-}
+};
 
 const TopMovieRows = async () => {
     const topMovie = await getTopMovie();
+
     return (
         <>
-            <ContentRow title='Hot takes' series={topMovie}/>
-            <ContentRow title='Obejrzyj ponownie' series={topMovie}/>
+            <ContentRow title="Hot takes" series={topMovie} />
+            <ContentRow title="Obejrzyj ponownie" series={topMovie} />
         </>
     );
-}
+};
 
 const NewestRow = async () => {
     const newestMovie = await getMovieNewest();
-    return <ContentRow title='Nowości' series={newestMovie}/>;
-}
+    return <ContentRow title="Nowości" series={newestMovie} />;
+};
 
 export default function Home() {
     return (
-        <main className='w-full min-w-0 max-w-full min-h-screen bg-background pb-20 overflow-x-hidden'>
+        <main className="w-full min-w-0 max-w-full min-h-screen bg-background pb-20 overflow-x-hidden">
+            <HomeRefresher />
+
             <Suspense fallback={null}>
-                <Hero/>
+                <Hero />
             </Suspense>
 
             <div className="mt-8 md:mt-12 flex flex-col gap-6 px-8">
-                <Suspense fallback={<ContentRowSkeleton title='Biblioteka' />}>
-                    <LibraryRow/>
+                <Suspense fallback={<ContentRowSkeleton title="Biblioteka" />}>
+                    <LibraryRow />
                 </Suspense>
                 <Suspense fallback={null}>
-                    <TopMovieRows/>
+                    <TopMovieRows />
                 </Suspense>
                 <Suspense fallback={null}>
-                    <NewestRow/>
+                    <NewestRow />
                 </Suspense>
             </div>
+
             <Suspense fallback={null}>
-                <SeriesModal/>
+                <SeriesModal />
             </Suspense>
         </main>
     );

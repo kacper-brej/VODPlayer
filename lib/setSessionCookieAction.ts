@@ -16,7 +16,7 @@ const setSessionCookieAction = async (token: string, rememberMe: boolean): Promi
 
     (await cookies()).set("token", token, {
         httpOnly: true,
-        secure: true,
+        secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         path: "/",
         maxAge: rememberMe ? SESSION_MAX_AGE_REMEMBERED : SESSION_MAX_AGE,

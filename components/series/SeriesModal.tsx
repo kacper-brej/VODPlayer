@@ -1,64 +1,87 @@
-"use client"
-import {useRouter, useSearchParams} from "next/navigation"
-import {useEffect, useState} from "react"
-import {fetchMovieInfo} from "@/lib/fetchMovieInfo";
-import {Episode} from "@/lib/fetchMovieInfo";
-import {secondsToProgressPercent, WATCHED_THRESHOLD_PERCENT} from "@/lib/watchProgress";
-import getProgressAction from "@/lib/getProgressAction";
-import {X, Play, CheckCircle2, FileVideo, ArrowUpRight} from 'lucide-react'
+"use client";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { X, Play, CheckCircle2, FileVideo, ArrowUpRight } from "lucide-react";
 import Image from "next/image";
+import getSeriesDetailsAction, { SeriesDetails } from "@/lib/getSeriesDetailsAction";
+
+const CLOSE_ANIMATION_MS = 200;
 
 const SeriesModal = () => {
     const router = useRouter();
+    const pathname = usePathname();
     const searchParams = useSearchParams();
     const movieId = searchParams.get("info");
 
-    const [movieData, setMovieData] = useState<any>(null)
-    const [episodes, setEpisodes] = useState<Episode[]>([])
-    const [progressByEpisode, setProgressByEpisode] = useState<Record<string, number>>({})
-    const [loading, setLoading] = useState(false)
-    const [showAnimation, setShowAnimation] = useState(false)
+    const [details, setDetails] = useState<SeriesDetails | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [showAnimation, setShowAnimation] = useState(false);
+
+    const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const scheduleAfterClose = (action: () => void) => {
+        setShowAnimation(false);
+        if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+        closeTimeoutRef.current = setTimeout(action, CLOSE_ANIMATION_MS);
+    };
 
     const closeModal = () => {
-        setShowAnimation(false);
-        setTimeout(() => {
-            router.push("/", {scroll:false})
-        }, 200);
-    }
+        scheduleAfterClose(() => {
+            const params = new URLSearchParams(searchParams.toString());
+            params.delete("info");
+            const query = params.toString();
+            router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
+        });
+    };
 
     const goToSeriesPage = () => {
         if (!movieId) return;
-        setShowAnimation(false);
-        setTimeout(() => {
-            router.push(`/series/${movieId}`);
-        }, 200);
-    }
+        scheduleAfterClose(() => router.push(`/series/${movieId}`));
+    };
+
+    const openEpisode = (episodeKey: string) => {
+        if (!details?.seriesKey) return;
+        scheduleAfterClose(() =>
+            router.push(`/watch?id=${encodeURIComponent(details.seriesKey!)}&ep=${encodeURIComponent(episodeKey)}`),
+        );
+    };
 
     useEffect(() => {
-        if(!movieId) return;
+        if (!movieId) return;
 
-        setTimeout(() => setShowAnimation(true), 10);
-
-        const loadMovieData = async () => {
-            setLoading(true);
-            const data = await fetchMovieInfo(Number(movieId));
-            setMovieData(data.details);
-            setEpisodes(data.episodes);
-            setProgressByEpisode({});
-            setLoading(false);
-
-            if (data.folderTitle) {
-                const entries = await Promise.all(data.episodes.map(async (ep) => {
-                    const watchedSeconds = await getProgressAction(data.folderTitle!, ep.title);
-                    return [ep.mal_id, secondsToProgressPercent(watchedSeconds)] as const;
-                }));
-                setProgressByEpisode(Object.fromEntries(entries));
-            }
+        if (closeTimeoutRef.current) {
+            clearTimeout(closeTimeoutRef.current);
+            closeTimeoutRef.current = null;
         }
 
-        void loadMovieData();
+        let cancelled = false;
+        const frame = requestAnimationFrame(() => {
+            if (!cancelled) setShowAnimation(true);
+        });
 
+        const load = async () => {
+            setLoading(true);
+            const data = await getSeriesDetailsAction(Number(movieId));
+
+            if (cancelled) return;
+
+            setDetails(data);
+            setLoading(false);
+        };
+
+        void load();
+
+        return () => {
+            cancelled = true;
+            cancelAnimationFrame(frame);
+        };
     }, [movieId]);
+
+    useEffect(() => {
+        return () => {
+            if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+        };
+    }, []);
 
     if (!movieId) return null;
 
@@ -75,10 +98,10 @@ const SeriesModal = () => {
                     onClick={closeModal}
                     className="absolute top-4 right-4 z-50 w-8 h-8 md:w-10 md:h-10 bg-surface-light/80 hover:bg-primary text-foreground rounded-full flex items-center justify-center transition-colors cursor-pointer backdrop-blur-sm"
                 >
-                    <X size={20} className='md:w-6 md:h-6'/>
+                    <X size={20} className="md:w-6 md:h-6" />
                 </button>
 
-                {loading ? (
+                {loading || !details ? (
                     <div className="text-foreground pb-8 w-full">
                         <div className="w-full h-62.5 md:h-100 shrink-0 bg-surface-light animate-pulse relative">
                             <div className="absolute inset-0 bg-linear-to-t from-surface via-surface/40 to-transparent" />
@@ -93,7 +116,7 @@ const SeriesModal = () => {
                             <div className="h-6 bg-surface-light/60 animate-pulse rounded-md w-32 mb-4"></div>
                             <div className="flex flex-col gap-3">
                                 {[1, 2, 3].map((i) => (
-                                    <div key={i} className='flex items-center gap-4 p-3 md:p-4 bg-surface-light/30 rounded-lg border border-border'>
+                                    <div key={i} className="flex items-center gap-4 p-3 md:p-4 bg-surface-light/30 rounded-lg border border-border">
                                         <div className="relative w-32 h-20 md:w-40 md:h-24 shrink-0 rounded-md bg-surface-light/60 animate-pulse"></div>
                                         <div className="flex flex-col flex-1 gap-3">
                                             <div className="h-4 bg-surface-light/50 animate-pulse rounded-md w-3/4"></div>
@@ -107,25 +130,23 @@ const SeriesModal = () => {
                 ) : (
                     <div className="text-foreground pb-8 w-full">
                         <div className="w-full h-62.5 md:h-100 shrink-0 bg-surface-light relative">
-                            {movieData?.images?.webp?.large_image_url && (
-                                <Image
-                                    src={movieData.images.webp.large_image_url}
-                                    alt={movieData?.title || "baner"}
-                                    fill
-                                    className='object-cover'
-                                    sizes="(max-width: 768px) 100vw, 896px"
-                                    priority
-                                />
-                            )}
+                            <Image
+                                src={details.bannerImage}
+                                alt={details.title}
+                                fill
+                                className="object-cover"
+                                sizes="(max-width: 768px) 100vw, 896px"
+                                priority
+                            />
                             <div className="absolute inset-0 bg-linear-to-t from-surface via-surface/40 to-transparent" />
                         </div>
 
                         <div className="px-4 md:px-8 mt-4 relative z-10">
                             <h1 className="text-2xl md:text-4xl font-bold mb-2 drop-shadow-lg text-foreground">
-                                {movieData?.title || "Brak tytułu"}
+                                {details.title}
                             </h1>
-                            <p className='text-sm md:text-base text-muted mb-6 line-clamp-4 md:line-clamp-none'>
-                                {movieData?.synopsis || "Brak opisu."}
+                            <p className="text-sm md:text-base text-muted mb-6 line-clamp-4 md:line-clamp-none">
+                                {details.synopsis}
                             </p>
 
                             <button
@@ -136,71 +157,60 @@ const SeriesModal = () => {
                                 <ArrowUpRight size={18} />
                             </button>
 
-                            <h2 className="text-lg md:text-xl font-semibold mb-4 text-foreground" >
-                                Odcinki ({episodes.length})
+                            <h2 className="text-lg md:text-xl font-semibold mb-4 text-foreground">
+                                Odcinki ({details.episodes.length})
                             </h2>
 
                             <div className="flex flex-col gap-3 max-h-[40vh] overflow-y-auto pr-1 -mr-1 scrollbar-hide">
-                                {episodes.map((ep) => {
-                                    const progress = progressByEpisode[ep.mal_id];
-                                    const isWatched = progress !== undefined && progress >= WATCHED_THRESHOLD_PERCENT;
+                                {details.episodes.map((episode) => (
+                                    <div
+                                        key={episode.key}
+                                        onClick={() => openEpisode(episode.key)}
+                                        className="flex items-center gap-4 p-3 md:p-4 bg-surface-light/50 rounded-lg border border-border hover:border-border-hover hover:bg-surface-light transition-all cursor-pointer group"
+                                    >
+                                        <div className={`relative w-32 h-20 md:w-40 md:h-24 shrink-0 rounded-md overflow-hidden bg-background transition-all ${episode.watched ? "opacity-70 ring-2 ring-success/60 shadow-[0_0_16px_-2px_var(--success)]" : ""}`}>
+                                            <Image
+                                                src={episode.thumbnail}
+                                                alt={episode.title}
+                                                fill
+                                                className="object-cover group-hover:scale-105 transition-transform duration-300"
+                                                sizes="(max-width: 768px) 128px, 160px"
+                                            />
 
-                                    return (
-                                        <div
-                                            key={ep.mal_id}
-                                            className='flex items-center gap-4 p-3 md:p-4 bg-surface-light/50 rounded-lg border border-border hover:border-border-hover hover:bg-surface-light transition-all cursor-pointer group'
-                                        >
-                                            <div className={`relative w-32 h-20 md:w-40 md:h-24 shrink-0 rounded-md overflow-hidden bg-background transition-all ${isWatched ? 'opacity-70 ring-2 ring-success/60 shadow-[0_0_16px_-2px_var(--success)]' : ''}`}>
-                                                {ep.images?.jpg?.image_url ? (
-                                                    <Image
-                                                        src={ep.images.jpg.image_url}
-                                                        alt={`Odcinek ${ep.episode}`}
-                                                        fill
-                                                        className='object-cover group-hover:scale-105 transition-transform duration-300 cursor-pointer'
-                                                        sizes="(max-width: 768px) 128px, 160px"
-                                                    />
-                                                ) : (
-                                                    <div className="flex items-center justify-center w-full h-full text-muted text-xs">
-                                                        Brak miniaturki
-                                                    </div>
-                                                )}
-                                                <div className="absolute inset-0 bg-background/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 cursor-pointer">
-                                                    <div className={`w-10 h-10 flex items-center justify-center rounded-full border-2 backdrop-blur-sm ${isWatched ? 'border-success/70 bg-success/10 text-success' : 'border-foreground/60 bg-background/30 text-foreground'}`}>
-                                                        <Play size={16} className='fill-current'/>
-                                                    </div>
+                                            <div className="absolute inset-0 bg-background/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                                <div className={`w-10 h-10 flex items-center justify-center rounded-full border-2 backdrop-blur-sm ${episode.watched ? "border-success/70 bg-success/10 text-success" : "border-foreground/60 bg-background/30 text-foreground"}`}>
+                                                    <Play size={16} className="fill-current" />
                                                 </div>
-
-                                                {isWatched && (
-                                                    <span className="absolute top-1.5 right-1.5 z-10 flex items-center gap-1 text-[9px] md:text-[10px] font-semibold text-success bg-success/20 backdrop-blur-md border border-success/40 rounded-full px-2 py-0.5">
-                                                        <CheckCircle2 size={10} />
-                                                        Obejrzane
-                                                    </span>
-                                                )}
-
-                                                {progress !== undefined && progress > 0 && (
-                                                    <div className='absolute bottom-0 left-0 w-full h-1 bg-black/50'>
-                                                        <div className="h-full bg-primary" style={{width: `${progress}%`}} />
-                                                    </div>
-                                                )}
                                             </div>
 
-                                            <div className="flex flex-col flex-1">
-                                                <span className="text-foreground font-semibold text-sm md:text-base line-clamp-2">
-                                                    {ep.episode}. {ep.title_english ? ep.title_english : ep.title}
+                                            {episode.watched && (
+                                                <span className="absolute top-1.5 right-1.5 z-10 flex items-center gap-1 text-[9px] md:text-[10px] font-semibold text-success bg-success/20 backdrop-blur-md border border-success/40 rounded-full px-2 py-0.5">
+                                                    <CheckCircle2 size={10} />
+                                                    Obejrzane
                                                 </span>
-                                                <span className='flex items-center gap-1.5 text-xs text-muted mt-1'>
-                                                    <FileVideo size={12} />
-                                                    Wideo MP4
-                                                </span>
-                                            </div>
+                                            )}
+
+                                            {episode.percent > 0 && (
+                                                <div className="absolute bottom-0 left-0 w-full h-1 bg-black/50">
+                                                    <div className="h-full bg-primary" style={{ width: `${episode.percent}%` }} />
+                                                </div>
+                                            )}
                                         </div>
-                                    );
-                                })}
 
-                                {episodes.length === 0 && (
-                                    <div className="text-muted text-sm py-4">
-                                        Brak dostępnych odcinków w bazie.
+                                        <div className="flex flex-col flex-1">
+                                            <span className="text-foreground font-semibold text-sm md:text-base line-clamp-2">
+                                                {episode.number}. {episode.title}
+                                            </span>
+                                            <span className="flex items-center gap-1.5 text-xs text-muted mt-1">
+                                                <FileVideo size={12} />
+                                                {episode.key === details.resumeEpisodeKey ? "Wznów oglądanie" : "Wideo MP4"}
+                                            </span>
+                                        </div>
                                     </div>
+                                ))}
+
+                                {details.episodes.length === 0 && (
+                                    <div className="text-muted text-sm py-4">Brak dostępnych odcinków w bazie.</div>
                                 )}
                             </div>
                         </div>
@@ -208,7 +218,7 @@ const SeriesModal = () => {
                 )}
             </div>
         </div>
-    )
-}
+    );
+};
 
 export default SeriesModal;

@@ -1,33 +1,47 @@
-"use server"
-const saveProgressAction = async (currentTime: number, folderName: string, fileName:string, profile:string) => {
-    const key = process.env.UPLOAD_SECRET;
+"use server";
+import { VOD_ORIGIN, sessionHeaders } from "@/lib/vodConfig";
 
-    if(!key){
-        console.error("key is required");
-        return { success: false, error: "key is required" };
+interface SaveProgressInput {
+    seriesKey: string;
+    episodeKey: string;
+    positionSeconds: number;
+    durationSeconds?: number | null;
+}
+
+const saveProgressAction = async ({ seriesKey, episodeKey, positionSeconds, durationSeconds }: SaveProgressInput) => {
+    const headers = await sessionHeaders();
+
+    if (!headers) {
+        console.error("saveProgressAction: brak ciasteczka sesji");
+        return { success: false, error: "unauthenticated" };
     }
 
-    try{
-        const response = await fetch(`https://vids.kacper-brej.pl/sync_progress.php`, {
-            method: 'POST',
+    try {
+        const res = await fetch(`${VOD_ORIGIN}/progress.php`, {
+            method: "POST",
             headers: {
                 "Content-Type": "application/json",
+                ...headers,
             },
+            cache: "no-store",
             body: JSON.stringify({
-                key: key,
-                profile: profile,
-                videoPath: folderName,
-                fileID: fileName,
-                time: currentTime,
-            })
+                series: seriesKey,
+                episode: episodeKey,
+                position: Math.max(0, Math.round(positionSeconds)),
+                duration: durationSeconds && durationSeconds > 0 ? Math.round(durationSeconds) : undefined,
+            }),
         });
-        if(!response.ok){
-            return { success: false, error: "PHP server error" };
+
+        if (!res.ok) {
+            console.error("progress.php POST ->", res.status, await res.text());
+            return { success: false, error: "backend" };
         }
-        return await response.json();
-    }catch(err){
-        console.error("API connection error", err);
-        return { success: false, error: "error" };
+
+        return (await res.json()) as { success: boolean; completed: boolean };
+    } catch (error) {
+        console.error("saveProgressAction failed", error);
+        return { success: false, error: "network" };
     }
-}
+};
+
 export default saveProgressAction;

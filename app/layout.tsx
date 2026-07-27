@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import AppShell from "@/components/layout/AppShell";
+import PreconnectVideoOrigin from "@/components/layout/PreconnectVideoOrigin";
 import {AuthProvider} from "@/lib/AuthContext";
 
 const geistSans = Geist({
@@ -30,6 +31,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full`}
     >
       <body className="bg-background text-foreground antialiased selection:bg-primary/30">
+      <PreconnectVideoOrigin />
       <AuthProvider>
         <AppShell>
           {children}

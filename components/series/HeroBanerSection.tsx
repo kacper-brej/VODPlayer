@@ -176,10 +176,10 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
                 <div className="flex items-center gap-2 md:gap-3 w-full md:w-auto z-30 pointer-events-auto">
                     <button
                         onClick={handlePlayClick}
-                        className='flex-1 md:flex-none flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-foreground font-semibold cursor-pointer py-2.5 md:py-3 px-6 rounded-3xl transition-all duration-300 active:scale-95'
+                        className='flex-1 md:flex-none min-w-0 flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-foreground font-semibold cursor-pointer py-2.5 md:py-3 px-4 sm:px-6 rounded-3xl transition-all duration-300 active:scale-95'
                     >
-                        <Play size={18} fill='currentColor' className='md:w-5 md:h-5'/>
-                        <span className="text-sm md:text-base whitespace-nowrap">
+                        <Play size={18} fill='currentColor' className='shrink-0 md:w-5 md:h-5'/>
+                        <span className="min-w-0 text-xs sm:text-sm md:text-base leading-snug break-words md:whitespace-nowrap">
                             Wznów {activeContent.episodeFile.replace('.mp4', '')}
                         </span>
                     </button>

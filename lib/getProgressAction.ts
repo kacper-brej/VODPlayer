@@ -1,24 +1,46 @@
-"use server"
-const getProgressAction = async (folderTitle: string, fileName: string): Promise<number> => {
-    const key = process.env.UPLOAD_SECRET;
+"use server";
+import { VOD_ORIGIN, sessionHeaders } from "@/lib/vodConfig";
 
-    if (!key) {
-        console.error("key is required");
-        return 0;
-    }
+export interface EpisodeProgress {
+    positionSeconds: number;
+    durationSeconds: number | null;
+    completed: boolean;
+}
+
+export const getSeriesProgressAction = async (
+    seriesKey: string,
+): Promise<{ episodes: Record<string, EpisodeProgress>; resume: { episodeKey: string; positionSeconds: number; durationSeconds: number | null } | null }> => {
+    const headers = await sessionHeaders();
+    const empty = { episodes: {}, resume: null };
+
+    if (!headers || !seriesKey) return empty;
 
     try {
-        const res = await fetch(
-            `https://vids.kacper-brej.pl/sync_progress.php?key=${key}&action=get_time&profile=Kacper&path=${encodeURIComponent(folderTitle)}&fileID=${encodeURIComponent(fileName)}`,
-            { cache: 'no-store' }
-        );
+        const res = await fetch(`${VOD_ORIGIN}/progress.php?action=series&series=${encodeURIComponent(seriesKey)}`, {
+            headers,
+            cache: "no-store",
+        });
 
-        if (!res.ok) return 0;
-        const data = await res.json();
-        return data.time || 0;
+        if (!res.ok) {
+            console.error("progress.php series ->", res.status, await res.text());
+            return empty;
+        }
+
+        const payload = await res.json();
+
+        return {
+            episodes: (payload?.episodes ?? {}) as Record<string, EpisodeProgress>,
+            resume: payload?.resume ?? null,
+        };
     } catch (error) {
-        console.error("Błąd pobierania postępu odcinka:", error);
-        return 0;
+        console.error("getSeriesProgressAction failed", error);
+        return empty;
     }
-}
+};
+
+const getProgressAction = async (seriesKey: string, episodeKey: string): Promise<number> => {
+    const { episodes } = await getSeriesProgressAction(seriesKey);
+    return episodes[episodeKey]?.positionSeconds ?? 0;
+};
+
 export default getProgressAction;

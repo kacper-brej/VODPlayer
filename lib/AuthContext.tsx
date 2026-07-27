@@ -44,7 +44,7 @@ export const AuthProvider = ({children}: {children: ReactNode}) => {
                 credentials: 'include',
             });
         } catch {
-            // brak połączenia z serwerem - i tak czyścimy sesję lokalnie
+            // brak połączenia z serwerem i tak czyścimy sesję lokalnie
         } finally {
             await clearSessionCookieAction();
             setUser(null);

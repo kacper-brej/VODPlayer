@@ -22,14 +22,14 @@ interface WatchClientProps {
     videoSrc: string;
     title: string;
     seriesId: number;
+    seriesKey: string;
     currentEpisode: number;
     totalEpisodes: number;
-    folderName: string;
     fileName: string;
     startTime: number;
 }
 
-const WatchClient = ({ videoSrc, title, seriesId, currentEpisode, totalEpisodes, folderName, fileName, startTime }: WatchClientProps) => {
+const WatchClient = ({ videoSrc, title, seriesId, seriesKey, currentEpisode, totalEpisodes, fileName, startTime }: WatchClientProps) => {
     const router = useRouter();
     const [playerInstanceKey, setPlayerInstanceKey] = useState(0);
     const isNavigatingRef = useRef(false);
@@ -51,9 +51,13 @@ const WatchClient = ({ videoSrc, title, seriesId, currentEpisode, totalEpisodes,
         return () => window.removeEventListener('error', handleGlobalError);
     }, []);
 
-    const handleProgressUpdate = async (currentTime:number) => {
-        const currentProfile = "Kacper"
-        await saveProgressAction(currentTime, folderName, fileName, currentProfile);
+    const handleProgressUpdate = async (currentTime: number, duration: number) => {
+        await saveProgressAction({
+            seriesKey,
+            episodeKey: fileName,
+            positionSeconds: currentTime,
+            durationSeconds: duration,
+        });
     };
 
     const handleNextEpisode = () => {
@@ -62,7 +66,7 @@ const WatchClient = ({ videoSrc, title, seriesId, currentEpisode, totalEpisodes,
 
         if (currentEpisode < totalEpisodes) {
             const nextEp = currentEpisode + 1;
-            router.replace(`/watch?id=${seriesId}&ep=${nextEp}`);
+            router.replace(`/watch?id=${encodeURIComponent(seriesKey)}&ep=${nextEp}`);
         } else {
             router.replace(`/series/${seriesId}`);
         }
@@ -72,7 +76,7 @@ const WatchClient = ({ videoSrc, title, seriesId, currentEpisode, totalEpisodes,
         if (isNavigatingRef.current) return;
         isNavigatingRef.current = true;
 
-        router.replace(`/watch?id=${seriesId}&ep=${currentEpisode - 1}`);
+        router.replace(`/watch?id=${encodeURIComponent(seriesKey)}&ep=${currentEpisode - 1}`);
     }
 
     const handleBack = () => {

@@ -27,7 +27,7 @@ const SearchBar = () => {
             <div className={`absolute right-0 top-0 px-4 py-2.5 md:relative flex items-center bg-surface/40 
                 backdrop-blur-xl border border-white/5 rounded-full duration-500 ease-in-out origin-right
                 focus-within:border-primary/50 focus-within:bg-surface/80 focus-within:shadow-[0_0_20px_rgba(139,92,246,0.15)]
-                ${isMobileExpanded ? 'max-w-[calc(100%-2rem)] opacity-100 shadow-xl pointer-events-auto' : 'w-12 pointer-events-none md:pointer-events-auto md:w-full md:opacity-100 md:shadow-none'}`}>
+                ${isMobileExpanded ? 'max-w-[calc(100%-2rem)] opacity-100 visible shadow-xl pointer-events-auto' : 'w-12 opacity-0 invisible pointer-events-none md:pointer-events-auto md:w-full md:opacity-100 md:visible md:shadow-none'}`}>
 
                 <Search
                     size={18}

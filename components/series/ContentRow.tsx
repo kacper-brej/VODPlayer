@@ -2,17 +2,17 @@
 import SeriesCard, { SeriesCardProps } from "./SeriesCard";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRef } from "react";
-import { useRouter } from "next/navigation";
 
 interface ContentRowProps {
     title: string;
     series: SeriesCardProps[];
 }
 
+const EAGER_PREVIEW_COUNT = 4;
+
 const ContentRow = ({ title, series }: ContentRowProps) => {
 
     const rowRef = useRef<HTMLDivElement>(null);
-    const router = useRouter();
 
     const uniqueSeries = series.filter(
         (item, index, self) => self.findIndex((s) => s.id === item.id) === index
@@ -57,13 +57,12 @@ const ContentRow = ({ title, series }: ContentRowProps) => {
                     {uniqueSeries.map((item, index) => (
                         <div
                             key={item.id}
-                            onClick={() => router.push(`/watch?id=${encodeURIComponent(item.title || item.id)}&ep=1`)}
                             className="group/card w-[70vw] sm:w-[45vw] md:w-[30vw] lg:w-[22vw] xl:w-[18vw] aspect-video flex-none shrink-0 snap-start hover:z-20 cursor-pointer"
                         >
                             <div
                                 className={`w-full h-full relative rounded-lg overflow-hidden transition-all duration-300 group-hover/card:scale-110 group-hover/card:shadow-[0_0_20px_var(--primary)] border border-white/5 shadow-lg ${index === 0 ? 'origin-left' : index === uniqueSeries.length - 1 ? 'origin-right' : 'origin-center'}`}
                             >
-                                <SeriesCard {...item} />
+                                <SeriesCard {...item} eagerPreview={index < EAGER_PREVIEW_COUNT} />
                             </div>
                         </div>
                     ))}

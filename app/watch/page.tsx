@@ -1,74 +1,65 @@
-import { getLocalSeriesRaw } from "@/lib/fetchLocalUploads";
 import WatchClient from "@/app/watch/WatchClient";
+import { resolveCatalogSeries } from "@/lib/catalog";
+import { getSeriesResume } from "@/lib/continueWatching";
+import { getSeriesProgressAction } from "@/lib/getProgressAction";
 
-const WatchPage = async ({ searchParams }: { searchParams: Promise<{ id: string, ep: string }> }) => {
-    const resolvedSearchParams = await searchParams;
+const RESUME_REWIND_SECONDS = 10;
 
-    const seriesQueryId = resolvedSearchParams.id;
-    const epQuery = resolvedSearchParams.ep;
+const ErrorScreen = ({ message }: { message: string }) => (
+    <div className="fixed inset-0 z-[999] bg-black min-h-screen flex items-center justify-center text-foreground">
+        {message}
+    </div>
+);
 
-    if (!seriesQueryId) {
-        return <div className="fixed inset-0 z-[999] bg-black min-h-screen flex items-center justify-center text-foreground">Błędny link</div>;
-    }
+const WatchPage = async ({ searchParams }: { searchParams: Promise<{ id?: string; ep?: string }> }) => {
+    const { id: seriesQueryId, ep: epQuery } = await searchParams;
 
-    const localUploads = await getLocalSeriesRaw();
+    if (!seriesQueryId) return <ErrorScreen message="Błędny link" />;
 
-    const seriesInfo = localUploads.find(s => String(s.title) === seriesQueryId || String(s.id) === seriesQueryId);
+    const series = await resolveCatalogSeries(seriesQueryId);
 
-    if (!seriesInfo) {
-        return <div className="fixed inset-0 z-[999] bg-black min-h-screen flex items-center justify-center text-foreground">Nie znaleziono serialu: {seriesQueryId}</div>;
-    }
+    if (!series) return <ErrorScreen message={`Nie znaleziono serialu: ${seriesQueryId}`} />;
 
-    let epFileName = "";
-    let currentEpisode = 1;
-
-    if (epQuery && epQuery.includes('.mp4')) {
-        epFileName = epQuery;
-        currentEpisode = seriesInfo.localEpisodes.indexOf(epFileName) + 1;
-        if (currentEpisode === 0) currentEpisode = 1; // Zabezpieczenie
-    } else {
-        currentEpisode = Number(epQuery) || 1;
-        epFileName = seriesInfo.localEpisodes[currentEpisode - 1];
-    }
-
-    if (!epFileName) {
-        return <div className="fixed inset-0 z-[999] bg-black min-h-screen flex items-center justify-center text-foreground">Nie znaleziono pliku odcinka na serwerze</div>;
-    }
-
-    const baseUrl = "https://vids.kacper-brej.pl/uploads";
-    const videoUrl = `${baseUrl}/${encodeURIComponent(seriesInfo.title)}/${encodeURIComponent(epFileName)}`;
-    const title = `${seriesInfo.title} - Odcinek ${currentEpisode}`;
-    const totalEpisodes = seriesInfo.localEpisodes.length;
-
-    const key = process.env.UPLOAD_SECRET;
+    let episode = null;
     let savedTime = 0;
+    let timeResolved = false;
 
-    try {
-        const timeRes = await fetch(
-            `https://vids.kacper-brej.pl/sync_progress.php?key=${key}&action=get_time&profile=Kacper&path=${encodeURIComponent(seriesInfo.title)}&fileID=${encodeURIComponent(epFileName)}`,
-            { cache: 'no-store' }
-        );
+    if (epQuery && epQuery.toLowerCase().endsWith(".mp4")) {
+        episode = series.episodes.find((item) => item.key === epQuery) ?? null;
 
-        if (timeRes.ok) {
-            const timeData = await timeRes.json();
-            savedTime = timeData.time || 0;
+        if (!episode) return <ErrorScreen message={`Nie znaleziono odcinka: ${epQuery}`} />;
+    } else if (epQuery) {
+        const number = Number(epQuery);
+        episode = series.episodes.find((item) => item.number === number) ?? null;
+
+        if (!episode) return <ErrorScreen message={`Nie znaleziono odcinka nr ${epQuery}`} />;
+    } else {
+        const resume = await getSeriesResume(series.key);
+        episode = series.episodes.find((item) => item.key === resume?.episodeKey) ?? series.episodes[0] ?? null;
+
+        if (resume && episode?.key === resume.episodeKey) {
+            savedTime = resume.positionSeconds;
+            timeResolved = true;
         }
-    } catch (e) {
-        console.error("Błąd pobierania czasu:", e);
     }
 
-    const startTime = Math.max(0, savedTime - 10);
+    if (!episode) return <ErrorScreen message="Nie znaleziono pliku odcinka na serwerze" />;
+
+    if (!timeResolved) {
+        const { episodes } = await getSeriesProgressAction(series.key);
+        savedTime = episodes[episode.key]?.positionSeconds ?? 0;
+    }
 
     return (
         <WatchClient
-            videoSrc={videoUrl}
-            title={title}
-            seriesId={seriesInfo.id}
-            currentEpisode={currentEpisode}
-            totalEpisodes={totalEpisodes}
-            folderName={seriesInfo.title}
-            fileName={epFileName}
-            startTime={startTime}
+            videoSrc={episode.url}
+            title={`${series.title} - Odcinek ${episode.number}`}
+            seriesId={series.id}
+            seriesKey={series.key}
+            currentEpisode={episode.number}
+            totalEpisodes={series.episodeCount}
+            fileName={episode.key}
+            startTime={Math.max(0, savedTime - RESUME_REWIND_SECONDS)}
         />
     );
 };

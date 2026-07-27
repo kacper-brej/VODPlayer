@@ -42,9 +42,13 @@ export const fetchJikan = async (path: string, options?: RequestInit): Promise<a
             try {
                 const res = await fetch(`${BASE_URL}${path}`, options);
 
-                if (res.status === 429) {
-                    await wait(MIN_REQUEST_INTERVAL_MS * (attempt + 2));
-                    continue;
+                if (res.status === 429 || res.status >= 500) {
+                    if (attempt < MAX_RETRIES) {
+                        await wait(MIN_REQUEST_INTERVAL_MS * (attempt + 2));
+                        continue;
+                    }
+                    console.error("fetchJikan: nieudane po ponowieniach", path, res.status);
+                    return null;
                 }
 
                 if (!res.ok) return null;

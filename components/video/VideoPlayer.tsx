@@ -21,7 +21,7 @@ interface VideoPlayerProps {
     posterUrl?: string;
     onNextEpisode?: () => void;
     onPreviousEpisode?: () => void;
-    onProgressUpdate?: (currentTime: number) => void;
+    onProgressUpdate?: (currentTime: number, duration: number) => void;
     startTime?: number;
 }
 
@@ -100,7 +100,7 @@ export const VideoPlayer = ({ src, title, posterUrl, onNextEpisode, onPreviousEp
         setCurrentTime(time);
 
         if (onProgressUpdate && Math.abs(time - lastSavedTime.current) >= 3) {
-            onProgressUpdate(time);
+            onProgressUpdate(time, duration);
             lastSavedTime.current = time;
         }
     };
