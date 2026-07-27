@@ -7,6 +7,10 @@ const PUBLIC_ROUTES = ["/login", "/signup", "/forgot-password", "/reset-password
 export default async function proxy(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
+    if (process.env.NODE_ENV !== "production") {
+        return NextResponse.next();
+    }
+
     if (PUBLIC_ROUTES.includes(pathname)) {
         return NextResponse.next();
     }

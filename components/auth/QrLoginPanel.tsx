@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, RefreshCw, Unlock } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/AuthContext';
+import setSessionCookieAction from '@/lib/setSessionCookieAction';
 
 type QrStatus = 'loading' | 'pending' | 'approved' | 'expired' | 'error';
 
@@ -44,6 +45,9 @@ export function QrLoginPanel({ onBack }: { onBack: () => void }) {
 
                 if (data.status === 'approved') {
                     if (pollRef.current) clearInterval(pollRef.current);
+                    if (data.token) {
+                        await setSessionCookieAction(data.token, false);
+                    }
                     await refreshUser();
                     setStatus('approved');
                     setTimeout(() => {

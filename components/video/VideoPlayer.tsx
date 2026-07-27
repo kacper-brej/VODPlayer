@@ -39,7 +39,11 @@ const EpisodeControls = ({ onPreviousEpisode, onNextEpisode }: EpisodeControlsPr
     return (
         <>
             {onPreviousEpisode && (
-                <button onClick={onPreviousEpisode} className="vds-button" aria-label="Poprzedni odcinek">
+                <button
+                    onClick={onPreviousEpisode}
+                    className="vds-button cursor-pointer flex items-center justify-center w-10 h-10 md:w-11 md:h-11 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 backdrop-blur-md transition-colors duration-200 active:scale-95"
+                    aria-label="Poprzedni odcinek"
+                >
                     <SkipBack size={18} className="fill-current" />
                 </button>
             )}
@@ -47,7 +51,11 @@ const EpisodeControls = ({ onPreviousEpisode, onNextEpisode }: EpisodeControlsPr
                 <Icon />
             </PlayButton>
             {onNextEpisode && (
-                <button onClick={onNextEpisode} className="vds-button" aria-label="Następny odcinek">
+                <button
+                    onClick={onNextEpisode}
+                    className="vds-button cursor-pointer flex items-center justify-center w-10 h-10 md:w-11 md:h-11 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 backdrop-blur-md transition-colors duration-200 active:scale-95"
+                    aria-label="Następny odcinek"
+                >
                     <SkipForward size={18} className="fill-current" />
                 </button>
             )}

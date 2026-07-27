@@ -5,7 +5,7 @@ import Sidebar from "@/components/layout/Sidebar";
 import SearchBar from "@/components/layout/SearchBar";
 import { useAuth } from "@/lib/AuthContext";
 
-const NO_CHROME_ROUTES = ["/login", "/signup"];
+const NO_CHROME_ROUTES = ["/login", "/signup", "/forgot-password", "/reset-password", "/qr-confirm"];
 const PUBLIC_ROUTES = ["/login", "/signup", "/forgot-password", "/reset-password", "/qr-confirm"];
 const AUTH_ONLY_ROUTES = ["/login", "/signup"];
 

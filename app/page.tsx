@@ -5,6 +5,7 @@ import {getMovieNewest} from "@/lib/fetchMovieNewest";
 import SeriesModal from "@/components/series/SeriesModal";
 import {Suspense} from "react";
 import {getLocalUploads} from "@/lib/fetchLocalUploads";
+import ContentRowSkeleton from "@/components/series/ContentRowSkeleton";
 
 
 const getLastWatched = async () => {
@@ -56,7 +57,11 @@ const LibraryRow = async () => {
 
     if (!localSeriesWithProgress || localSeriesWithProgress.length === 0) return null;
 
-    return <ContentRow title='Biblioteka' series={localSeriesWithProgress} />;
+    return (
+        <div className='animate-in fade-in duration-700 ease-out'>
+            <ContentRow title='Biblioteka' series={localSeriesWithProgress} />
+        </div>
+    );
 }
 
 const TopMovieRows = async () => {
@@ -82,7 +87,7 @@ export default function Home() {
             </Suspense>
 
             <div className="mt-8 md:mt-12 flex flex-col gap-6 px-8">
-                <Suspense fallback={null}>
+                <Suspense fallback={<ContentRowSkeleton title='Biblioteka' />}>
                     <LibraryRow/>
                 </Suspense>
                 <Suspense fallback={null}>

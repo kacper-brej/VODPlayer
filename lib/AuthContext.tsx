@@ -7,6 +7,7 @@ type AuthContextType = {
     logout: () => Promise<void>,
 };
 import { useState, useEffect, useContext, createContext, useCallback, type ReactNode } from "react";
+import clearSessionCookieAction from "@/lib/clearSessionCookieAction";
 
 const AuthContext = createContext<AuthContextType>({
     user: null,
@@ -45,6 +46,7 @@ export const AuthProvider = ({children}: {children: ReactNode}) => {
         } catch {
             // brak połączenia z serwerem - i tak czyścimy sesję lokalnie
         } finally {
+            await clearSessionCookieAction();
             setUser(null);
         }
     }, []);

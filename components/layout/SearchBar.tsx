@@ -13,12 +13,12 @@ const SearchBar = () => {
     }, [isMobileExpanded]);
 
     return (
-        <div className="fixed top-4 right-4 z-40 md:relative md:top-0 md:right-0 flex justify-end w-full md:max-w-md group hover:scale-105 focus-within:scale-105 duration-300">
+        <div className="fixed top-4 right-4 z-40 md:relative md:top-0 md:right-0 flex justify-end w-full md:max-w-md group hover:scale-105 focus-within:scale-105 duration-300 pointer-events-none">
 
             <button
                 onClick={() => setIsMobileExpanded(true)}
                 className={`md:hidden p-3 bg-surface/50 backdrop-blur-xl border border-white/5
-                rounded-xl text-foreground transition-all duration-300 shadow-lg 
+                rounded-xl text-foreground transition-all duration-300 shadow-lg pointer-events-auto
                 ${isMobileExpanded ? "absolute opacity-0 invisible scale-90" : "opacity-100 visible scale-100"}`}
             >
                 <Search size={24} strokeWidth={2} />

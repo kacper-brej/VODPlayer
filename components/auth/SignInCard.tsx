@@ -1,13 +1,14 @@
 'use client'
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Tv, Mail, Lock, Eye, EyeClosed, ArrowRight, QrCode, Check } from 'lucide-react';
 import { cn } from "@/lib/utils"
 import { AuthStatusMessage } from "@/components/auth/AuthStatusMessage";
 import { QrLoginPanel } from "@/components/auth/QrLoginPanel";
 import {useRouter, useSearchParams} from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
+import setSessionCookieAction from "@/lib/setSessionCookieAction";
 
 function Input({ className, type, ...props }: React.ComponentProps<"input">) {
     return (
@@ -39,23 +40,6 @@ export function SignInCard() {
     const verified = searchParams.get('verified');
     const { refreshUser } = useAuth();
 
-    const mouseX = useMotionValue(0);
-    const mouseY = useMotionValue(0);
-    const rotateX = useTransform(mouseY, [-300, 300], [4, -4]);
-    const rotateY = useTransform(mouseX, [-300, 300], [-4, 4]);
-
-    const handleMouseMove = (e: React.MouseEvent) => {
-        const rect = e.currentTarget.getBoundingClientRect();
-        mouseX.set(e.clientX - rect.left - rect.width / 2);
-        mouseY.set(e.clientY - rect.top - rect.height / 2);
-    };
-
-    const handleMouseLeave = () => {
-        mouseX.set(0);
-        mouseY.set(0);
-    };
-
-    // TODO: podpiąć docelową logikę logowania (middleware / sesja)
     const handleSubmit = async (event: React.FormEvent) => {
         event.preventDefault();
         setStatus('loading');
@@ -71,6 +55,10 @@ export function SignInCard() {
             });
 
             if (res.ok){
+                const data = await res.json().catch(() => null);
+                if (data?.token) {
+                    await setSessionCookieAction(data.token, rememberMe);
+                }
                 await refreshUser();
                 setStatus('success');
                 setStatusMessage('Zalogowano pomyślnie. Przekierowujemy…');
@@ -108,31 +96,8 @@ export function SignInCard() {
             />
 
             <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-[120vh] h-[60vh] rounded-b-[50%] bg-primary/20 blur-[80px]" />
-            <motion.div
-                className="absolute top-0 left-1/2 transform -translate-x-1/2 w-[100vh] h-[60vh] rounded-b-full bg-primary/20 blur-[60px]"
-                animate={{
-                    opacity: [0.15, 0.25, 0.15],
-                    scale: [0.99, 1.01, 0.99]
-                }}
-                transition={{
-                    duration: 10,
-                    repeat: Infinity,
-                    repeatType: "mirror"
-                }}
-            />
-            <motion.div
-                className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-[90vh] h-[90vh] rounded-t-full bg-accent/10 blur-[60px]"
-                animate={{
-                    opacity: [0.3, 0.4, 0.3],
-                    scale: [1, 1.05, 1]
-                }}
-                transition={{
-                    duration: 8,
-                    repeat: Infinity,
-                    repeatType: "mirror",
-                    delay: 1
-                }}
-            />
+            <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-[100vh] h-[60vh] rounded-b-full bg-primary/20 blur-[60px] opacity-20" />
+            <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-[90vh] h-[90vh] rounded-t-full bg-accent/10 blur-[60px] opacity-35" />
 
             <div className="absolute left-1/4 top-1/4 w-96 h-96 bg-primary/5 rounded-full blur-[100px] animate-pulse opacity-40" />
             <div className="absolute right-1/4 bottom-1/4 w-96 h-96 bg-accent/5 rounded-full blur-[100px] animate-pulse delay-1000 opacity-40" />
@@ -142,108 +107,13 @@ export function SignInCard() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8 }}
                 className="w-full max-w-sm md:max-w-md lg:max-w-lg relative z-10 px-4"
-                style={{ perspective: 1500 }}
             >
-                <motion.div
-                    className="relative"
-                    style={{ rotateX, rotateY }}
-                    onMouseMove={handleMouseMove}
-                    onMouseLeave={handleMouseLeave}
-                    whileHover={{ z: 10 }}
-                >
+                <div className="relative">
                     <div className="relative group">
-                        <motion.div
+                        <div
                             className="absolute -inset-[1px] rounded-2xl opacity-0 group-hover:opacity-60 transition-opacity duration-700"
-                            animate={{
-                                boxShadow: [
-                                    "0 0 8px 1px var(--glow-primary)",
-                                    "0 0 12px 3px var(--glow-primary)",
-                                    "0 0 8px 1px var(--glow-primary)"
-                                ],
-                                opacity: [0.12, 0.22, 0.12]
-                            }}
-                            transition={{
-                                duration: 5,
-                                repeat: Infinity,
-                                ease: "easeInOut",
-                                repeatType: "mirror"
-                            }}
+                            style={{ boxShadow: "0 0 10px 2px var(--glow-primary)" }}
                         />
-
-                        <div className="absolute -inset-[1px] rounded-2xl overflow-hidden">
-                            <motion.div
-                                className="absolute top-0 left-0 h-[2px] w-[35%] bg-gradient-to-r from-transparent via-primary to-transparent"
-                                initial={{ filter: "blur(1.5px)" }}
-                                animate={{
-                                    left: ["-35%", "100%"],
-                                    opacity: [0.12, 0.28, 0.12],
-                                }}
-                                transition={{
-                                    left: { duration: 3.5, ease: "easeInOut", repeat: Infinity, repeatDelay: 2.5 },
-                                    opacity: { duration: 1.8, repeat: Infinity, repeatType: "mirror" },
-                                }}
-                            />
-
-                            <motion.div
-                                className="absolute top-0 right-0 h-[35%] w-[2px] bg-gradient-to-b from-transparent via-primary to-transparent"
-                                initial={{ filter: "blur(1.5px)" }}
-                                animate={{
-                                    top: ["-35%", "100%"],
-                                    opacity: [0.12, 0.28, 0.12],
-                                }}
-                                transition={{
-                                    top: { duration: 3.5, ease: "easeInOut", repeat: Infinity, repeatDelay: 2.5, delay: 0.9 },
-                                    opacity: { duration: 1.8, repeat: Infinity, repeatType: "mirror", delay: 0.9 },
-                                }}
-                            />
-
-                            <motion.div
-                                className="absolute bottom-0 right-0 h-[2px] w-[35%] bg-gradient-to-r from-transparent via-primary to-transparent"
-                                initial={{ filter: "blur(1.5px)" }}
-                                animate={{
-                                    right: ["-35%", "100%"],
-                                    opacity: [0.12, 0.28, 0.12],
-                                }}
-                                transition={{
-                                    right: { duration: 3.5, ease: "easeInOut", repeat: Infinity, repeatDelay: 2.5, delay: 1.8 },
-                                    opacity: { duration: 1.8, repeat: Infinity, repeatType: "mirror", delay: 1.8 },
-                                }}
-                            />
-
-                            <motion.div
-                                className="absolute bottom-0 left-0 h-[35%] w-[2px] bg-gradient-to-b from-transparent via-primary to-transparent"
-                                initial={{ filter: "blur(1.5px)" }}
-                                animate={{
-                                    bottom: ["-35%", "100%"],
-                                    opacity: [0.12, 0.28, 0.12],
-                                }}
-                                transition={{
-                                    bottom: { duration: 3.5, ease: "easeInOut", repeat: Infinity, repeatDelay: 2.5, delay: 2.7 },
-                                    opacity: { duration: 1.8, repeat: Infinity, repeatType: "mirror", delay: 2.7 },
-                                }}
-                            />
-
-                            <motion.div
-                                className="absolute top-0 left-0 h-[5px] w-[5px] rounded-full bg-primary/50 blur-[1px]"
-                                animate={{ opacity: [0.12, 0.24, 0.12] }}
-                                transition={{ duration: 3, repeat: Infinity, repeatType: "mirror" }}
-                            />
-                            <motion.div
-                                className="absolute top-0 right-0 h-[8px] w-[8px] rounded-full bg-primary/70 blur-[2px]"
-                                animate={{ opacity: [0.12, 0.24, 0.12] }}
-                                transition={{ duration: 3.4, repeat: Infinity, repeatType: "mirror", delay: 0.5 }}
-                            />
-                            <motion.div
-                                className="absolute bottom-0 right-0 h-[8px] w-[8px] rounded-full bg-primary/70 blur-[2px]"
-                                animate={{ opacity: [0.12, 0.24, 0.12] }}
-                                transition={{ duration: 3.2, repeat: Infinity, repeatType: "mirror", delay: 1 }}
-                            />
-                            <motion.div
-                                className="absolute bottom-0 left-0 h-[5px] w-[5px] rounded-full bg-primary/50 blur-[1px]"
-                                animate={{ opacity: [0.12, 0.24, 0.12] }}
-                                transition={{ duration: 3.3, repeat: Infinity, repeatType: "mirror", delay: 1.5 }}
-                            />
-                        </div>
 
                         <div className="absolute -inset-[0.5px] rounded-2xl bg-gradient-to-r from-primary/10 via-white/5 to-primary/10 opacity-0 group-hover:opacity-70 transition-opacity duration-500" />
 
@@ -435,13 +305,6 @@ export function SignInCard() {
                                     <div className="absolute inset-0 bg-primary/30 rounded-lg blur-lg opacity-0 group-hover/button:opacity-70 transition-opacity duration-300" />
 
                                     <div className="relative overflow-hidden bg-primary text-background font-bold h-10 md:h-12 rounded-lg transition-all duration-300 flex items-center justify-center shadow-lg shadow-primary/25">
-                                        <motion.div
-                                            className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/30 to-white/0 -z-10"
-                                            animate={{ x: ['-100%', '100%'] }}
-                                            transition={{ duration: 1.5, ease: "easeInOut", repeat: Infinity, repeatDelay: 1 }}
-                                            style={{ opacity: status === 'loading' ? 1 : 0, transition: 'opacity 0.3s ease' }}
-                                        />
-
                                         <AnimatePresence mode="wait">
                                             {status === 'loading' ? (
                                                 <motion.div
@@ -471,14 +334,9 @@ export function SignInCard() {
 
                                 <div className="relative mt-2 mb-5 md:mb-6 flex items-center">
                                     <div className="flex-grow border-t border-white/5"></div>
-                                    <motion.span
-                                        className="mx-3 text-xs md:text-sm text-muted"
-                                        initial={{ opacity: 0.7 }}
-                                        animate={{ opacity: [0.7, 0.85, 0.7] }}
-                                        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                                    >
+                                    <span className="mx-3 text-xs md:text-sm text-muted">
                                         lub
-                                    </motion.span>
+                                    </span>
                                     <div className="flex-grow border-t border-white/5"></div>
                                 </div>
 
@@ -525,7 +383,7 @@ export function SignInCard() {
                             )}
                         </div>
                     </div>
-                </motion.div>
+                </div>
             </motion.div>
         </div>
     );

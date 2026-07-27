@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/AuthContext";
 const Sidebar = () => {
     const [isMobileOpen, setIsMobileOpen] = useState<boolean>(false);
     const [isDesktopExpanded, setIsDesktopExpanded] = useState<boolean>(false);
+    const isExpanded = isDesktopExpanded || isMobileOpen;
     const pathname = usePathname();
     const router = useRouter();
     const { logout } = useAuth();
@@ -45,19 +46,19 @@ const Sidebar = () => {
               flex flex-col justify-between py-6 transition-all duration-300 ease-in-out
               ${isMobileOpen ?  'translate-x-0' : 'translate-x-[-150%]'}
               md:translate-x-0
-              ${isDesktopExpanded ?  'w-64' : 'w-20'}
+              ${isExpanded ?  'w-64' : 'w-20'}
            `}>
                 {/*Navigation + logo*/}
 
                 <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-3">
                     {/*Logo*/}
                     <div className="flex items-center justify-between mb-8 relative">
-                        <Link href='/' className={`flex items-center group overflow-hidden transition-all duration-300 mx-auto ${isDesktopExpanded ? 'w-full' : 'w-11'}`}>
+                        <Link href='/' className={`flex items-center group overflow-hidden transition-all duration-300 mx-auto ${isExpanded ? 'w-full' : 'w-11'}`}>
                             <div className="bg-primary/20 p-2 rounded-xl group-hover:glow-primary transition-all shrink-0">
                                 <Tv className='text-primary' size={24}/>
                             </div>
                             <span className={`text-foreground font-bold text-xl whitespace-nowrap overflow-hidden transition-all duration-300 ${
-                                isDesktopExpanded ? 'max-w-52 opacity-100 ml-3' : 'max-w-0 opacity-0 ml-0'
+                                isExpanded ? 'max-w-52 opacity-100 ml-3' : 'max-w-0 opacity-0 ml-0'
                             }`}>
                               Nocturna
                           </span>
@@ -75,17 +76,17 @@ const Sidebar = () => {
                                             <Link
                                                 href={href}
                                                 onClick={() => {setIsMobileOpen(false)}}
-                                                title={!isDesktopExpanded ? name : undefined}
+                                                title={!isExpanded ? name : undefined}
                                                 className={`flex items-center py-2.5 px-3 rounded-xl transition-all duration-300 relative group overflow-hidden mx-auto ${
                                                     isActive ? 'bg-primary/10 text-primary glow-primary' : 'text-muted hover:text-foreground hover:bg-white/5'
-                                                } ${isDesktopExpanded ? 'w-full' : 'w-11'}`}
+                                                } ${isExpanded ? 'w-full' : 'w-11'}`}
                                             >
                                                 <div className='shrink-0'>
                                                     <Icon size={20} strokeWidth={2}/>
                                                 </div>
                                                 <span
                                                     className={`font-medium text-sm whitespace-nowrap transition-all duration-300 ${
-                                                        isDesktopExpanded ? 'max-w-52 opacity-100 ml-4' : 'max-w-0 opacity-0 ml-0'
+                                                        isExpanded ? 'max-w-52 opacity-100 ml-4' : 'max-w-0 opacity-0 ml-0'
                                                     }`}
                                                 >
                                                   {name}
@@ -105,9 +106,9 @@ const Sidebar = () => {
                     <Link
                         href='/settings'
                         onClick={() => {setIsMobileOpen(false)}}
-                        title={!isDesktopExpanded ? 'Settings' : undefined}
+                        title={!isExpanded ? 'Settings' : undefined}
                         className={`flex items-center py-3 px-3 rounded-xl text-muted hover:text-foreground hover:bg-white/5 transition-all duration-300 relative overflow-hidden mx-auto ${
-                            isDesktopExpanded ? 'w-full' : 'w-11'
+                            isExpanded ? 'w-full' : 'w-11'
                         }`}
                     >
                         <div className="shrink-0">
@@ -115,7 +116,7 @@ const Sidebar = () => {
                         </div>
                         <span
                             className={`font-medium text-sm whitespace-nowrap transition-all duration-300 ${
-                                isDesktopExpanded ? 'max-w-52 opacity-100 ml-4' : 'max-w-0 opacity-0 ml-0'
+                                isExpanded ? 'max-w-52 opacity-100 ml-4' : 'max-w-0 opacity-0 ml-0'
                             }`}
                         >
                           Settings
@@ -123,9 +124,9 @@ const Sidebar = () => {
                     </Link>
                     <button
                         onClick={handleLogout}
-                        title={!isDesktopExpanded ? 'Logout' : undefined}
+                        title={!isExpanded ? 'Logout' : undefined}
                         className={`flex cursor-pointer items-center py-3 px-3 rounded-xl text-muted hover:text-danger hover:bg-danger/10 transition-all duration-300 relative overflow-hidden mx-auto ${
-                            isDesktopExpanded ? 'w-full' : 'w-11'
+                            isExpanded ? 'w-full' : 'w-11'
                         }`}
                     >
                         <div className='shrink-0'>
@@ -133,7 +134,7 @@ const Sidebar = () => {
                         </div>
                         <span
                             className={`font-medium text-sm whitespace-nowrap transition-all duration-300 ${
-                                isDesktopExpanded ? 'max-w-52 opacity-100 ml-4' : 'max-w-0 opacity-0 ml-0'
+                                isExpanded ? 'max-w-52 opacity-100 ml-4' : 'max-w-0 opacity-0 ml-0'
                             }`}
                         >
                         Logout
