@@ -4,7 +4,7 @@ export const VOD_ORIGIN = process.env.NEXT_PUBLIC_VOD_ORIGIN ?? "https://vids.ka
 export const VOD_SERVICE_KEY = process.env.VOD_SERVICE_KEY ?? process.env.UPLOAD_SECRET ?? "";
 
 export const CATALOG_TAG = "catalog";
-export const CATALOG_REVALIDATE_SECONDS = 300;
+export const CATALOG_REVALIDATE_SECONDS = 30;
 
 export const episodeUrl = (seriesKey: string, episodeKey: string) =>
     `${VOD_ORIGIN}/uploads/${encodeURIComponent(seriesKey)}/${encodeURIComponent(episodeKey)}`;
@@ -12,6 +12,13 @@ export const episodeUrl = (seriesKey: string, episodeKey: string) =>
 export const sessionToken = async (): Promise<string | null> => {
     const store = await cookies();
     return store.get("token")?.value ?? null;
+};
+
+export const PROFILE_COOKIE = "nx_profile";
+
+export const selectedProfileId = async (): Promise<string | null> => {
+    const store = await cookies();
+    return store.get(PROFILE_COOKIE)?.value ?? null;
 };
 
 export const sessionHeaders = async (): Promise<Record<string, string> | null> => {

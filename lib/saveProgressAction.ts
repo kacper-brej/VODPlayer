@@ -1,5 +1,9 @@
 "use server";
-import { VOD_ORIGIN, sessionHeaders } from "@/lib/vodConfig";
+import { VOD_ORIGIN, selectedProfileId, sessionHeaders } from "@/lib/vodConfig";
+import {
+    validateSaveProgressResponse,
+    type SaveProgressResponse,
+} from "@/lib/contracts";
 
 interface SaveProgressInput {
     seriesKey: string;
@@ -8,15 +12,23 @@ interface SaveProgressInput {
     durationSeconds?: number | null;
 }
 
-const saveProgressAction = async ({ seriesKey, episodeKey, positionSeconds, durationSeconds }: SaveProgressInput) => {
+type SaveProgressError = {
+    success: false;
+    error: "unauthenticated" | "backend" | "network" | "invalid_response";
+};
+
+const saveProgressAction = async (
+    { seriesKey, episodeKey, positionSeconds, durationSeconds }: SaveProgressInput,
+): Promise<SaveProgressResponse | SaveProgressError> => {
     const headers = await sessionHeaders();
 
     if (!headers) {
-        console.error("saveProgressAction: brak ciasteczka sesji");
+        console.error("saveProgressAction: missing session cookie");
         return { success: false, error: "unauthenticated" };
     }
 
     try {
+        const profileId = await selectedProfileId();
         const res = await fetch(`${VOD_ORIGIN}/progress.php`, {
             method: "POST",
             headers: {
@@ -29,6 +41,7 @@ const saveProgressAction = async ({ seriesKey, episodeKey, positionSeconds, dura
                 episode: episodeKey,
                 position: Math.max(0, Math.round(positionSeconds)),
                 duration: durationSeconds && durationSeconds > 0 ? Math.round(durationSeconds) : undefined,
+                profileId: profileId ?? undefined,
             }),
         });
 
@@ -37,7 +50,15 @@ const saveProgressAction = async ({ seriesKey, episodeKey, positionSeconds, dura
             return { success: false, error: "backend" };
         }
 
-        return (await res.json()) as { success: boolean; completed: boolean };
+        const payload: unknown = await res.json();
+        const result = validateSaveProgressResponse(payload);
+
+        if (!result.ok) {
+            console.error(result.error);
+            return { success: false, error: "invalid_response" };
+        }
+
+        return result.data;
     } catch (error) {
         console.error("saveProgressAction failed", error);
         return { success: false, error: "network" };

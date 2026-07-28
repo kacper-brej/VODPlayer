@@ -1,75 +1,89 @@
 import { cache } from "react";
 import { CATALOG_REVALIDATE_SECONDS, CATALOG_TAG, VOD_ORIGIN, serviceHeaders } from "@/lib/vodConfig";
+import {
+    validateCatalogResponse,
+    type CatalogEpisode,
+    type CatalogSeriesPayload,
+} from "@/lib/contracts";
+import {
+    dataEmpty,
+    dataFailure,
+    dataSuccess,
+    failureFromStatus,
+    type DataResult,
+} from "@/lib/dataResult";
 
 export const FALLBACK_COVER = "/fallback-cover.jpg";
-export const LOCAL_ID_OFFSET = 90000;
+export const LEGACY_LOCAL_ID_OFFSET = 90000;
+export const STABLE_LOCAL_ID_OFFSET = 1000000;
 
-export interface CatalogEpisode {
-    key: string;
-    number: number;
-    url: string;
-    sizeBytes: number;
-    addedAt: number;
-}
-
-export interface CatalogSeries {
-    id: number;
-    key: string;
-    title: string;
+export type { CatalogEpisode };
+export type CatalogSeries = Omit<CatalogSeriesPayload, "coverImage" | "rating"> & {
     coverImage: string;
-    bannerImage: string | null;
-    synopsis: string | null;
     rating: string;
-    year: number | null;
-    hasMetadata: boolean;
-    episodeCount: number;
-    episodes: CatalogEpisode[];
-}
+    bannerImage: string;
+};
 
-interface CatalogResponse {
-    generatedAt: number;
-    series: Array<Omit<CatalogSeries, "coverImage" | "rating"> & { coverImage: string | null; rating: string | null }>;
-}
-
-const loadCatalog = async (): Promise<CatalogSeries[]> => {
+const loadCatalog = async (): Promise<DataResult<CatalogSeries[]>> => {
     try {
         const res = await fetch(`${VOD_ORIGIN}/catalog.php`, {
             headers: serviceHeaders(),
             next: { revalidate: CATALOG_REVALIDATE_SECONDS, tags: [CATALOG_TAG] },
         });
 
-        if (!res.ok) return [];
+        if (!res.ok) {
+            console.error("Catalog request failed:", res.status);
+            return failureFromStatus(res.status);
+        }
 
-        const payload = (await res.json()) as CatalogResponse;
+        const payload: unknown = await res.json();
+        const result = validateCatalogResponse(payload);
 
-        if (!Array.isArray(payload?.series)) return [];
+        if (!result.ok) {
+            console.error(result.error);
+            return dataFailure("invalid_response");
+        }
 
-        return payload.series.map((series) => ({
-            ...series,
-            coverImage: series.coverImage || FALLBACK_COVER,
-            rating: series.rating || "Local",
+        const series = result.data.series.map((entry) => ({
+            ...entry,
+            coverImage: entry.coverImage || FALLBACK_COVER,
+            rating: entry.rating || "Local",
+            bannerImage: entry.backdropImage || entry.coverImage || FALLBACK_COVER,
         }));
+
+        return series.length === 0
+            ? dataEmpty(series)
+            : dataSuccess(series);
     } catch (error) {
-        console.error("catalog fetch failed", error);
-        return [];
+        console.error("Catalog request failed:", error);
+        return dataFailure("network");
     }
 };
 
 export const getCatalog = cache(loadCatalog);
 
-export const getCatalogSeriesById = cache(async (id: number): Promise<CatalogSeries | null> => {
-    const catalog = await getCatalog();
-    return catalog.find((series) => series.id === id) ?? null;
+export const getCatalogSeriesByKey = cache(async (key: string): Promise<DataResult<CatalogSeries | null>> => {
+    const result = await getCatalog();
+    if (result.kind === "error") return result;
+
+    const series = result.data.find((entry) => entry.key === key) ?? null;
+    return series ? dataSuccess(series) : dataEmpty(null);
 });
 
-export const getCatalogSeriesByKey = cache(async (key: string): Promise<CatalogSeries | null> => {
-    const catalog = await getCatalog();
-    return catalog.find((series) => series.key === key) ?? null;
-});
+export const resolveCatalogSeries = cache(async (query: string): Promise<DataResult<CatalogSeries | null>> => {
+    const result = await getCatalog();
+    if (result.kind === "error") return result;
 
-export const resolveCatalogSeries = cache(async (query: string): Promise<CatalogSeries | null> => {
-    const catalog = await getCatalog();
-    return catalog.find((series) => series.key === query || String(series.id) === query) ?? null;
-});
+    const directMatch = result.data.find((entry) => entry.key === query || String(entry.id) === query);
 
-export const isLocalSeriesId = (id: number) => id >= LOCAL_ID_OFFSET;
+    if (directMatch) return dataSuccess(directMatch);
+
+    const legacyId = Number(query);
+    const legacyIndex = legacyId - LEGACY_LOCAL_ID_OFFSET;
+    const stableId = STABLE_LOCAL_ID_OFFSET + legacyIndex;
+    const series = Number.isInteger(legacyId) && legacyIndex >= 0
+        ? result.data.find((entry) => entry.id === stableId) ?? result.data[legacyIndex] ?? null
+        : null;
+
+    return series ? dataSuccess(series) : dataEmpty(null);
+});

@@ -8,21 +8,39 @@ import { getTopMovie } from "@/lib/fetchMoviePopular";
 import { getMovieNewest } from "@/lib/fetchMovieNewest";
 import { getCatalog, FALLBACK_COVER } from "@/lib/catalog";
 import { getLatestResume, getResumeMap } from "@/lib/continueWatching";
+import { getWatchlist } from "@/lib/watchlist";
 import { progressPercent } from "@/lib/watchProgress";
 import type { SeriesCardProps } from "@/components/series/SeriesCard";
+import { DataErrorState, DataState } from "@/components/data/DataState";
 
 const Hero = async () => {
-    const [resume, catalog] = await Promise.all([getLatestResume(), getCatalog()]);
+    const [resumeResult, catalogResult] = await Promise.all([getLatestResume(), getCatalog()]);
 
-    if (!resume) return <HeroBanerSection lastWatchedData={null} />;
+    if (resumeResult.kind === "error") {
+        return <DataErrorState reason={resumeResult.reason} />;
+    }
 
-    const series = catalog.find((item) => item.key === resume.seriesKey);
+    if (catalogResult.kind === "error") {
+        return <DataErrorState reason={catalogResult.reason} />;
+    }
+
+    if (resumeResult.kind === "empty" || !resumeResult.data) {
+        return <HeroBanerSection lastWatchedData={null} />;
+    }
+
+    const resume = resumeResult.data;
+    const series = catalogResult.data.find((item) => item.key === resume.seriesKey);
     const episode = series?.episodes.find((item) => item.key === resume.episodeKey);
+
+    if (!series || !episode) {
+        return <HeroBanerSection lastWatchedData={null} />;
+    }
 
     return (
         <HeroBanerSection
             lastWatchedData={{
-                seriesId: resume.seriesKey,
+                seriesId: series.id,
+                title: series.title,
                 episodeFile: resume.episodeKey,
                 lastWatchedTime: resume.positionSeconds,
                 progressPercent: progressPercent(resume.positionSeconds, resume.durationSeconds),
@@ -36,18 +54,42 @@ const Hero = async () => {
 };
 
 const LibraryRow = async () => {
-    const [catalog, resumeMap] = await Promise.all([getCatalog(), getResumeMap()]);
+    const [catalogResult, resumeResult, watchlistResult] = await Promise.all([
+        getCatalog(),
+        getResumeMap(),
+        getWatchlist(),
+    ]);
 
-    if (catalog.length === 0) return null;
+    if (catalogResult.kind === "error") {
+        return <DataErrorState reason={catalogResult.reason} compact />;
+    }
 
-    const cards: SeriesCardProps[] = catalog.map((series) => {
-        const resume = resumeMap.get(series.key);
+    if (resumeResult.kind === "error") {
+        return <DataErrorState reason={resumeResult.reason} compact />;
+    }
+
+    if (catalogResult.kind === "empty") {
+        return (
+            <DataState
+                kind="empty"
+                title="Biblioteka jest pusta"
+                description="Dodane seriale pojawią się w tym miejscu."
+                compact
+            />
+        );
+    }
+
+    const watchlistedKeys = new Set(
+        watchlistResult.kind === "success" ? watchlistResult.data.map((item) => item.seriesKey) : [],
+    );
+
+    const cards: SeriesCardProps[] = catalogResult.data.map((series) => {
+        const resume = resumeResult.data.get(series.key);
         const episode = series.episodes.find((item) => item.key === resume?.episodeKey) ?? series.episodes[0];
 
         return {
             id: series.id,
             title: series.title,
-            seriesKey: series.key,
             coverImage: series.coverImage,
             rating: series.rating,
             year: series.year ?? undefined,
@@ -55,6 +97,8 @@ const LibraryRow = async () => {
             resumeEpisodeKey: episode?.key,
             watchedSeconds: resume?.positionSeconds,
             durationSeconds: resume?.durationSeconds ?? undefined,
+            seriesKey: series.key,
+            inWatchlist: watchlistedKeys.has(series.key),
         };
     });
 
@@ -66,19 +110,50 @@ const LibraryRow = async () => {
 };
 
 const TopMovieRows = async () => {
-    const topMovie = await getTopMovie();
+    const result = await getTopMovie();
+
+    if (result.kind === "error") {
+        return <DataErrorState reason={result.reason} compact />;
+    }
+
+    if (result.kind === "empty") {
+        return (
+            <DataState
+                kind="empty"
+                title="Brak popularnych tytułów"
+                description="Lista jest teraz pusta."
+                compact
+            />
+        );
+    }
 
     return (
         <>
-            <ContentRow title="Hot takes" series={topMovie} />
-            <ContentRow title="Obejrzyj ponownie" series={topMovie} />
+            <ContentRow title="Hot takes" series={result.data} />
+            <ContentRow title="Obejrzyj ponownie" series={result.data} />
         </>
     );
 };
 
 const NewestRow = async () => {
-    const newestMovie = await getMovieNewest();
-    return <ContentRow title="Nowości" series={newestMovie} />;
+    const result = await getMovieNewest();
+
+    if (result.kind === "error") {
+        return <DataErrorState reason={result.reason} compact />;
+    }
+
+    if (result.kind === "empty") {
+        return (
+            <DataState
+                kind="empty"
+                title="Brak nowości"
+                description="Lista jest teraz pusta."
+                compact
+            />
+        );
+    }
+
+    return <ContentRow title="Nowości" series={result.data} />;
 };
 
 export default function Home() {

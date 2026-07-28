@@ -2,6 +2,8 @@ import WatchClient from "@/app/watch/WatchClient";
 import { resolveCatalogSeries } from "@/lib/catalog";
 import { getSeriesResume } from "@/lib/continueWatching";
 import { getSeriesProgressAction } from "@/lib/getProgressAction";
+import { notFound } from "next/navigation";
+import { DataErrorState } from "@/components/data/DataState";
 
 const RESUME_REWIND_SECONDS = 10;
 
@@ -19,14 +21,26 @@ const ErrorScreen = ({ message }: { message: string }) => (
     </div>
 );
 
+const DataErrorScreen = ({ reason }: { reason: Parameters<typeof DataErrorState>[0]["reason"] }) => (
+    <div className="fixed inset-0 z-[999] flex min-h-screen items-center justify-center bg-black p-4">
+        <DataErrorState reason={reason} />
+    </div>
+);
+
 const WatchPage = async ({ searchParams }: { searchParams: Promise<{ id?: string; ep?: string }> }) => {
     const { id: seriesQueryId, ep: epQuery } = await searchParams;
 
     if (!seriesQueryId) return <ErrorScreen message="Błędny link" />;
 
-    const series = await resolveCatalogSeries(seriesQueryId);
+    const seriesResult = await resolveCatalogSeries(seriesQueryId);
 
-    if (!series) return <ErrorScreen message={`Nie znaleziono serialu: ${seriesQueryId}`} />;
+    if (seriesResult.kind === "error") {
+        return <DataErrorScreen reason={seriesResult.reason} />;
+    }
+
+    if (!seriesResult.data) notFound();
+
+    const series = seriesResult.data;
 
     let episode = null;
     let savedTime = 0;
@@ -42,7 +56,13 @@ const WatchPage = async ({ searchParams }: { searchParams: Promise<{ id?: string
 
         if (!episode) return <ErrorScreen message={`Nie znaleziono odcinka nr ${epQuery}`} />;
     } else {
-        const resume = await getSeriesResume(series.key);
+        const resumeResult = await getSeriesResume(series.key);
+
+        if (resumeResult.kind === "error") {
+            return <DataErrorScreen reason={resumeResult.reason} />;
+        }
+
+        const resume = resumeResult.data;
         episode = series.episodes.find((item) => item.key === resume?.episodeKey) ?? series.episodes[0] ?? null;
 
         if (resume && episode?.key === resume.episodeKey) {
@@ -54,8 +74,13 @@ const WatchPage = async ({ searchParams }: { searchParams: Promise<{ id?: string
     if (!episode) return <ErrorScreen message="Nie znaleziono pliku odcinka na serwerze" />;
 
     if (!timeResolved) {
-        const { episodes } = await getSeriesProgressAction(series.key);
-        savedTime = episodes[episode.key]?.positionSeconds ?? 0;
+        const progressResult = await getSeriesProgressAction(series.key);
+
+        if (progressResult.kind === "error") {
+            return <DataErrorScreen reason={progressResult.reason} />;
+        }
+
+        savedTime = progressResult.data.episodes[episode.key]?.positionSeconds ?? 0;
     }
 
     const nextEpisode = series.episodes.find((item) => item.number === episode.number + 1) ?? null;

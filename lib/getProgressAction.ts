@@ -1,46 +1,70 @@
 "use server";
-import { VOD_ORIGIN, sessionHeaders } from "@/lib/vodConfig";
+import { VOD_ORIGIN, selectedProfileId, sessionHeaders } from "@/lib/vodConfig";
+import {
+    validateSeriesProgressResponse,
+    type SeriesProgressResponse,
+} from "@/lib/contracts";
+import {
+    dataEmpty,
+    dataFailure,
+    dataSuccess,
+    failureFromStatus,
+    type DataResult,
+} from "@/lib/dataResult";
 
-export interface EpisodeProgress {
-    positionSeconds: number;
-    durationSeconds: number | null;
-    completed: boolean;
-}
+type SeriesProgress = Pick<SeriesProgressResponse, "episodes" | "resume">;
 
 export const getSeriesProgressAction = async (
     seriesKey: string,
-): Promise<{ episodes: Record<string, EpisodeProgress>; resume: { episodeKey: string; positionSeconds: number; durationSeconds: number | null } | null }> => {
+): Promise<DataResult<SeriesProgress>> => {
     const headers = await sessionHeaders();
-    const empty = { episodes: {}, resume: null };
+    const empty: SeriesProgress = { episodes: {}, resume: null };
 
-    if (!headers || !seriesKey) return empty;
+    if (!headers) return dataFailure("unauthorized");
+    if (!seriesKey) return dataEmpty(empty);
 
     try {
-        const res = await fetch(`${VOD_ORIGIN}/progress.php?action=series&series=${encodeURIComponent(seriesKey)}`, {
-            headers,
-            cache: "no-store",
-        });
+        const profileId = await selectedProfileId();
+        const profileParam = profileId ? `&profile_id=${encodeURIComponent(profileId)}` : "";
+        const res = await fetch(
+            `${VOD_ORIGIN}/progress.php?action=series&series=${encodeURIComponent(seriesKey)}${profileParam}`,
+            {
+                headers,
+                cache: "no-store",
+            },
+        );
 
         if (!res.ok) {
             console.error("progress.php series ->", res.status, await res.text());
-            return empty;
+            return failureFromStatus(res.status);
         }
 
-        const payload = await res.json();
+        const payload: unknown = await res.json();
+        const result = validateSeriesProgressResponse(payload);
 
-        return {
-            episodes: (payload?.episodes ?? {}) as Record<string, EpisodeProgress>,
-            resume: payload?.resume ?? null,
-        };
+        if (!result.ok) {
+            console.error(result.error);
+            return dataFailure("invalid_response");
+        }
+
+        const data = { episodes: result.data.episodes, resume: result.data.resume };
+        return Object.keys(data.episodes).length === 0 && data.resume === null
+            ? dataEmpty(data)
+            : dataSuccess(data);
     } catch (error) {
-        console.error("getSeriesProgressAction failed", error);
-        return empty;
+        console.error("Series progress request failed:", error);
+        return dataFailure("network");
     }
 };
 
-const getProgressAction = async (seriesKey: string, episodeKey: string): Promise<number> => {
-    const { episodes } = await getSeriesProgressAction(seriesKey);
-    return episodes[episodeKey]?.positionSeconds ?? 0;
+const getProgressAction = async (seriesKey: string, episodeKey: string): Promise<DataResult<number>> => {
+    const result = await getSeriesProgressAction(seriesKey);
+    if (result.kind === "error") return result;
+
+    const progress = result.data.episodes[episodeKey];
+    return progress
+        ? dataSuccess(progress.positionSeconds)
+        : dataEmpty(0);
 };
 
 export default getProgressAction;

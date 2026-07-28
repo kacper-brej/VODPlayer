@@ -1,24 +1,35 @@
 import Image from "next/image";
 import { Play } from "lucide-react";
 import EpisodeList from "@/components/episodes/EpisodeList";
-import { getCatalogSeriesById } from "@/lib/catalog";
+import { resolveCatalogSeries } from "@/lib/catalog";
 import { getSeriesProgressAction } from "@/lib/getProgressAction";
 import { progressPercent } from "@/lib/watchProgress";
+import { notFound, permanentRedirect } from "next/navigation";
+import { DataErrorState } from "@/components/data/DataState";
+import { seriesPath } from "@/lib/routes";
 
 const SeriesPage = async ({ params }: { params: Promise<{ id: string }> }) => {
     const { id } = await params;
-    const series = await getCatalogSeriesById(Number(id));
+    const seriesResult = await resolveCatalogSeries(id);
 
-    if (!series) {
+    if (seriesResult.kind === "error") {
         return (
-            <div className="w-full min-h-screen bg-background flex items-center justify-center text-foreground">
-                <h1 className="text-2xl font-bold">Nie znaleziono serialu</h1>
-            </div>
+            <main className="min-h-screen bg-background px-4 py-24 md:px-8">
+                <DataErrorState reason={seriesResult.reason} />
+            </main>
         );
     }
 
-    const { episodes: progress } = await getSeriesProgressAction(series.key);
+    if (!seriesResult.data) notFound();
 
+    const series = seriesResult.data;
+
+    if (id !== String(series.id)) {
+        permanentRedirect(seriesPath(series.id));
+    }
+
+    const progressResult = await getSeriesProgressAction(series.key);
+    const progress = progressResult.kind === "error" ? {} : progressResult.data.episodes;
     const seriesEpisodes = series.episodes.map((episode) => {
         const entry = progress[episode.key];
         const percent = entry ? progressPercent(entry.positionSeconds, entry.durationSeconds) : 0;
@@ -31,7 +42,6 @@ const SeriesPage = async ({ params }: { params: Promise<{ id: string }> }) => {
             duration: "24 min",
             description: episode.key,
             thumbnail: series.coverImage,
-            videoUrl: episode.url,
             progress: percent > 0 ? percent : undefined,
         };
     });
@@ -54,7 +64,7 @@ const SeriesPage = async ({ params }: { params: Promise<{ id: string }> }) => {
                         <Image src={series.coverImage} alt={series.title} fill className="object-cover" />
                     </div>
                     <div className="flex flex-col gap-2 md:gap-3 w-full relative z-10">
-                        <h1 className="text-2xl sm:text-3xl md:text-5xl font-bold text-foreground drop-shadow-lg">
+                        <h1 className="text-2xl font-bold text-foreground drop-shadow-lg sm:font-display sm:text-3xl md:text-5xl">
                             {series.title}
                         </h1>
                         <div className="flex items-center gap-3 text-xs sm:text-sm text-foreground/80">
@@ -80,7 +90,11 @@ const SeriesPage = async ({ params }: { params: Promise<{ id: string }> }) => {
                         Odcinki <span className="text-muted font-normal">({seriesEpisodes.length})</span>
                     </h2>
                 </div>
-                {seriesEpisodes.length > 0 ? (
+                {progressResult.kind === "error" ? (
+                    <div className="mx-auto max-w-6xl px-4 md:px-8">
+                        <DataErrorState reason={progressResult.reason} compact />
+                    </div>
+                ) : seriesEpisodes.length > 0 ? (
                     <EpisodeList episodes={seriesEpisodes} seriesId={series.id} />
                 ) : (
                     <p className="text-muted text-center py-10">Brak odcinków do wyświetlenia.</p>

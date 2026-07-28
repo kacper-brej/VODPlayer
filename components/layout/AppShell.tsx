@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 import SearchBar from "@/components/layout/SearchBar";
 import { useAuth } from "@/lib/AuthContext";
+import { DataErrorState } from "@/components/data/DataState";
 
 const NO_CHROME_ROUTES = ["/login", "/signup", "/forgot-password", "/reset-password", "/qr-confirm", "/profiles"];
 const PUBLIC_ROUTES = ["/login", "/signup", "/forgot-password", "/reset-password", "/qr-confirm"];
@@ -12,21 +13,30 @@ const AUTH_ONLY_ROUTES = ["/login", "/signup"];
 const AppShell = ({ children }: { children: React.ReactNode }) => {
     const pathname = usePathname();
     const router = useRouter();
-    const { user, loading } = useAuth();
+    const { user, error, loading, refreshUser } = useAuth();
 
     useEffect(() => {
         if (loading) return;
+        if (error && error !== "unauthorized") return;
         if (!user && !PUBLIC_ROUTES.includes(pathname)) {
             router.replace("/login");
         } else if (user && AUTH_ONLY_ROUTES.includes(pathname)) {
             router.replace("/profiles");
         }
-    }, [loading, user, pathname, router]);
+    }, [error, loading, user, pathname, router]);
 
     if (loading) {
         return (
             <div className="min-h-dvh w-full flex items-center justify-center bg-background">
                 <div className="w-8 h-8 border-2 border-border border-t-primary rounded-full animate-spin" />
+            </div>
+        );
+    }
+
+    if (error && error !== "unauthorized") {
+        return (
+            <div className="min-h-dvh w-full bg-background p-4 flex items-center justify-center">
+                <DataErrorState reason={error} onRetry={refreshUser} />
             </div>
         );
     }

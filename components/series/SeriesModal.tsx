@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { X, Play, CheckCircle2, FileVideo, ArrowUpRight } from "lucide-react";
 import Image from "next/image";
 import getSeriesDetailsAction, { SeriesDetails } from "@/lib/getSeriesDetailsAction";
+import { DataErrorState, DataState } from "@/components/data/DataState";
+import type { DataErrorReason } from "@/lib/dataResult";
+import { seriesPath, watchPath } from "@/lib/routes";
 
 const CLOSE_ANIMATION_MS = 200;
 
@@ -15,6 +18,9 @@ const SeriesModal = () => {
 
     const [details, setDetails] = useState<SeriesDetails | null>(null);
     const [loading, setLoading] = useState(false);
+    const [failure, setFailure] = useState<DataErrorReason | null>(null);
+    const [missing, setMissing] = useState(false);
+    const [retryKey, setRetryKey] = useState(0);
     const [showAnimation, setShowAnimation] = useState(false);
 
     const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -35,15 +41,13 @@ const SeriesModal = () => {
     };
 
     const goToSeriesPage = () => {
-        if (!movieId) return;
-        scheduleAfterClose(() => router.push(`/series/${movieId}`));
+        if (!details) return;
+        scheduleAfterClose(() => router.push(seriesPath(details.id)));
     };
 
     const openEpisode = (episodeKey: string) => {
         if (!details?.seriesKey) return;
-        scheduleAfterClose(() =>
-            router.push(`/watch?id=${encodeURIComponent(details.seriesKey!)}&ep=${encodeURIComponent(episodeKey)}`),
-        );
+        scheduleAfterClose(() => router.push(watchPath(details.id, episodeKey)));
     };
 
     useEffect(() => {
@@ -61,11 +65,22 @@ const SeriesModal = () => {
 
         const load = async () => {
             setLoading(true);
-            const data = await getSeriesDetailsAction(Number(movieId));
+            setFailure(null);
+            setMissing(false);
+            const result = await getSeriesDetailsAction(Number(movieId));
 
             if (cancelled) return;
 
-            setDetails(data);
+            if (result.kind === "error") {
+                setDetails(null);
+                setFailure(result.reason);
+            } else if (!result.data) {
+                setDetails(null);
+                setMissing(true);
+            } else {
+                setDetails(result.data);
+            }
+
             setLoading(false);
         };
 
@@ -75,7 +90,7 @@ const SeriesModal = () => {
             cancelled = true;
             cancelAnimationFrame(frame);
         };
-    }, [movieId]);
+    }, [movieId, retryKey]);
 
     useEffect(() => {
         return () => {
@@ -101,7 +116,22 @@ const SeriesModal = () => {
                     <X size={20} className="md:w-6 md:h-6" />
                 </button>
 
-                {loading || !details ? (
+                {failure ? (
+                    <div className="p-4 md:p-8">
+                        <DataErrorState
+                            reason={failure}
+                            onRetry={() => setRetryKey((value) => value + 1)}
+                        />
+                    </div>
+                ) : missing ? (
+                    <div className="p-4 md:p-8">
+                        <DataState
+                            kind="empty"
+                            title="Nie znaleziono tytułu"
+                            description="Ten tytuł nie jest już dostępny."
+                        />
+                    </div>
+                ) : loading || !details ? (
                     <div className="text-foreground pb-8 w-full">
                         <div className="w-full h-62.5 md:h-100 shrink-0 bg-surface-light animate-pulse relative">
                             <div className="absolute inset-0 bg-linear-to-t from-surface via-surface/40 to-transparent" />
@@ -142,7 +172,7 @@ const SeriesModal = () => {
                         </div>
 
                         <div className="px-4 md:px-8 mt-4 relative z-10">
-                            <h1 className="text-2xl md:text-4xl font-bold mb-2 drop-shadow-lg text-foreground">
+                            <h1 className="mb-2 text-2xl font-bold text-foreground drop-shadow-lg md:font-display md:text-4xl">
                                 {details.title}
                             </h1>
                             <p className="text-sm md:text-base text-muted mb-6 line-clamp-4 md:line-clamp-none">

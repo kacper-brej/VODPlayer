@@ -2,14 +2,15 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Play, Plus, ThumbsUp, ChevronDown } from "lucide-react";
+import { Play, Plus, Check, ThumbsUp, ChevronDown } from "lucide-react";
 import { hasPageInteraction } from "@/lib/pageInteraction";
 import { progressPercent } from "@/lib/watchProgress";
+import { watchPath } from "@/lib/routes";
+import toggleWatchlistAction from "@/lib/toggleWatchlistAction";
 
 export interface SeriesCardProps {
     id: number;
     title: string;
-    seriesKey?: string;
     coverImage: string;
     rating?: string;
     year?: number;
@@ -19,7 +20,11 @@ export interface SeriesCardProps {
     durationSeconds?: number;
     eagerPreview?: boolean;
     previewStartSeconds?: number;
+    seriesKey?: string;
+    inWatchlist?: boolean;
 }
+
+const WATCHLIST_ERROR_DISPLAY_MS = 2500;
 
 const HOVER_INTENT_MS = 80;
 const NEAR_VIEWPORT_MARGIN = "300px";
@@ -28,7 +33,6 @@ const DEFAULT_PREVIEW_START_SECONDS = 2;
 const SeriesCard = ({
     id,
     title,
-    seriesKey,
     coverImage,
     rating = "16+",
     year,
@@ -38,17 +42,33 @@ const SeriesCard = ({
     durationSeconds,
     eagerPreview = false,
     previewStartSeconds = DEFAULT_PREVIEW_START_SECONDS,
+    seriesKey,
+    inWatchlist = false,
 }: SeriesCardProps) => {
     const router = useRouter();
     const containerRef = useRef<HTMLDivElement | null>(null);
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const hasSourceRef = useRef(false);
+    const watchlistErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const [isNearViewport, setIsNearViewport] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
+    const [watchlisted, setWatchlisted] = useState(inWatchlist);
+    const [syncedInWatchlist, setSyncedInWatchlist] = useState(inWatchlist);
+    const [watchlistError, setWatchlistError] = useState<string | null>(null);
 
-    const routeId = seriesKey ?? title ?? String(id);
+    if (inWatchlist !== syncedInWatchlist) {
+        setSyncedInWatchlist(inWatchlist);
+        setWatchlisted(inWatchlist);
+    }
+
+    useEffect(() => {
+        return () => {
+            if (watchlistErrorTimerRef.current) clearTimeout(watchlistErrorTimerRef.current);
+        };
+    }, []);
+
     const percent = watchedSeconds ? progressPercent(watchedSeconds, durationSeconds) : null;
 
     const attachSource = useCallback(() => {
@@ -136,8 +156,7 @@ const SeriesCard = ({
     };
 
     const handleCardClick = () => {
-        const episodeParam = resumeEpisodeKey ? `&ep=${encodeURIComponent(resumeEpisodeKey)}` : "";
-        router.push(`/watch?id=${encodeURIComponent(routeId)}${episodeParam}`);
+        router.push(watchPath(id, resumeEpisodeKey));
     };
 
     const handleInfoClick = (event: React.MouseEvent) => {
@@ -147,11 +166,34 @@ const SeriesCard = ({
 
     const handlePlayFromStart = (event: React.MouseEvent) => {
         event.stopPropagation();
-        router.push(`/watch?id=${encodeURIComponent(routeId)}&ep=1`);
+        router.push(watchPath(id, 1));
     };
 
     const handleAction = (event: React.MouseEvent) => {
         event.stopPropagation();
+    };
+
+    const handleToggleWatchlist = (event: React.MouseEvent) => {
+        event.stopPropagation();
+
+        if (!seriesKey) return;
+
+        const nextState = !watchlisted;
+        setWatchlisted(nextState);
+        setWatchlistError(null);
+
+        void toggleWatchlistAction({ seriesKey, inWatchlist: nextState }).then((result) => {
+            if (result.success) return;
+
+            setWatchlisted(!nextState);
+            setWatchlistError("Nie udało się zapisać listy.");
+
+            if (watchlistErrorTimerRef.current) clearTimeout(watchlistErrorTimerRef.current);
+            watchlistErrorTimerRef.current = setTimeout(
+                () => setWatchlistError(null),
+                WATCHLIST_ERROR_DISPLAY_MS,
+            );
+        });
     };
 
     return (
@@ -198,11 +240,16 @@ const SeriesCard = ({
                         </button>
 
                         <button
-                            onClick={handleAction}
-                            className="w-7 h-7 md:w-9 md:h-9 border-2 cursor-pointer border-muted rounded-full flex items-center justify-center hover:border-foreground
-                            bg-surface/50 hover:bg-surface-light transition-all text-foreground"
+                            onClick={seriesKey ? handleToggleWatchlist : handleAction}
+                            aria-pressed={watchlisted}
+                            aria-label={watchlisted ? "Usuń z listy" : "Dodaj do listy"}
+                            className={`w-7 h-7 md:w-9 md:h-9 border-2 cursor-pointer rounded-full flex items-center justify-center transition-all ${
+                                watchlisted
+                                    ? "border-primary bg-primary/20 text-primary hover:bg-primary/30"
+                                    : "border-muted bg-surface/50 text-foreground hover:border-foreground hover:bg-surface-light"
+                            }`}
                         >
-                            <Plus size={16} />
+                            {watchlisted ? <Check size={16} /> : <Plus size={16} />}
                         </button>
 
                         <button
@@ -240,6 +287,10 @@ const SeriesCard = ({
                     <span className="w-1 h-1 bg-muted rounded-full"></span>
                     <span>Dramat</span>
                 </div>
+
+                {watchlistError && (
+                    <span className="mt-1.5 text-[10px] md:text-xs text-danger">{watchlistError}</span>
+                )}
             </div>
 
             {percent !== null && percent > 0 && (

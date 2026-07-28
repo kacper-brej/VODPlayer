@@ -1,9 +1,19 @@
 "use server";
-import { FALLBACK_COVER, getCatalogSeriesById, isLocalSeriesId } from "@/lib/catalog";
+import { FALLBACK_COVER, resolveCatalogSeries } from "@/lib/catalog";
 import { getSeriesProgressAction } from "@/lib/getProgressAction";
 import { progressPercent, isWatched } from "@/lib/watchProgress";
-import { fetchJikan } from "@/lib/jikanClient";
+import { fetchJikanResult } from "@/lib/jikanClient";
 import { lookupJikanMetadata, persistSeriesMetadata, invalidateCatalogCache } from "@/lib/seriesMetadata";
+import {
+    validateJikanAnimeResponse,
+    validateJikanEpisodesResponse,
+} from "@/lib/contracts";
+import {
+    dataEmpty,
+    dataFailure,
+    dataSuccess,
+    type DataResult,
+} from "@/lib/dataResult";
 
 export interface SeriesDetailsEpisode {
     key: string;
@@ -31,12 +41,17 @@ export interface SeriesDetails {
 
 const MAX_JIKAN_EPISODE_PAGES = 3;
 
-const localDetails = async (id: number): Promise<SeriesDetails | null> => {
-    const series = await getCatalogSeriesById(id);
+const localDetails = async (id: number): Promise<DataResult<SeriesDetails | null>> => {
+    const seriesResult = await resolveCatalogSeries(String(id));
+    if (seriesResult.kind === "error") return seriesResult;
 
-    if (!series) return null;
+    if (!seriesResult.data) return dataEmpty(null);
 
-    const { episodes: progress, resume } = await getSeriesProgressAction(series.key);
+    const series = seriesResult.data;
+    const progressResult = await getSeriesProgressAction(series.key);
+    if (progressResult.kind === "error") return progressResult;
+
+    const { episodes: progress, resume } = progressResult.data;
 
     let synopsis = series.synopsis;
     let bannerImage = series.bannerImage || series.coverImage;
@@ -44,11 +59,13 @@ const localDetails = async (id: number): Promise<SeriesDetails | null> => {
     let rating = series.rating;
 
     if (!series.hasMetadata || !synopsis) {
-        const metadata = await lookupJikanMetadata(series.title);
+        const metadataResult = await lookupJikanMetadata(series.title);
+        if (metadataResult.kind === "error") return metadataResult;
 
-        if (metadata) {
+        if (metadataResult.data) {
+            const metadata = metadataResult.data;
             synopsis = metadata.synopsis ?? synopsis;
-            bannerImage = metadata.bannerImage ?? bannerImage;
+            bannerImage = metadata.backdropImage ?? metadata.coverImage ?? bannerImage;
             year = metadata.year ?? year;
             rating = metadata.rating ?? rating;
 
@@ -57,7 +74,7 @@ const localDetails = async (id: number): Promise<SeriesDetails | null> => {
         }
     }
 
-    return {
+    return dataSuccess({
         id: series.id,
         seriesKey: series.key,
         title: series.title,
@@ -82,26 +99,32 @@ const localDetails = async (id: number): Promise<SeriesDetails | null> => {
                 watched: entry?.completed ?? isWatched(positionSeconds, entry?.durationSeconds),
             };
         }),
-    };
+    });
 };
 
-const remoteDetails = async (id: number): Promise<SeriesDetails | null> => {
-    const detailsJson = await fetchJikan(`/anime/${id}`);
-    const details = detailsJson?.data;
+const remoteDetails = async (id: number): Promise<DataResult<SeriesDetails | null>> => {
+    const detailsResponse = await fetchJikanResult(`/anime/${id}`);
+    if (detailsResponse.kind === "error") return detailsResponse;
 
-    if (!details) return null;
+    const detailsResult = validateJikanAnimeResponse(detailsResponse.data);
+    if (!detailsResult.ok) return dataFailure("invalid_response");
 
-    const poster = details.images?.webp?.large_image_url ?? details.images?.jpg?.image_url ?? FALLBACK_COVER;
+    const details = detailsResult.data.data;
+    const poster = details.images.webp.large_image_url || details.images.jpg.image_url || FALLBACK_COVER;
     const episodes: SeriesDetailsEpisode[] = [];
 
     for (let page = 1; page <= MAX_JIKAN_EPISODE_PAGES; page++) {
-        const episodeJson = await fetchJikan(`/anime/${id}/episodes?page=${page}`);
-        const pageEpisodes = episodeJson?.data ?? [];
+        const episodeResponse = await fetchJikanResult(`/anime/${id}/episodes?page=${page}`);
+        if (episodeResponse.kind === "error") return episodeResponse;
 
-        pageEpisodes.forEach((episode: { mal_id: number; title?: string }, index: number) => {
+        const episodeResult = validateJikanEpisodesResponse(episodeResponse.data);
+        if (!episodeResult.ok) return dataFailure("invalid_response");
+
+        const offset = episodes.length;
+        episodeResult.data.data.forEach((episode, index) => {
             episodes.push({
                 key: String(episode.mal_id),
-                number: episodes.length + index + 1,
+                number: offset + index + 1,
                 title: episode.title || `Odcinek ${episode.mal_id}`,
                 url: null,
                 thumbnail: poster,
@@ -111,10 +134,10 @@ const remoteDetails = async (id: number): Promise<SeriesDetails | null> => {
             });
         });
 
-        if (!episodeJson?.pagination?.has_next_page) break;
+        if (!episodeResult.data.pagination.has_next_page) break;
     }
 
-    return {
+    return dataSuccess({
         id,
         seriesKey: null,
         title: details.title_english || details.title,
@@ -125,17 +148,23 @@ const remoteDetails = async (id: number): Promise<SeriesDetails | null> => {
         isLocal: false,
         resumeEpisodeKey: null,
         episodes,
-    };
+    });
 };
 
-const getSeriesDetailsAction = async (id: number): Promise<SeriesDetails | null> => {
-    if (!Number.isFinite(id)) return null;
+const getSeriesDetailsAction = async (id: number): Promise<DataResult<SeriesDetails | null>> => {
+    if (!Number.isFinite(id)) return dataEmpty(null);
 
     try {
-        return isLocalSeriesId(id) ? await localDetails(id) : await remoteDetails(id);
+        const localResult = await localDetails(id);
+
+        if (localResult.kind === "error" || localResult.data) {
+            return localResult;
+        }
+
+        return await remoteDetails(id);
     } catch (error) {
         console.error("getSeriesDetailsAction failed", error);
-        return null;
+        return dataFailure("server");
     }
 };
 

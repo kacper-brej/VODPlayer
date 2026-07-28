@@ -5,13 +5,12 @@ import { motion } from 'framer-motion';
 import { Tv, Mail, Lock, Unlock, Eye, EyeClosed } from 'lucide-react';
 import { cn } from "@/lib/utils"
 import { AuthStatusMessage } from "@/components/auth/AuthStatusMessage";
+import type { AuthUser } from "@/lib/contracts";
+import { fetchCurrentUser } from "@/lib/AuthContext";
+import { DataErrorState } from "@/components/data/DataState";
+import type { DataErrorReason } from "@/lib/dataResult";
 
-type Phase = 'checking' | 'needsLogin' | 'confirm' | 'approved' | 'invalid';
-
-interface CurrentUser {
-    username: string;
-    email: string;
-}
+type Phase = 'checking' | 'needsLogin' | 'confirm' | 'approved' | 'invalid' | 'error';
 
 export function QrConfirmCard() {
     const searchParams = useSearchParams();
@@ -19,7 +18,9 @@ export function QrConfirmCard() {
 
     const [phase, setPhase] = useState<Phase>(token ? 'checking' : 'invalid');
     const [lastToken, setLastToken] = useState(token);
-    const [user, setUser] = useState<CurrentUser | null>(null);
+    const [user, setUser] = useState<AuthUser | null>(null);
+    const [failure, setFailure] = useState<DataErrorReason | null>(null);
+    const [retryKey, setRetryKey] = useState(0);
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
@@ -35,22 +36,27 @@ export function QrConfirmCard() {
         if (!token) return;
 
         (async () => {
-            try {
-                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/me.php`, {
-                    credentials: 'include',
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    setUser(data.user);
-                    setPhase('confirm');
-                } else {
+            const result = await fetchCurrentUser();
+
+            if (result.kind === "error") {
+                if (result.reason === "unauthorized") {
                     setPhase('needsLogin');
+                } else {
+                    setFailure(result.reason);
+                    setPhase('error');
                 }
-            } catch {
-                setPhase('needsLogin');
+                return;
             }
+
+            if (!result.data) {
+                setPhase('needsLogin');
+                return;
+            }
+
+            setUser(result.data);
+            setPhase('confirm');
         })();
-    }, [token]);
+    }, [retryKey, token]);
 
     const handleLogin = async (event: React.FormEvent) => {
         event.preventDefault();
@@ -67,9 +73,21 @@ export function QrConfirmCard() {
 
             if (res.ok) {
                 setStatus('idle');
-                const meRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/me.php`, { credentials: 'include' });
-                const meData = await meRes.json();
-                setUser(meData.user);
+                const result = await fetchCurrentUser();
+
+                if (result.kind === "error") {
+                    setStatus('error');
+                    setStatusMessage('Could not verify the current user.');
+                    return;
+                }
+
+                if (!result.data) {
+                    setStatus('error');
+                    setStatusMessage('Could not verify the current user.');
+                    return;
+                }
+
+                setUser(result.data);
                 setPhase('confirm');
             } else {
                 const data = await res.json();
@@ -139,6 +157,14 @@ export function QrConfirmCard() {
                         <p className="text-center text-sm text-danger">
                             Nieprawidłowy link. Wróć na telewizor i odśwież kod QR.
                         </p>
+                    )}
+
+                    {phase === 'error' && failure && (
+                        <DataErrorState
+                            reason={failure}
+                            compact
+                            onRetry={() => setRetryKey((value) => value + 1)}
+                        />
                     )}
 
                     {phase === 'needsLogin' && (

@@ -1,4 +1,11 @@
-import { fetchJikan } from "@/lib/jikanClient";
+import { fetchJikanResult } from "@/lib/jikanClient";
+import { validateJikanAnimeListResponse } from "@/lib/contracts";
+import {
+    dataEmpty,
+    dataFailure,
+    dataSuccess,
+    type DataResult,
+} from "@/lib/dataResult";
 
 export interface MovieMappers {
     id:number,
@@ -8,41 +15,32 @@ export interface MovieMappers {
     year:number | undefined;
 }
 
-export interface JikanAnimeData {
-    mal_id:number;
-    title_english: string | null;
-    title: string;
-    synopsis: string;
-    genres: {
-        mal_id: number;
-        name: string;
-    }
-    images: {
-        webp: {
-            large_image_url: string;
-        };
-    };
-    rating: string | null;
-    year: number | null;
-    score: number | null;
-}
-
-export const getTopMovie = async (): Promise<MovieMappers[]> => {
+export const getTopMovie = async (): Promise<DataResult<MovieMappers[]>> => {
 
     try {
-        const data = await fetchJikan(`/top/anime?limit=20`);
+        const response = await fetchJikanResult(`/top/anime?limit=20`);
 
-        if(!data) throw new Error(`Could not find top-movie`);
+        if (response.kind === "error") return response;
 
-        return data.data.map((movie: JikanAnimeData) => ({
+        const result = validateJikanAnimeListResponse(response.data);
+        if (!result.ok) {
+            console.error(result.error);
+            return dataFailure("invalid_response");
+        }
+
+        const movies = result.data.data.map((movie) => ({
             id: movie.mal_id,
             title: movie.title_english || movie.title,
             coverImage: movie.images.webp.large_image_url,
             rating: movie.rating ? movie.rating.split(' ')[0] : "NR",
-            year: movie.year,
+            year: movie.year ?? undefined,
         }));
+
+        return movies.length === 0
+            ? dataEmpty(movies)
+            : dataSuccess(movies);
     } catch (error) {
-        console.log("fetchMovie error:", error);
-        return [] as MovieMappers[];
+        console.error("getTopMovie failed:", error);
+        return dataFailure("server");
     }
 }

@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import saveProgressAction from "@/lib/saveProgressAction";
 import PlayerErrorBoundary from "@/components/video/PlayerErrorBoundary";
+import { seriesPath, watchPath } from "@/lib/routes";
 
 const VideoPlayer = dynamic(
     () => import("@/components/video/VideoPlayer").then((mod) => mod.VideoPlayer),
@@ -66,9 +67,9 @@ const WatchClient = ({ videoSrc, title, seriesId, seriesKey, currentEpisode, tot
 
         if (currentEpisode < totalEpisodes) {
             const nextEp = currentEpisode + 1;
-            router.replace(`/watch?id=${encodeURIComponent(seriesKey)}&ep=${nextEp}`);
+            router.replace(watchPath(seriesId, nextEp));
         } else {
-            router.replace(`/series/${seriesId}`);
+            router.replace(seriesPath(seriesId));
         }
     }
 
@@ -76,7 +77,7 @@ const WatchClient = ({ videoSrc, title, seriesId, seriesKey, currentEpisode, tot
         if (isNavigatingRef.current) return;
         isNavigatingRef.current = true;
 
-        router.replace(`/watch?id=${encodeURIComponent(seriesKey)}&ep=${currentEpisode - 1}`);
+        router.replace(watchPath(seriesId, currentEpisode - 1));
     }
 
     const handleBack = () => {

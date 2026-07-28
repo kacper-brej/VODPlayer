@@ -1,11 +1,18 @@
+import {
+    dataFailure,
+    dataSuccess,
+    failureFromStatus,
+    type DataResult,
+} from "@/lib/dataResult";
+
 const BASE_URL = process.env.NEXT_PUBLIC_MOVIE_API_URL;
 
 const MIN_REQUEST_INTERVAL_MS = 400;
 const CACHE_TTL_MS = 60 * 60 * 1000;
 const MAX_RETRIES = 3;
 
-const cache = new Map<string, { data: any; expiresAt: number }>();
-const pending = new Map<string, Promise<any>>();
+const cache = new Map<string, { data: unknown; expiresAt: number }>();
+const pending = new Map<string, Promise<DataResult<unknown>>>();
 let schedule: Promise<void> = Promise.resolve();
 let lastRequestAt = 0;
 
@@ -24,10 +31,13 @@ const scheduleStart = () => {
     return turn;
 };
 
-export const fetchJikan = async (path: string, options?: RequestInit): Promise<any> => {
+export const fetchJikanResult = async (
+    path: string,
+    options?: RequestInit,
+): Promise<DataResult<unknown>> => {
     const cached = cache.get(path);
     if (cached && cached.expiresAt > Date.now()) {
-        return cached.data;
+        return dataSuccess(cached.data);
     }
 
     const inFlight = pending.get(path);
@@ -47,22 +57,29 @@ export const fetchJikan = async (path: string, options?: RequestInit): Promise<a
                         await wait(MIN_REQUEST_INTERVAL_MS * (attempt + 2));
                         continue;
                     }
-                    console.error("fetchJikan: nieudane po ponowieniach", path, res.status);
-                    return null;
+                    console.error("fetchJikan failed after retries:", path, res.status);
+                    return failureFromStatus(res.status);
                 }
 
-                if (!res.ok) return null;
+                if (!res.ok) return failureFromStatus(res.status);
 
-                const data = await res.json();
+                let data: unknown;
+
+                try {
+                    data = await res.json();
+                } catch {
+                    return dataFailure("invalid_response");
+                }
+
                 cache.set(path, { data, expiresAt: Date.now() + CACHE_TTL_MS });
-                return data;
+                return dataSuccess(data);
             } catch (error) {
-                console.error("fetchJikan error:", error);
-                return null;
+                console.error("Jikan request failed:", error);
+                return dataFailure("network");
             }
         }
 
-        return null;
+        return dataFailure("server");
     })();
 
     pending.set(path, run);
