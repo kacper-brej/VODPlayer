@@ -35,7 +35,7 @@ const seriesHero = ({title, description, coverImage, year, rating, sesonsCount, 
                         <span>{sesonsCount} {sesonsCount === 1 ? 'Sezon' : 'Sezony'}</span>
                         {genres.map((genre:string, i:number) => (
                             <span key={i} className='flex items-center'>
-                                <span className='hidden md:inline-block w-1 h-1 bg-white/30 rounded-full mx-2'>
+                                <span className='max-md:hidden md:inline-block w-1 h-1 bg-white/30 rounded-full mx-2'>
                                     {genre}
                                 </span>
                             </span>

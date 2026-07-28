@@ -2,7 +2,6 @@
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft } from "lucide-react";
 import saveProgressAction from "@/lib/saveProgressAction";
 import PlayerErrorBoundary from "@/components/video/PlayerErrorBoundary";
 
@@ -27,9 +26,10 @@ interface WatchClientProps {
     totalEpisodes: number;
     fileName: string;
     startTime: number;
+    nextEpisodeTitle?: string;
 }
 
-const WatchClient = ({ videoSrc, title, seriesId, seriesKey, currentEpisode, totalEpisodes, fileName, startTime }: WatchClientProps) => {
+const WatchClient = ({ videoSrc, title, seriesId, seriesKey, currentEpisode, totalEpisodes, fileName, startTime, nextEpisodeTitle }: WatchClientProps) => {
     const router = useRouter();
     const [playerInstanceKey, setPlayerInstanceKey] = useState(0);
     const isNavigatingRef = useRef(false);
@@ -89,17 +89,15 @@ const WatchClient = ({ videoSrc, title, seriesId, seriesKey, currentEpisode, tot
     return (
         <div className="fixed inset-0 z-[999] bg-black flex flex-col w-screen h-screen">
 
-            <div className="absolute top-6 left-6 z-50">
-                <button onClick={handleBack} className="text-foreground bg-white/10 p-2 rounded-full hover:bg-white/20 cursor-pointer transition-colors">
-                    <ArrowLeft size={22} />
-                </button>
-            </div>
-
             <div className="flex-1 w-full h-full flex items-center justify-center">
                 <PlayerErrorBoundary key={playerInstanceKey} onRetry={() => setPlayerInstanceKey((k) => k + 1)}>
                     <VideoPlayer
                         src={videoSrc}
                         title={title}
+                        subtitle={`Odcinek ${currentEpisode} z ${totalEpisodes}`}
+                        episodesLeft={Math.max(0, totalEpisodes - currentEpisode)}
+                        nextEpisodeTitle={nextEpisodeTitle}
+                        onBack={handleBack}
                         onNextEpisode={handleNextEpisode}
                         onPreviousEpisode={currentEpisode > 1 ? handlePreviousEpisode : undefined}
                         onProgressUpdate={handleProgressUpdate}

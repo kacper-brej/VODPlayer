@@ -30,6 +30,7 @@ export function QrLoginPanel({ onBack }: { onBack: () => void }) {
     };
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         createSession();
     }, []);
 
@@ -51,21 +52,20 @@ export function QrLoginPanel({ onBack }: { onBack: () => void }) {
                     await refreshUser();
                     setStatus('approved');
                     setTimeout(() => {
-                        router.push('/');
+                        router.push('/profiles');
                     }, 700);
                 } else if (data.status === 'expired') {
                     if (pollRef.current) clearInterval(pollRef.current);
                     setStatus('expired');
                 }
             } catch {
-                // pojedynczy nieudany poll ignorujemy, spróbujemy ponownie za 2s
             }
         }, 2000);
 
         return () => {
             if (pollRef.current) clearInterval(pollRef.current);
         };
-    }, [token, status, router]);
+    }, [token, status, router, refreshUser]);
 
     const qrUrl = token && typeof window !== 'undefined'
         ? `${window.location.origin}/qr-confirm?token=${token}`

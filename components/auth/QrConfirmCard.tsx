@@ -17,7 +17,8 @@ export function QrConfirmCard() {
     const searchParams = useSearchParams();
     const token = searchParams.get('token') ?? '';
 
-    const [phase, setPhase] = useState<Phase>('checking');
+    const [phase, setPhase] = useState<Phase>(token ? 'checking' : 'invalid');
+    const [lastToken, setLastToken] = useState(token);
     const [user, setUser] = useState<CurrentUser | null>(null);
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -25,11 +26,13 @@ export function QrConfirmCard() {
     const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [statusMessage, setStatusMessage] = useState("");
 
+    if (token !== lastToken) {
+        setLastToken(token);
+        setPhase(token ? 'checking' : 'invalid');
+    }
+
     useEffect(() => {
-        if (!token) {
-            setPhase('invalid');
-            return;
-        }
+        if (!token) return;
 
         (async () => {
             try {

@@ -21,17 +21,19 @@ const Sidebar = () => {
 
     return (
         <>
+            <div aria-hidden className="max-sm:hidden w-28 shrink-0" />
+
             {/*Mobile*/}
             <button
                 onClick = {() => setIsMobileOpen(true)}
-                className='md:hidden fixed top-4 left-4 z-40 p-3
+                className='sm:hidden fixed top-4 left-4 z-40 p-3
               bg-surface/50 backdrop-blur-xl border border-white/5 rounded-xl text-foreground transition-colors'
             >
                 <Menu size={24} strokeWidth={2}/>
             </button>
 
             {isMobileOpen && (
-                <div className='md:hidden fixed inset-0 bg-background/80
+                <div className='sm:hidden fixed inset-0 bg-background/80
               backdrop-blur-sm z-40 transition-opacity'
                      onClick={() => setIsMobileOpen(false)}
                 />
@@ -42,11 +44,11 @@ const Sidebar = () => {
             <aside
                 onMouseEnter={() => setIsDesktopExpanded(true)}
                 onMouseLeave={() => setIsDesktopExpanded(false)}
-                className={`fixed z-50 top-4 left-4 h-[calc(100dvh-32px)]  rounded-4xl bg-surface/50 backdrop-blur-xl border border-white/5
+                className={`fixed top-4 left-4 h-[calc(100dvh-32px)]  rounded-4xl bg-surface/50 backdrop-blur-xl border border-white/5
               flex flex-col justify-between py-6 transition-all duration-300 ease-in-out
               ${isMobileOpen ?  'translate-x-0' : 'translate-x-[-150%]'}
-              md:translate-x-0
-              ${isExpanded ?  'w-64' : 'w-20'}
+              sm:translate-x-0
+              ${isExpanded ?  'w-64 z-50' : 'w-20 z-10'}
            `}>
                 {/*Navigation + logo*/}
 

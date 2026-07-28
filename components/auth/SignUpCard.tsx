@@ -7,7 +7,6 @@ import { Tv, Mail, Lock, User, Eye, EyeClosed, ArrowRight, QrCode, Unlock, Check
 import { cn } from "@/lib/utils"
 import { AuthStatusMessage } from "@/components/auth/AuthStatusMessage";
 import { QrLoginPanel } from "@/components/auth/QrLoginPanel";
-import {useRouter} from "next/navigation";
 
 function Input({ className, type, ...props }: React.ComponentProps<"input">) {
     return (
@@ -38,7 +37,6 @@ export function SignUpCard() {
     const [focusedInput, setFocusedInput] = useState<string | null>(null);
     const [registered, setRegistered] = useState(false);
     const [qrMode, setQrMode] = useState(false);
-    const router = useRouter();
 
     // TODO: podpiąć docelową logikę rejestracji (middleware / sesja)
     const handleSubmit = async (event: React.FormEvent) => {
@@ -77,7 +75,6 @@ export function SignUpCard() {
                 const data = await res.json();
                 errorMessage = data.error ?? errorMessage;
             } catch {
-                // odpowiedź serwera nie była poprawnym JSON-em, zostaje komunikat domyślny
             }
             setStatus('error');
             setStatusMessage(errorMessage);

@@ -63,7 +63,7 @@ export function SignInCard() {
                 setStatus('success');
                 setStatusMessage('Zalogowano pomyślnie. Przekierowujemy…');
                 setTimeout(() => {
-                    router.push("/");
+                    router.push("/profiles");
                 }, 800);
                 return;
             }
@@ -73,7 +73,6 @@ export function SignInCard() {
                 const data = await res.json();
                 errorMessage = data.error ?? errorMessage;
             } catch {
-                // odpowiedź serwera nie była poprawnym JSON-em, zostaje komunikat domyślny
             }
             setStatus('error');
             setStatusMessage(errorMessage);

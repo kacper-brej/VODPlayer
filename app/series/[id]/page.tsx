@@ -50,7 +50,7 @@ const SeriesPage = async ({ params }: { params: Promise<{ id: string }> }) => {
                 <div className="absolute inset-0 bg-linear-to-t from-background via-background/50 to-transparent" />
 
                 <div className="absolute bottom-0 left-0 w-full px-4 md:px-8 max-w-6xl mx-auto pb-6 md:pb-8 flex flex-col md:flex-row gap-4 md:gap-6 items-end">
-                    <div className="hidden md:block relative w-40 aspect-2/3 rounded-xl overflow-hidden shadow-2xl shrink-0 border border-white/10">
+                    <div className="max-md:hidden md:block relative w-40 aspect-2/3 rounded-xl overflow-hidden shadow-2xl shrink-0 border border-white/10">
                         <Image src={series.coverImage} alt={series.title} fill className="object-cover" />
                     </div>
                     <div className="flex flex-col gap-2 md:gap-3 w-full relative z-10">

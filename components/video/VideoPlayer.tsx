@@ -1,76 +1,64 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
-import '@vidstack/react/player/styles/default/theme.css';
-import '@vidstack/react/player/styles/default/layouts/video.css';
+import '@vidstack/react/player/styles/base.css';
 import {
+    Gesture,
     MediaErrorDetail,
     MediaPlayer,
     MediaPlayerInstance,
     MediaProvider,
     MediaTimeUpdateEventDetail,
-    PlayButton,
-    useMediaState,
+    Poster,
 } from '@vidstack/react';
-import { AlertTriangle, SkipBack, SkipForward } from 'lucide-react';
-import { defaultLayoutIcons, DefaultVideoLayout } from '@vidstack/react/player/layouts/default';
+import { AlertTriangle } from 'lucide-react';
+import PlayerControls from './PlayerControls';
+import {
+    BufferingIndicator,
+    NextEpisodePill,
+    OverlaidPlayButton,
+    SkipIntroPill,
+    VolumeHud,
+} from './PlayerOverlays';
 
 interface VideoPlayerProps {
     src: string;
     title: string;
+    subtitle?: string;
     posterUrl?: string;
+    episodesLeft?: number;
+    nextEpisodeTitle?: string;
+    onBack?: () => void;
     onNextEpisode?: () => void;
     onPreviousEpisode?: () => void;
     onProgressUpdate?: (currentTime: number, duration: number) => void;
     startTime?: number;
 }
 
-interface EpisodeControlsProps {
-    onPreviousEpisode?: () => void;
-    onNextEpisode?: () => void;
-}
-
-const EpisodeControls = ({ onPreviousEpisode, onNextEpisode }: EpisodeControlsProps) => {
-    const paused = useMediaState('paused');
-    const ended = useMediaState('ended');
-    const Icons = defaultLayoutIcons.PlayButton;
-    const Icon = ended ? Icons.Replay : paused ? Icons.Play : Icons.Pause;
-
-    return (
-        <>
-            {onPreviousEpisode && (
-                <button
-                    onClick={onPreviousEpisode}
-                    className="vds-button cursor-pointer flex items-center justify-center w-10 h-10 md:w-11 md:h-11 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 backdrop-blur-md transition-colors duration-200 active:scale-95"
-                    aria-label="Poprzedni odcinek"
-                >
-                    <SkipBack size={18} className="fill-current" />
-                </button>
-            )}
-            <PlayButton className="vds-button">
-                <Icon />
-            </PlayButton>
-            {onNextEpisode && (
-                <button
-                    onClick={onNextEpisode}
-                    className="vds-button cursor-pointer flex items-center justify-center w-10 h-10 md:w-11 md:h-11 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 backdrop-blur-md transition-colors duration-200 active:scale-95"
-                    aria-label="Następny odcinek"
-                >
-                    <SkipForward size={18} className="fill-current" />
-                </button>
-            )}
-        </>
-    );
-};
-
 const INTRO_SKIP_SECONDS = 90;
 const NEXT_EPISODE_TRIGGER_SECONDS = 60;
 const NEXT_EPISODE_AUTOPLAY_MS = 5000;
 
-export const VideoPlayer = ({ src, title, posterUrl, onNextEpisode, onPreviousEpisode, onProgressUpdate, startTime = 0 }: VideoPlayerProps) => {
+const ERROR_BUTTON_CLASS =
+    'px-6 py-3 bg-[#030712]/80 hover:bg-primary-hover border border-white/10 hover:border-primary-hover text-slate-200 hover:text-white rounded-full text-xs font-bold uppercase tracking-[0.2em] transition-all duration-500 backdrop-blur-xl shadow-[0_10px_40px_rgba(0,0,0,0.6)] hover:scale-105 cursor-pointer';
+
+export const VideoPlayer = ({
+    src,
+    title,
+    subtitle,
+    posterUrl,
+    episodesLeft,
+    nextEpisodeTitle,
+    onBack,
+    onNextEpisode,
+    onPreviousEpisode,
+    onProgressUpdate,
+    startTime = 0,
+}: VideoPlayerProps) => {
     const playerRef = useRef<MediaPlayerInstance>(null);
     const lastSavedTime = useRef<number>(0);
     const hasSeekedToStart = useRef(false);
+    const nextEpisodeRef = useRef(onNextEpisode);
 
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
@@ -115,8 +103,10 @@ export const VideoPlayer = ({ src, title, posterUrl, onNextEpisode, onPreviousEp
         }
     };
 
+    const hasNextEpisode = episodesLeft === undefined || episodesLeft > 0;
     const showSkipIntro = currentTime > 0 && currentTime < INTRO_SKIP_SECONDS;
-    const showNextEpisode = !!onNextEpisode && duration > 0 && duration - currentTime <= NEXT_EPISODE_TRIGGER_SECONDS;
+    const showNextEpisode =
+        !!onNextEpisode && hasNextEpisode && duration > 0 && duration - currentTime <= NEXT_EPISODE_TRIGGER_SECONDS;
 
     if (showNextEpisode !== prevShowNextEpisode) {
         setPrevShowNextEpisode(showNextEpisode);
@@ -140,25 +130,29 @@ export const VideoPlayer = ({ src, title, posterUrl, onNextEpisode, onPreviousEp
     }, [showNextEpisode]);
 
     useEffect(() => {
+        nextEpisodeRef.current = onNextEpisode;
+    });
+
+    useEffect(() => {
         if (!showNextEpisode || autoAdvanceCancelled) return;
 
         const timeout = setTimeout(() => {
-            onNextEpisode?.();
+            nextEpisodeRef.current?.();
         }, NEXT_EPISODE_AUTOPLAY_MS);
 
         return () => clearTimeout(timeout);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [showNextEpisode, autoAdvanceCancelled]);
 
     return (
-        <div className="w-full h-full relative bg-black">
+        <div className="np-stage">
             <MediaPlayer
                 ref={playerRef}
                 title={title}
                 src={src}
                 autoPlay
                 keyTarget="document"
-                className="w-full h-full"
+                className="np-player"
+                fullscreenOrientation="landscape"
                 onEnded={onNextEpisode}
                 onCanPlay={handleCanPlay}
                 onTimeUpdate={handleTimeUpdate}
@@ -166,71 +160,66 @@ export const VideoPlayer = ({ src, title, posterUrl, onNextEpisode, onPreviousEp
                 onError={handleError}
                 playsInline
             >
-                <MediaProvider />
-                <DefaultVideoLayout
-                    thumbnails={posterUrl}
-                    icons={defaultLayoutIcons}
-                    slots={{
-                        playButton: <EpisodeControls onPreviousEpisode={onPreviousEpisode} onNextEpisode={onNextEpisode} />,
-                    }}
+                <MediaProvider>
+                    {posterUrl && <Poster className="np-poster" src={posterUrl} alt={title} />}
+                </MediaProvider>
+
+                <Gesture className="np-gesture np-gesture-fine" event="pointerup" action="toggle:paused" />
+                <Gesture className="np-gesture np-gesture-coarse" event="pointerup" action="toggle:controls" />
+                <Gesture className="np-gesture" event="dblpointerup" action="toggle:fullscreen" />
+
+                <BufferingIndicator />
+                <OverlaidPlayButton />
+                <VolumeHud />
+
+                <PlayerControls
+                    heading={title}
+                    subheading={subtitle}
+                    onBack={onBack}
+                    onNextEpisode={onNextEpisode}
+                    onPreviousEpisode={onPreviousEpisode}
                 />
-            </MediaPlayer>
 
-            {mediaError && (
-                <div className="absolute inset-0 z-[60] bg-black flex flex-col items-center justify-center gap-4 text-center px-6">
-                    <AlertTriangle size={40} className="text-danger" />
-                    <div className="flex flex-col gap-1.5">
-                        <p className="text-foreground font-semibold">Nie udało się odtworzyć tego odcinka.</p>
-                        <p className="text-muted text-sm">Plik wideo jest uszkodzony lub niedostępny na serwerze.</p>
-                    </div>
-                    <div className="flex items-center gap-3 mt-2">
-                        {onPreviousEpisode && (
-                            <button
-                                onClick={onPreviousEpisode}
-                                className="px-4 py-2 bg-surface hover:bg-surface-light text-foreground text-sm font-semibold rounded-md border border-white/10 transition-colors cursor-pointer"
-                            >
-                                Poprzedni odcinek
-                            </button>
-                        )}
-                        {onNextEpisode && (
-                            <button
-                                onClick={onNextEpisode}
-                                className="px-4 py-2 bg-primary hover:bg-primary-hover text-foreground text-sm font-semibold rounded-md transition-colors cursor-pointer"
-                            >
-                                Następny odcinek
-                            </button>
-                        )}
-                    </div>
-                </div>
-            )}
+                <SkipIntroPill visible={showSkipIntro && !mediaError} onSkip={handleSkipIntro} />
 
-            {showSkipIntro && !mediaError && (
-                <button
-                    onClick={handleSkipIntro}
-                    className="absolute bottom-24 right-6 md:right-10 z-50 px-5 py-2.5 bg-surface/80 hover:bg-surface text-foreground font-semibold rounded-md border border-white/10 backdrop-blur-md transition-colors cursor-pointer"
-                >
-                    Pomiń czołówkę
-                </button>
-            )}
+                {onNextEpisode && (
+                    <NextEpisodePill
+                        visible={showNextEpisode && !mediaError}
+                        countdownMs={NEXT_EPISODE_AUTOPLAY_MS}
+                        countdownActive={showNextEpisode && !autoAdvanceCancelled}
+                        episodesLeft={episodesLeft}
+                        nextEpisodeTitle={nextEpisodeTitle}
+                        onNextEpisode={onNextEpisode}
+                    />
+                )}
 
-            {showNextEpisode && !mediaError && (
-                <div
-                    onClick={onNextEpisode}
-                    className="absolute bottom-24 right-6 md:right-10 z-50 flex flex-col items-stretch bg-surface/80 hover:bg-surface backdrop-blur-md border border-white/10 rounded-md overflow-hidden cursor-pointer transition-colors"
-                >
-                    <span className="px-5 py-2.5 text-foreground font-semibold whitespace-nowrap">
-                        Następny odcinek
-                    </span>
-                    {!autoAdvanceCancelled && (
-                        <div className="h-1 w-full bg-black/40">
-                            <div
-                                className="h-full bg-primary"
-                                style={{ animation: `next-episode-fill ${NEXT_EPISODE_AUTOPLAY_MS}ms linear forwards` }}
-                            />
+                {mediaError && (
+                    <div className="absolute inset-0 z-[70] flex flex-col items-center justify-center gap-5 px-6 text-center bg-[#030712]/95 backdrop-blur-xl">
+                        <AlertTriangle size={40} className="text-primary-hover" />
+                        <div className="flex flex-col gap-1.5">
+                            <p className="text-white font-bold">Nie udało się odtworzyć tego odcinka.</p>
+                            <p className="text-slate-400 text-sm">Plik wideo jest uszkodzony lub niedostępny na serwerze.</p>
                         </div>
-                    )}
-                </div>
-            )}
+                        <div className="flex flex-wrap items-center justify-center gap-3">
+                            {onBack && (
+                                <button type="button" onClick={onBack} className={ERROR_BUTTON_CLASS}>
+                                    Wróć
+                                </button>
+                            )}
+                            {onPreviousEpisode && (
+                                <button type="button" onClick={onPreviousEpisode} className={ERROR_BUTTON_CLASS}>
+                                    Poprzedni odcinek
+                                </button>
+                            )}
+                            {onNextEpisode && (
+                                <button type="button" onClick={onNextEpisode} className={ERROR_BUTTON_CLASS}>
+                                    Następny odcinek
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </MediaPlayer>
         </div>
     );
 };

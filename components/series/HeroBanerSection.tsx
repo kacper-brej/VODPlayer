@@ -143,7 +143,7 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
             {isPlaying && (
                 <button
                     onClick={toggleMute}
-                    className="absolute cursor-pointer bottom-6 right-6 z-40 hidden md:flex items-center justify-center w-10 h-10 bg-surface/50 hover:bg-surface/80 backdrop-blur-md border border-white/10 rounded-full text-foreground transition-all duration-300 active:scale-95"
+                    className="absolute cursor-pointer bottom-6 right-6 z-40 max-md:hidden md:flex items-center justify-center w-10 h-10 bg-surface/50 hover:bg-surface/80 backdrop-blur-md border border-white/10 rounded-full text-foreground transition-all duration-300 active:scale-95"
                 >
                     {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
                 </button>

@@ -43,7 +43,7 @@ const ContentRow = ({ title, series }: ContentRowProps) => {
             <div className="relative">
                 <button
                     onClick={() => scroll('left')}
-                    className='hidden md:flex absolute left-2 md:left-6 top-1/2 z-40 items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full bg-primary
+                    className='max-md:hidden md:flex absolute left-2 md:left-6 top-1/2 z-40 items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full bg-primary
                     text-foreground shadow-[0_0_15px_var(--primary)] opacity-0 -translate-y-1/2 -translate-x-4 pointer-events-none
                     duration-300 group-hover/row:opacity-100 group-hover/row:translate-x-0 group-hover/row:pointer-events-auto hover:scale-110 hover:brightness-110 cursor-pointer transition-all'
                 >
@@ -70,7 +70,7 @@ const ContentRow = ({ title, series }: ContentRowProps) => {
 
                 <button
                     onClick={() => scroll("right")}
-                    className="hidden md:flex absolute right-2 md:right-6 top-1/2 z-40 items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full bg-primary
+                    className="max-md:hidden md:flex absolute right-2 md:right-6 top-1/2 z-40 items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full bg-primary
                     text-foreground shadow-[0_0_15px_var(--primary)] opacity-0 -translate-y-1/2 translate-x-4 pointer-events-none transition-all duration-300 group-hover/row:opacity-100
                      group-hover/row:translate-x-0 group-hover/row:pointer-events-auto hover:scale-110 hover:brightness-110 cursor-pointer"
                 >

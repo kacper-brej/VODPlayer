@@ -5,6 +5,14 @@ import { getSeriesProgressAction } from "@/lib/getProgressAction";
 
 const RESUME_REWIND_SECONDS = 10;
 
+const buildEpisodeTitle = (seriesTitle: string, episodeKey: string, episodeNumber: number) => {
+    const label = episodeKey.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
+
+    if (!label || /^\d+$/.test(label)) return `${seriesTitle} - Odcinek ${episodeNumber}`;
+
+    return label;
+};
+
 const ErrorScreen = ({ message }: { message: string }) => (
     <div className="fixed inset-0 z-[999] bg-black min-h-screen flex items-center justify-center text-foreground">
         {message}
@@ -50,6 +58,8 @@ const WatchPage = async ({ searchParams }: { searchParams: Promise<{ id?: string
         savedTime = episodes[episode.key]?.positionSeconds ?? 0;
     }
 
+    const nextEpisode = series.episodes.find((item) => item.number === episode.number + 1) ?? null;
+
     return (
         <WatchClient
             videoSrc={episode.url}
@@ -60,6 +70,7 @@ const WatchPage = async ({ searchParams }: { searchParams: Promise<{ id?: string
             totalEpisodes={series.episodeCount}
             fileName={episode.key}
             startTime={Math.max(0, savedTime - RESUME_REWIND_SECONDS)}
+            nextEpisodeTitle={nextEpisode ? buildEpisodeTitle(series.title, nextEpisode.key, nextEpisode.number) : undefined}
         />
     );
 };
