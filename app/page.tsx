@@ -4,14 +4,38 @@ import ContentRow from "@/components/series/ContentRow";
 import ContentRowSkeleton from "@/components/series/ContentRowSkeleton";
 import SeriesModal from "@/components/series/SeriesModal";
 import HomeRefresher from "@/components/series/HomeRefresher";
-import { getTopMovie } from "@/lib/fetchMoviePopular";
-import { getMovieNewest } from "@/lib/fetchMovieNewest";
-import { getCatalog, FALLBACK_COVER } from "@/lib/catalog";
+import { getCatalog, FALLBACK_COVER, type CatalogSeries } from "@/lib/catalog";
+import { getWeeklyRanking, RANKING_MIN_ITEMS } from "@/lib/rankings";
+import { collapseSeriesGroups, getNewestSeries } from "@/lib/catalogRows";
 import { getLatestResume, getResumeMap } from "@/lib/continueWatching";
 import { getWatchlist } from "@/lib/watchlist";
 import { progressPercent } from "@/lib/watchProgress";
 import type { SeriesCardProps } from "@/components/series/SeriesCard";
+import type { ResumePoint } from "@/lib/contracts";
 import { DataErrorState, DataState } from "@/components/data/DataState";
+
+const toSeriesCard = (
+    series: CatalogSeries,
+    resumeMap: Map<string, ResumePoint>,
+    watchlistedKeys: Set<string>,
+): SeriesCardProps => {
+    const resume = resumeMap.get(series.key);
+    const episode = series.episodes.find((item) => item.key === resume?.episodeKey) ?? series.episodes[0];
+
+    return {
+        id: series.id,
+        title: series.baseTitle ?? series.title,
+        coverImage: series.coverImage,
+        rating: series.rating,
+        year: series.year ?? undefined,
+        previewVideoUrl: episode?.url,
+        resumeEpisodeKey: episode?.key,
+        watchedSeconds: resume?.positionSeconds,
+        durationSeconds: resume?.durationSeconds ?? undefined,
+        seriesKey: series.key,
+        inWatchlist: watchlistedKeys.has(series.key),
+    };
+};
 
 const Hero = async () => {
     const [resumeResult, catalogResult] = await Promise.all([getLatestResume(), getCatalog()]);
@@ -83,24 +107,9 @@ const LibraryRow = async () => {
         watchlistResult.kind === "success" ? watchlistResult.data.map((item) => item.seriesKey) : [],
     );
 
-    const cards: SeriesCardProps[] = catalogResult.data.map((series) => {
-        const resume = resumeResult.data.get(series.key);
-        const episode = series.episodes.find((item) => item.key === resume?.episodeKey) ?? series.episodes[0];
-
-        return {
-            id: series.id,
-            title: series.title,
-            coverImage: series.coverImage,
-            rating: series.rating,
-            year: series.year ?? undefined,
-            previewVideoUrl: episode?.url,
-            resumeEpisodeKey: episode?.key,
-            watchedSeconds: resume?.positionSeconds,
-            durationSeconds: resume?.durationSeconds ?? undefined,
-            seriesKey: series.key,
-            inWatchlist: watchlistedKeys.has(series.key),
-        };
-    });
+    const cards = collapseSeriesGroups(catalogResult.data).map((series) =>
+        toSeriesCard(series, resumeResult.data, watchlistedKeys)
+    );
 
     return (
         <div className="animate-in fade-in duration-700 ease-out">
@@ -109,51 +118,53 @@ const LibraryRow = async () => {
     );
 };
 
-const TopMovieRows = async () => {
-    const result = await getTopMovie();
+const RankingRow = async () => {
+    const [rankingResult, catalogResult, resumeResult, watchlistResult] = await Promise.all([
+        getWeeklyRanking(),
+        getCatalog(),
+        getResumeMap(),
+        getWatchlist(),
+    ]);
 
-    if (result.kind === "error") {
-        return <DataErrorState reason={result.reason} compact />;
-    }
+    if (rankingResult.kind !== "success" || catalogResult.kind !== "success") return null;
 
-    if (result.kind === "empty") {
-        return (
-            <DataState
-                kind="empty"
-                title="Brak popularnych tytułów"
-                description="Lista jest teraz pusta."
-                compact
-            />
-        );
-    }
-
-    return (
-        <>
-            <ContentRow title="Hot takes" series={result.data} />
-            <ContentRow title="Obejrzyj ponownie" series={result.data} />
-        </>
+    const byKey = new Map(catalogResult.data.map((series) => [series.key, series]));
+    const resumeMap = resumeResult.kind === "error" ? new Map<string, ResumePoint>() : resumeResult.data;
+    const watchlistedKeys = new Set(
+        watchlistResult.kind === "success" ? watchlistResult.data.map((item) => item.seriesKey) : [],
     );
+
+    const ranked = rankingResult.data
+        .map((item) => byKey.get(item.seriesKey))
+        .filter((series): series is CatalogSeries => series !== undefined)
+        .map((series) => toSeriesCard(series, resumeMap, watchlistedKeys));
+
+    if (ranked.length < RANKING_MIN_ITEMS) return null;
+
+    return <ContentRow title="Dziesiątka tej nocy" series={ranked} />;
 };
 
 const NewestRow = async () => {
-    const result = await getMovieNewest();
+    const [catalogResult, resumeResult, watchlistResult] = await Promise.all([
+        getCatalog(),
+        getResumeMap(),
+        getWatchlist(),
+    ]);
 
-    if (result.kind === "error") {
-        return <DataErrorState reason={result.reason} compact />;
-    }
+    if (catalogResult.kind !== "success") return null;
 
-    if (result.kind === "empty") {
-        return (
-            <DataState
-                kind="empty"
-                title="Brak nowości"
-                description="Lista jest teraz pusta."
-                compact
-            />
-        );
-    }
+    const resumeMap = resumeResult.kind === "error" ? new Map<string, ResumePoint>() : resumeResult.data;
+    const watchlistedKeys = new Set(
+        watchlistResult.kind === "success" ? watchlistResult.data.map((item) => item.seriesKey) : [],
+    );
 
-    return <ContentRow title="Nowości" series={result.data} />;
+    const newest = getNewestSeries(catalogResult.data).map((series) =>
+        toSeriesCard(series, resumeMap, watchlistedKeys)
+    );
+
+    if (newest.length === 0) return null;
+
+    return <ContentRow title="Nowości" series={newest} />;
 };
 
 export default function Home() {
@@ -170,7 +181,7 @@ export default function Home() {
                     <LibraryRow />
                 </Suspense>
                 <Suspense fallback={null}>
-                    <TopMovieRows />
+                    <RankingRow />
                 </Suspense>
                 <Suspense fallback={null}>
                     <NewestRow />

@@ -6,9 +6,6 @@ export const VOD_SERVICE_KEY = process.env.VOD_SERVICE_KEY ?? process.env.UPLOAD
 export const CATALOG_TAG = "catalog";
 export const CATALOG_REVALIDATE_SECONDS = 30;
 
-export const episodeUrl = (seriesKey: string, episodeKey: string) =>
-    `${VOD_ORIGIN}/uploads/${encodeURIComponent(seriesKey)}/${encodeURIComponent(episodeKey)}`;
-
 export const sessionToken = async (): Promise<string | null> => {
     const store = await cookies();
     return store.get("token")?.value ?? null;

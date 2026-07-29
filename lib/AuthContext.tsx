@@ -8,6 +8,7 @@ type AuthContextType = {
 };
 import { useState, useEffect, useContext, createContext, useCallback, type ReactNode } from "react";
 import clearSessionCookieAction from "@/lib/clearSessionCookieAction";
+import { clearRecentSearches } from "@/lib/recentSearches";
 import { validateMeResponse, type AuthUser } from "@/lib/contracts";
 import {
     dataFailure,
@@ -75,6 +76,7 @@ export const AuthProvider = ({children}: {children: ReactNode}) => {
             // brak połączenia z serwerem sesja i tak wsm jest czysczcona lokalnie
         } finally {
             await clearSessionCookieAction();
+            clearRecentSearches();
             setUser(null);
             setError(null);
         }

@@ -1,36 +1,23 @@
-import {
-    Tv,
-    Home,
-    Compass,
-    LayoutGrid,
-    Bookmark,
-    PlaySquare,
-    Clock,
-    FolderOpen,
-    Download,
-    Upload,
-    Settings,
-    LogOut,
-} from "lucide-react";
+import { Home, Compass, Bookmark, PlaySquare, Clock, Upload, LayoutGrid, FolderOpen, Download } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
-export const MENU_SECTIONS = [
-    {
-        title: 'Menu',
-        items: [
-            { name: "Home", icon: Home, href: "/" },
-            { name: "Explore", icon: Compass, href: "/explore" },
-            { name: "Genres", icon: LayoutGrid, href: "/genres" },
-            { name: "Favourites", icon: Bookmark, href: "/favourites" },
-        ],
-    },
-    {
-        title: 'Library',
-        items: [
-            { name: "Continue Watching", icon: PlaySquare, href: "/continue" },
-            { name: "Recently Added", icon: Clock, href: "/recent" },
-            { name: "My Collections", icon: FolderOpen, href: "/collections" },
-            { name: "Downloads", icon: Download, href: "/downloads" },
-            { name: "Upload", icon: Upload, href: "/upload" },
-        ]
-    }
-]
+export interface NavItem {
+    name: string;
+    icon: LucideIcon;
+    href: string;
+}
+
+export const NAV_ITEMS: NavItem[] = [
+    { name: "Start", icon: Home, href: "/" },
+    { name: "Katalog", icon: Compass, href: "/explore" },
+    { name: "Moja lista", icon: Bookmark, href: "/favourites" },
+    { name: "Kontynuuj", icon: PlaySquare, href: "/continue" },
+    { name: "Ostatnio dodane", icon: Clock, href: "/recent" },
+];
+
+export const QUICK_JUMP_ITEMS: NavItem[] = [
+    { name: "Wyślij plik", icon: Upload, href: "/upload" },
+    { name: "Gatunki", icon: LayoutGrid, href: "/genres" },
+    { name: "Kolekcje", icon: FolderOpen, href: "/collections" },
+    { name: "Pobrane", icon: Download, href: "/downloads" },
+];

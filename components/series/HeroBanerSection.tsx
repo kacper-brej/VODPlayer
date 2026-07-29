@@ -72,6 +72,16 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
         };
     }, []);
 
+    useEffect(() => {
+        if (activeContent) setVideoSource(activeContent.video);
+    }, [activeContent]);
+
+    const handleLoadedMetadata = () => {
+        const video = videoRef.current;
+        if (!video || !activeContent) return;
+        video.currentTime = Math.max(0, activeContent.lastWatchedTime - 10);
+    };
+
     const toggleMute = (e: MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
@@ -129,10 +139,11 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
                 ref={videoRef}
                 src={videoSource}
                 poster={activeContent.image}
+                onLoadedMetadata={handleLoadedMetadata}
                 muted={isMuted}
                 loop
                 playsInline
-                preload="none"
+                preload="metadata"
                 className={`w-full h-full object-cover transition-transform duration-700 ${isPlaying ? 'scale-105' : 'scale-100'}`}
             />
 

@@ -39,7 +39,7 @@ export const DataState = ({
                 <button
                     type="button"
                     onClick={onRetry ?? (() => router.refresh())}
-                    className="mt-5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-primary-hover"
+                    className="mt-5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-accent outline-none transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
                 >
                     Try again
                 </button>
@@ -48,7 +48,7 @@ export const DataState = ({
             {action === "login" && (
                 <Link
                     href="/login"
-                    className="mt-5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-primary-hover"
+                    className="mt-5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-accent outline-none transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
                 >
                     Sign in
                 </Link>
@@ -113,3 +113,16 @@ export const DataErrorState = ({
         />
     );
 };
+
+export const ContentSkeleton = () => (
+    <div aria-hidden="true" className="flex w-full flex-col gap-6 px-4 py-8 sm:px-8">
+        <div className="h-56 w-full rounded-2xl skeleton-pulse" />
+        <div className="h-6 w-48 rounded-md skeleton-pulse" />
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="h-40 rounded-xl skeleton-pulse" />
+            <div className="h-40 rounded-xl skeleton-pulse" />
+            <div className="h-40 rounded-xl skeleton-pulse" />
+            <div className="h-40 rounded-xl skeleton-pulse" />
+        </div>
+    </div>
+);

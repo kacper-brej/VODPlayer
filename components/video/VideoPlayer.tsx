@@ -148,7 +148,7 @@ export const VideoPlayer = ({
             <MediaPlayer
                 ref={playerRef}
                 title={title}
-                src={src}
+                src={{ src, type: 'video/mp4' }}
                 autoPlay
                 keyTarget="document"
                 className="np-player"

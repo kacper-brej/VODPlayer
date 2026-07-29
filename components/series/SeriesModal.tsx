@@ -198,7 +198,7 @@ const SeriesModal = () => {
                                         onClick={() => openEpisode(episode.key)}
                                         className="flex items-center gap-4 p-3 md:p-4 bg-surface-light/50 rounded-lg border border-border hover:border-border-hover hover:bg-surface-light transition-all cursor-pointer group"
                                     >
-                                        <div className={`relative w-32 h-20 md:w-40 md:h-24 shrink-0 rounded-md overflow-hidden bg-background transition-all ${episode.watched ? "opacity-70 ring-2 ring-success/60 shadow-[0_0_16px_-2px_var(--success)]" : ""}`}>
+                                        <div className={`relative w-32 h-20 md:w-40 md:h-24 shrink-0 rounded-md overflow-hidden bg-background transition-all ${episode.watched ? "opacity-75 ring-2 ring-nx-text-2/40" : ""}`}>
                                             <Image
                                                 src={episode.thumbnail}
                                                 alt={episode.title}
@@ -208,13 +208,13 @@ const SeriesModal = () => {
                                             />
 
                                             <div className="absolute inset-0 bg-background/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                                <div className={`w-10 h-10 flex items-center justify-center rounded-full border-2 backdrop-blur-sm ${episode.watched ? "border-success/70 bg-success/10 text-success" : "border-foreground/60 bg-background/30 text-foreground"}`}>
+                                                <div className={`w-10 h-10 flex items-center justify-center rounded-full border-2 backdrop-blur-sm ${episode.watched ? "border-nx-text-2/70 bg-nx-text-2/10 text-nx-text-2" : "border-foreground/60 bg-background/30 text-foreground"}`}>
                                                     <Play size={16} className="fill-current" />
                                                 </div>
                                             </div>
 
                                             {episode.watched && (
-                                                <span className="absolute top-1.5 right-1.5 z-10 flex items-center gap-1 text-[9px] md:text-[10px] font-semibold text-success bg-success/20 backdrop-blur-md border border-success/40 rounded-full px-2 py-0.5">
+                                                <span className="absolute top-1.5 right-1.5 z-10 flex items-center gap-1 text-[9px] md:text-[10px] font-semibold text-nx-text-2 bg-nx-text-2/20 backdrop-blur-md border border-nx-text-2/40 rounded-full px-2 py-0.5">
                                                     <CheckCircle2 size={10} />
                                                     Obejrzane
                                                 </span>
@@ -222,7 +222,7 @@ const SeriesModal = () => {
 
                                             {episode.percent > 0 && (
                                                 <div className="absolute bottom-0 left-0 w-full h-1 bg-black/50">
-                                                    <div className="h-full bg-primary" style={{ width: `${episode.percent}%` }} />
+                                                    <div className={`h-full ${episode.watched ? "bg-nx-text-2" : "bg-primary"}`} style={{ width: `${episode.watched ? 100 : episode.percent}%` }} />
                                                 </div>
                                             )}
                                         </div>

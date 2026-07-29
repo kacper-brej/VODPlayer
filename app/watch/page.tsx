@@ -2,6 +2,7 @@ import WatchClient from "@/app/watch/WatchClient";
 import { resolveCatalogSeries } from "@/lib/catalog";
 import { getSeriesResume } from "@/lib/continueWatching";
 import { getSeriesProgressAction } from "@/lib/getProgressAction";
+import { signedEpisodeUrl } from "@/lib/videoAccess";
 import { notFound } from "next/navigation";
 import { DataErrorState } from "@/components/data/DataState";
 
@@ -87,7 +88,7 @@ const WatchPage = async ({ searchParams }: { searchParams: Promise<{ id?: string
 
     return (
         <WatchClient
-            videoSrc={episode.url}
+            videoSrc={signedEpisodeUrl(series.key, episode.key)}
             title={`${series.title} - Odcinek ${episode.number}`}
             seriesId={series.id}
             seriesKey={series.key}

@@ -2,18 +2,51 @@
 import { useEffect, useRef, useState, FormEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { UploadCloud, CheckCircle, Film, FileVideo, X, Type, TriangleAlert } from 'lucide-react'
-import getUploadKeyAction from "@/lib/getUploadKeyAction";
+import getUploadTokenAction from "@/lib/getUploadTokenAction";
+import type { DataErrorReason } from "@/lib/dataResult";
 import { cn } from "@/lib/utils";
 
 const CHUNK_SIZE = 5 * 1024 * 1024;
-const VIDEO_EXTENSIONS = /\.(mp4|mkv|avi|mov|webm|m4v|flv|wmv)$/i;
+const MAX_EPISODE_NUMBER = 9999;
+const VOD_UPLOAD_URL = `${process.env.NEXT_PUBLIC_VOD_ORIGIN ?? "https://vids.kacper-brej.pl"}/upload.php`;
 
 type QueuedFile = {
     id: string;
     file: File;
 };
 
-const isVideoFile = (file: File) => file.type.startsWith("video/") || VIDEO_EXTENSIONS.test(file.name);
+const isVideoFile = (file: File) => /^[^.]+\.mp4$/i.test(file.name);
+
+const deriveEpisodeNumber = (fileName: string, fallback: number) => {
+    const digits = fileName.replace(/\.[^.]+$/, "").match(/\d+/g);
+
+    if (!digits) return fallback;
+
+    const parsed = Number(digits[digits.length - 1]);
+
+    return Number.isInteger(parsed) && parsed >= 1 && parsed <= MAX_EPISODE_NUMBER ? parsed : fallback;
+};
+
+const assignEpisodeNumbers = (queue: QueuedFile[]) => {
+    const taken = new Set<number>();
+
+    return queue.map((item, index) => {
+        let number = deriveEpisodeNumber(item.file.name, index + 1);
+
+        while (taken.has(number) && number <= MAX_EPISODE_NUMBER) number += 1;
+
+        taken.add(number);
+
+        return number;
+    });
+};
+
+const episodeFileName = (episodeNumber: number) => `${String(episodeNumber).padStart(2, "0")}.mp4`;
+
+const ticketErrorMessage = (reason: DataErrorReason) =>
+    reason === "unauthorized" || reason === "forbidden"
+        ? "Brak autoryzacji - zaloguj się ponownie"
+        : "Nie udało się uzyskać zgody serwera na wgranie pliku";
 
 const formatFileSize = (bytes: number) => {
     if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
@@ -82,7 +115,7 @@ const UploadPage = () => {
         }
 
         if (rejected > 0) {
-            flashRejectedMessage(`Pominięto pliki w nieobsługiwanym formacie (${rejected})`);
+            flashRejectedMessage(`Pominięto pliki spoza formatu .mp4 (${rejected})`);
         }
     };
 
@@ -137,26 +170,47 @@ const UploadPage = () => {
         setEpisodes(prev => prev.filter(item => item.id !== id));
     };
 
-    const uploadFileChunks = async (file: File, folder: string, key: string) => {
-        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    const requestUploadToken = async (folder: string, episodeNumber: number) => {
+        const result = await getUploadTokenAction(folder, episodeNumber);
+
+        if (result.kind === "error") {
+            throw new Error(ticketErrorMessage(result.reason));
+        }
+
+        return result.data.token;
+    };
+
+    const uploadFileChunks = async (file: File, folder: string, episodeNumber: number) => {
+        const totalChunks = Math.max(1, Math.ceil(file.size / CHUNK_SIZE));
+        let token = await requestUploadToken(folder, episodeNumber);
 
         for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
             const start = chunkIndex * CHUNK_SIZE;
             const end = Math.min(start + CHUNK_SIZE, file.size);
             const chunk = file.slice(start, end);
 
-            const formData = new FormData();
-            formData.append("key", key);
-            formData.append("folder", folder);
-            formData.append("filename", file.name);
-            formData.append("chunkIndex", chunkIndex.toString());
-            formData.append("totalChunks", totalChunks.toString());
-            formData.append("file", chunk);
+            const sendChunk = (currentToken: string) => {
+                const formData = new FormData();
+                formData.append("token", currentToken);
+                formData.append("folder", folder);
+                formData.append("episodeNumber", episodeNumber.toString());
+                formData.append("filename", file.name);
+                formData.append("chunkIndex", chunkIndex.toString());
+                formData.append("totalChunks", totalChunks.toString());
+                formData.append("file", chunk);
 
-            const response = await fetch("https://vids.kacper-brej.pl/upload.php", {
-                method: "POST",
-                body: formData,
-            });
+                return fetch(VOD_UPLOAD_URL, {
+                    method: "POST",
+                    body: formData,
+                });
+            };
+
+            let response = await sendChunk(token);
+
+            if (response.status === 401) {
+                token = await requestUploadToken(folder, episodeNumber);
+                response = await sendChunk(token);
+            }
 
             if (!response.ok) {
                 const errData = await response.json().catch(() => ({}));
@@ -178,14 +232,11 @@ const UploadPage = () => {
         setUploadError(null);
 
         try {
-            const key = await getUploadKeyAction();
-            if (!key) {
-                throw new Error("Brak autoryzacji - zaloguj się ponownie");
-            }
+            const numbers = assignEpisodeNumbers(episodes);
 
             for (let i = 0; i < episodes.length; i++) {
                 setStatusText(`Przesyłanie: ${episodes[i].file.name} (${i + 1}/${episodes.length})`);
-                await uploadFileChunks(episodes[i].file, title, key);
+                await uploadFileChunks(episodes[i].file, title, numbers[i]);
             }
 
             setIsSuccess(true);
@@ -205,6 +256,7 @@ const UploadPage = () => {
         }
     };
 
+    const plannedEpisodeNumbers = assignEpisodeNumbers(episodes);
     const canSubmit = !isUploading && episodes.length > 0 && !!title;
 
     return (
@@ -362,7 +414,7 @@ const UploadPage = () => {
 
                                     <input
                                         type="file"
-                                        accept="video/mp4,video/x-m4v,video/*"
+                                        accept="video/mp4,.mp4"
                                         multiple
                                         className="hidden"
                                         ref={fileInputRef}
@@ -436,7 +488,7 @@ const UploadPage = () => {
                                         >
                                             <div className="bg-surface-light border border-border rounded-xl p-4 max-h-48 overflow-y-auto space-y-2">
                                                 <AnimatePresence>
-                                                    {episodes.map(({ id, file }) => (
+                                                    {episodes.map(({ id, file }, index) => (
                                                         <motion.div
                                                             key={id}
                                                             layout
@@ -450,7 +502,9 @@ const UploadPage = () => {
                                                                 <FileVideo className="text-primary shrink-0" size={20} />
                                                                 <div className="flex flex-col overflow-hidden">
                                                                     <span className="text-sm truncate text-foreground">{file.name}</span>
-                                                                    <span className="text-xs text-muted">{formatFileSize(file.size)}</span>
+                                                                    <span className="text-xs text-muted">
+                                                                        {formatFileSize(file.size)} · zapis jako {episodeFileName(plannedEpisodeNumbers[index])}
+                                                                    </span>
                                                                 </div>
                                                             </div>
                                                             <motion.button

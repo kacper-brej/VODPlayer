@@ -1,69 +1,160 @@
 "use client"
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { WifiOff } from "lucide-react";
 import Sidebar from "@/components/layout/Sidebar";
 import SearchBar from "@/components/layout/SearchBar";
+import CommandPaletteResolver from "@/components/layout/CommandPaletteResolver";
 import { useAuth } from "@/lib/AuthContext";
-import { DataErrorState } from "@/components/data/DataState";
+import { ContentSkeleton, DataErrorState } from "@/components/data/DataState";
+import type { SearchIndexEntry } from "@/lib/searchIndex";
+import type { DataResult } from "@/lib/dataResult";
+import { safeReturnPath } from "@/lib/routes";
 
-const NO_CHROME_ROUTES = ["/login", "/signup", "/forgot-password", "/reset-password", "/qr-confirm", "/profiles"];
+const NO_CHROME_ROUTES = ["/login", "/signup", "/forgot-password", "/reset-password", "/qr-confirm", "/profiles", "/watch"];
 const PUBLIC_ROUTES = ["/login", "/signup", "/forgot-password", "/reset-password", "/qr-confirm"];
 const AUTH_ONLY_ROUTES = ["/login", "/signup"];
 
-const AppShell = ({ children }: { children: React.ReactNode }) => {
+const GRAIN_BACKGROUND = `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`;
+
+const useOnlineStatus = () => {
+    const [isOnline, setIsOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine);
+
+    useEffect(() => {
+        const goOnline = () => setIsOnline(true);
+        const goOffline = () => setIsOnline(false);
+        window.addEventListener("online", goOnline);
+        window.addEventListener("offline", goOffline);
+        return () => {
+            window.removeEventListener("online", goOnline);
+            window.removeEventListener("offline", goOffline);
+        };
+    }, []);
+
+    return isOnline;
+};
+
+const SessionExpiredBanner = ({ onSignIn }: { onSignIn: () => void }) => (
+    <div
+        role="alert"
+        className="mx-4 mt-4 flex flex-col gap-3 rounded-xl border border-danger/40 bg-surface px-5 py-4 sm:mx-8 sm:flex-row sm:items-center sm:justify-between"
+    >
+        <p className="text-sm text-foreground">Twoja sesja wygasła. Zaloguj się ponownie, aby kontynuować.</p>
+        <button
+            type="button"
+            onClick={onSignIn}
+            className="shrink-0 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-accent outline-none transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
+        >
+            Zaloguj się ponownie
+        </button>
+    </div>
+);
+
+const OfflineBanner = () => (
+    <div
+        role="status"
+        className="sticky bottom-0 z-30 flex items-center justify-center gap-2 border-t border-border bg-surface-light px-4 py-2.5 text-sm text-foreground"
+    >
+        <WifiOff size={16} className="text-danger" aria-hidden="true" />
+        Brak połączenia
+    </div>
+);
+
+interface AppShellProps {
+    children: React.ReactNode;
+    searchIndexPromise: Promise<DataResult<SearchIndexEntry[]>>;
+}
+
+const AppShell = ({ children, searchIndexPromise }: AppShellProps) => {
     const pathname = usePathname();
     const router = useRouter();
     const { user, error, loading, refreshUser } = useAuth();
+    const isOnline = useOnlineStatus();
+    const [hadSession, setHadSession] = useState(Boolean(user));
+
+    if (user && !hadSession) {
+        setHadSession(true);
+    }
+
+    const isNoChrome = NO_CHROME_ROUTES.includes(pathname);
+    const sessionExpiredMidWork = !loading && !user && error === "unauthorized" && hadSession;
+    const pendingLoginRedirect = !loading && !user && error === "unauthorized" && !hadSession && !PUBLIC_ROUTES.includes(pathname);
 
     useEffect(() => {
         if (loading) return;
         if (error && error !== "unauthorized") return;
+        if (sessionExpiredMidWork) return;
         if (!user && !PUBLIC_ROUTES.includes(pathname)) {
             router.replace("/login");
         } else if (user && AUTH_ONLY_ROUTES.includes(pathname)) {
-            router.replace("/profiles");
+            const returnTo = safeReturnPath(new URLSearchParams(window.location.search).get("returnTo"));
+            router.replace(returnTo);
         }
-    }, [error, loading, user, pathname, router]);
+    }, [error, loading, user, pathname, router, sessionExpiredMidWork]);
 
-    if (loading) {
-        return (
-            <div className="min-h-dvh w-full flex items-center justify-center bg-background">
-                <div className="w-8 h-8 border-2 border-border border-t-primary rounded-full animate-spin" />
-            </div>
-        );
-    }
-
-    if (error && error !== "unauthorized") {
-        return (
-            <div className="min-h-dvh w-full bg-background p-4 flex items-center justify-center">
-                <DataErrorState reason={error} onRetry={refreshUser} />
-            </div>
-        );
-    }
-
-    if (!user && !PUBLIC_ROUTES.includes(pathname)) {
-        return null;
-    }
-
-    if (user && AUTH_ONLY_ROUTES.includes(pathname)) {
-        return null;
-    }
-
-    if (NO_CHROME_ROUTES.includes(pathname)) {
+    if (isNoChrome) {
+        if (user && AUTH_ONLY_ROUTES.includes(pathname)) return null;
         return <>{children}</>;
     }
 
-    return (
-        <div className="flex w-full">
-            <Sidebar />
-            <div className="flex-1 flex flex-col min-h-dvh min-w-0 overflow-x-hidden">
-                <header className="sticky top-0 z-40 w-full pt-4 sm:pt-8 px-4 sm:pl-16 sm:pr-8 flex justify-start items-center shrink-0">
-                    <SearchBar />
-                </header>
-                <main className="flex-1 min-h-dvh">
-                    {children}
-                </main>
+    let mainContent: React.ReactNode;
+
+    if (loading || pendingLoginRedirect) {
+        mainContent = <ContentSkeleton />;
+    } else if (error && error !== "unauthorized") {
+        mainContent = (
+            <div className="flex min-h-[60vh] w-full items-center justify-center px-4 py-10 sm:px-8">
+                <DataErrorState reason={error} onRetry={refreshUser} />
             </div>
+        );
+    } else {
+        mainContent = (
+            <>
+                {sessionExpiredMidWork && <SessionExpiredBanner onSignIn={() => router.push("/login")} />}
+                {children}
+            </>
+        );
+    }
+
+    return (
+        <div className="relative flex w-full">
+            <div
+                aria-hidden="true"
+                className="pointer-events-none fixed inset-0 z-0 opacity-[0.045] mix-blend-soft-light"
+                style={{ backgroundImage: GRAIN_BACKGROUND, backgroundSize: "200px 200px" }}
+            />
+
+            <a
+                href="#main-content"
+                className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-on-accent focus:outline-2 focus:outline-offset-[3px] focus:outline-primary"
+            >
+                Przejdź do treści
+            </a>
+
+            <div className="relative z-10 flex w-full">
+                <Sidebar />
+                <div className="flex-1 flex flex-col min-h-dvh min-w-0 overflow-x-hidden">
+                    <header className="sticky top-0 z-40 w-full shrink-0 pt-4 sm:pt-8 px-4 sm:pl-16 sm:pr-8 flex justify-start items-center">
+                        <div
+                            aria-hidden="true"
+                            className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-28 bg-gradient-to-b from-background via-background/70 to-transparent"
+                        />
+                        <SearchBar />
+                    </header>
+                    <main
+                        id="main-content"
+                        tabIndex={-1}
+                        className="flex-1 min-h-dvh pb-[calc(64px+env(safe-area-inset-bottom))] outline-none lg:pb-0"
+                    >
+                        {mainContent}
+                    </main>
+                    {!isOnline && <OfflineBanner />}
+                </div>
+            </div>
+
+            <Suspense fallback={null}>
+                <CommandPaletteResolver searchIndexPromise={searchIndexPromise} />
+            </Suspense>
         </div>
     );
 };

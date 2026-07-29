@@ -1,106 +1,192 @@
-import Image from "next/image";
-import { Play } from "lucide-react";
-import EpisodeList from "@/components/episodes/EpisodeList";
-import { resolveCatalogSeries } from "@/lib/catalog";
-import { getSeriesProgressAction } from "@/lib/getProgressAction";
-import { progressPercent } from "@/lib/watchProgress";
+import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
-import { DataErrorState } from "@/components/data/DataState";
+import EpisodeList, { type SeasonEpisodes } from "@/components/episodes/EpisodeList";
+import { DataErrorState, DataState } from "@/components/data/DataState";
+import SeriesHero from "@/components/series/SeriesHero";
+import SeriesMetadata from "@/components/series/SeriesMetadata";
+import { getCatalog, resolveCatalogSeries } from "@/lib/catalog";
+import { getSeriesProgressAction } from "@/lib/getProgressAction";
 import { seriesPath } from "@/lib/routes";
+import {
+    getSeriesDisplayTitle,
+    getSeriesSeasons,
+    currentUnixTime,
+    formatEpisodeNumber,
+    formatRemainingTime,
+    getKnownProgressPercent,
+} from "@/lib/seriesPage";
 
-const SeriesPage = async ({ params }: { params: Promise<{ id: string }> }) => {
+interface SeriesPageProps {
+    params: Promise<{ id: string }>;
+    searchParams: Promise<{ season?: string | string[] }>;
+}
+
+export const generateMetadata = async ({ params }: Pick<SeriesPageProps, "params">): Promise<Metadata> => {
     const { id } = await params;
-    const seriesResult = await resolveCatalogSeries(id);
+    const result = await resolveCatalogSeries(id);
 
-    if (seriesResult.kind === "error") {
+    if (result.kind === "error" || !result.data) {
+        return { title: "Serial niedostępny | Nocturna" };
+    }
+
+    return {
+        title: `${getSeriesDisplayTitle(result.data)} | Nocturna`,
+        ...(result.data.synopsis ? { description: result.data.synopsis } : {}),
+    };
+};
+
+const SeriesPage = async ({ params, searchParams }: SeriesPageProps) => {
+    const [{ id }, query, catalogResult] = await Promise.all([params, searchParams, getCatalog()]);
+
+    if (catalogResult.kind === "error") {
         return (
-            <main className="min-h-screen bg-background px-4 py-24 md:px-8">
-                <DataErrorState reason={seriesResult.reason} />
-            </main>
+            <div className="min-h-screen bg-nx-bg px-5 py-28 sm:px-8">
+                <DataErrorState reason={catalogResult.reason} />
+            </div>
         );
     }
 
+    if (catalogResult.data.length === 0) {
+        return (
+            <div className="min-h-screen bg-nx-bg px-5 py-28 sm:px-8">
+                <DataState
+                    kind="empty"
+                    title="Katalog jest pusty"
+                    description="Dodaj pierwszy tytuł, aby pojawił się na stronie serialu."
+                />
+            </div>
+        );
+    }
+
+    const seriesResult = await resolveCatalogSeries(id);
+    if (seriesResult.kind === "error") {
+        return (
+            <div className="min-h-screen bg-nx-bg px-5 py-28 sm:px-8">
+                <DataErrorState reason={seriesResult.reason} />
+            </div>
+        );
+    }
     if (!seriesResult.data) notFound();
 
     const series = seriesResult.data;
+    if (id !== String(series.id)) permanentRedirect(seriesPath(series.id));
 
-    if (id !== String(series.id)) {
-        permanentRedirect(seriesPath(series.id));
-    }
+    const seasons = getSeriesSeasons(catalogResult.data, series);
+    const displayTitle = getSeriesDisplayTitle(series);
+    const requestedSeason = Array.isArray(query.season) ? query.season[0] : query.season;
+    const initialSeason = seasons.some((season) => season.id === requestedSeason)
+        ? requestedSeason as string
+        : seasons.find((season) => season.seriesId === series.id)?.id ?? seasons[0]?.id ?? "all";
 
-    const progressResult = await getSeriesProgressAction(series.key);
-    const progress = progressResult.kind === "error" ? {} : progressResult.data.episodes;
-    const seriesEpisodes = series.episodes.map((episode) => {
-        const entry = progress[episode.key];
-        const percent = entry ? progressPercent(entry.positionSeconds, entry.durationSeconds) : 0;
+    const progressEntries = await Promise.all(
+        seasons.map(async (season) => ({
+            season,
+            result: await getSeriesProgressAction(season.seriesKey),
+        })),
+    );
+
+    const now = currentUnixTime();
+    const seasonViews: SeasonEpisodes[] = progressEntries.map(({ season, result }) => {
+        const progress = result.kind === "error" ? {} : result.data.episodes;
+        const firstNewEpisode = season.episodes.find((episode) =>
+            !progress[episode.key] && now - episode.addedAt < 7 * 24 * 60 * 60
+        )?.key;
+
+        const episodes = season.episodes.map((episode) => {
+            const stored = progress[episode.key];
+            const entry = stored
+                ? { ...stored, durationSeconds: stored.durationSeconds ?? episode.durationSeconds }
+                : undefined;
+            const watched = entry?.completed === true;
+            const percent = getKnownProgressPercent(entry);
+
+            return {
+                id: `${season.seriesId}-${episode.key}`,
+                seriesId: season.seriesId,
+                episodeKey: episode.key,
+                episodeNumber: episode.number,
+                title: episode.title ?? `Odcinek ${formatEpisodeNumber(episode.number)}`,
+                fileName: episode.key,
+                thumbnail: episode.thumbnail ?? season.coverImage,
+                percent,
+                remainingTime: formatRemainingTime(entry),
+                watched,
+                started: Boolean(entry && entry.positionSeconds > 0 && !watched),
+                progressKnown: Boolean(entry?.durationSeconds && entry.durationSeconds > 0),
+                isNew: episode.key === firstNewEpisode,
+            };
+        });
 
         return {
-            id: `${series.id}-${episode.number}`,
-            seriesId: series.id,
-            episodeNumber: episode.number,
-            title: `Odcinek ${episode.number}`,
-            duration: "24 min",
-            description: episode.key,
-            thumbnail: series.coverImage,
-            progress: percent > 0 ? percent : undefined,
+            id: season.id,
+            label: season.label,
+            episodeCount: episodes.length,
+            completed: episodes.length > 0 && episodes.every((episode) => episode.watched),
+            seriesId: season.seriesId,
+            episodes,
+            resumeEpisodeKey: result.kind === "error" ? null : result.data.resume?.episodeKey ?? null,
         };
     });
 
+    const activeProgress = progressEntries.find(({ season }) => season.id === initialSeason)?.result;
+    const activeSeason = seasons.find((season) => season.id === initialSeason) ?? seasons[0];
+    const resumeEpisodeKey = activeProgress && activeProgress.kind !== "error"
+        ? activeProgress.data.resume?.episodeKey ?? null
+        : null;
+    const resumeEpisodeNumber = activeSeason?.episodes.find((episode) => episode.key === resumeEpisodeKey)?.number ?? null;
+    const allEpisodes = seasons.flatMap((season) => season.episodes);
+    const addedAt = allEpisodes.length > 0
+        ? Math.min(...allEpisodes.map((episode) => episode.addedAt))
+        : null;
+    const progressAvailable = progressEntries.every(({ result }) => result.kind !== "error");
+    const authRequired = progressEntries.some(({ result }) =>
+        result.kind === "error" && (result.reason === "unauthorized" || result.reason === "forbidden")
+    );
+
     return (
-        <main className="w-full min-h-screen bg-background pb-20">
-            <div className="relative w-full h-[34vh] sm:h-[40vh] md:h-[50vh]">
-                <Image
-                    src={series.bannerImage || series.coverImage}
-                    alt={series.title}
-                    fill
-                    className="object-cover opacity-40"
-                    priority
+        <div className="min-h-screen bg-nx-bg text-nx-text">
+            <div className="relative">
+                <SeriesHero
+                    seriesId={activeSeason?.seriesId ?? series.id}
+                    title={displayTitle}
+                    coverImage={series.sourceCoverImage}
+                    backdropImage={series.backdropImage}
+                    synopsis={series.synopsis}
+                    year={series.year}
+                    rating={series.sourceRating}
+                    ageRating={series.ageRating}
+                    episodeCount={allEpisodes.length}
+                    resumeEpisodeKey={resumeEpisodeKey}
+                    resumeEpisodeNumber={resumeEpisodeNumber}
+                    firstEpisodeKey={activeSeason?.episodes[0]?.key ?? null}
+                    dominantColor={series.dominantColor}
+                    focalX={series.focalX}
+                    focalY={series.focalY}
                 />
 
-                <div className="absolute inset-0 bg-linear-to-t from-background via-background/50 to-transparent" />
-
-                <div className="absolute bottom-0 left-0 w-full px-4 md:px-8 max-w-6xl mx-auto pb-6 md:pb-8 flex flex-col md:flex-row gap-4 md:gap-6 items-end">
-                    <div className="max-md:hidden md:block relative w-40 aspect-2/3 rounded-xl overflow-hidden shadow-2xl shrink-0 border border-white/10">
-                        <Image src={series.coverImage} alt={series.title} fill className="object-cover" />
-                    </div>
-                    <div className="flex flex-col gap-2 md:gap-3 w-full relative z-10">
-                        <h1 className="text-2xl font-bold text-foreground drop-shadow-lg sm:font-display sm:text-3xl md:text-5xl">
-                            {series.title}
-                        </h1>
-                        <div className="flex items-center gap-3 text-xs sm:text-sm text-foreground/80">
-                            {series.year && <span>{series.year}</span>}
-                            {series.rating && (
-                                <span className="px-1.5 py-0.5 border border-white/30 rounded bg-black/40 backdrop-blur-sm">
-                                    {series.rating}
-                                </span>
-                            )}
-                        </div>
-                        <button className="mt-1 md:mt-2 w-fit flex items-center gap-2 bg-primary hover:bg-primary-hover text-foreground px-4 sm:px-6 py-2 sm:py-2.5
-                        text-sm sm:text-base rounded-lg font-semibold transition-colors shadow-lg shadow-primary/30 cursor-pointer">
-                            <Play size={18} className="fill-foreground sm:w-5 sm:h-5" />
-                            Oglądaj od początku
-                        </button>
+                <div className={`relative z-20 mx-auto grid w-full max-w-[1440px] grid-cols-4 gap-x-4 px-5 sm:px-8 lg:grid-cols-12 lg:gap-x-5 lg:px-10 xl:-mt-[calc(58vh-96px)] xl:min-h-[calc(58vh-96px)] xl:px-11 2xl:-mt-[calc(62vh-96px)] 2xl:min-h-[calc(62vh-96px)] 2xl:px-12 ${series.synopsis ? "mt-8 mb-16" : "mt-0 mb-10"}`}>
+                    <div className="col-span-4 lg:col-span-12 xl:col-span-4 xl:col-start-9">
+                        <SeriesMetadata
+                            year={series.year}
+                            rating={series.sourceRating}
+                            episodeCount={allEpisodes.length}
+                            addedAt={addedAt}
+                            progressAvailable={progressAvailable}
+                            genres={series.genres}
+                            studio={series.studio}
+                            audioLanguages={series.audioLanguages}
+                            subtitleLanguages={series.subtitleLanguages}
+                        />
                     </div>
                 </div>
             </div>
 
-            <section className="mt-6 md:mt-10 w-full">
-                <div className="w-full max-w-6xl mx-auto px-4 md:px-8 mb-4 md:mb-6">
-                    <h2 className="text-lg md:text-xl font-semibold text-foreground">
-                        Odcinki <span className="text-muted font-normal">({seriesEpisodes.length})</span>
-                    </h2>
-                </div>
-                {progressResult.kind === "error" ? (
-                    <div className="mx-auto max-w-6xl px-4 md:px-8">
-                        <DataErrorState reason={progressResult.reason} compact />
-                    </div>
-                ) : seriesEpisodes.length > 0 ? (
-                    <EpisodeList episodes={seriesEpisodes} seriesId={series.id} />
-                ) : (
-                    <p className="text-muted text-center py-10">Brak odcinków do wyświetlenia.</p>
-                )}
-            </section>
-        </main>
+            <EpisodeList
+                seasons={seasonViews}
+                initialSeason={initialSeason}
+                authRequired={authRequired}
+            />
+        </div>
     );
 };
 

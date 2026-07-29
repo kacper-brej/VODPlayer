@@ -12,3 +12,6 @@ export const watchPath = (seriesId: RouteIdentifier, episode?: RouteIdentifier) 
 
     return `/watch?${params.toString()}`;
 };
+
+export const safeReturnPath = (value: string | null, fallback = "/profiles") =>
+    value && value.startsWith("/") && !value.startsWith("//") ? value : fallback;

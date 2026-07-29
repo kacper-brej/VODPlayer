@@ -9,6 +9,7 @@ import { QrLoginPanel } from "@/components/auth/QrLoginPanel";
 import {useRouter, useSearchParams} from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
 import setSessionCookieAction from "@/lib/setSessionCookieAction";
+import { safeReturnPath } from "@/lib/routes";
 
 function Input({ className, type, ...props }: React.ComponentProps<"input">) {
     return (
@@ -38,6 +39,7 @@ export function SignInCard() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const verified = searchParams.get('verified');
+    const returnTo = safeReturnPath(searchParams.get('returnTo'));
     const { refreshUser } = useAuth();
 
     const handleSubmit = async (event: React.FormEvent) => {
@@ -63,7 +65,7 @@ export function SignInCard() {
                 setStatus('success');
                 setStatusMessage('Zalogowano pomyślnie. Przekierowujemy…');
                 setTimeout(() => {
-                    router.push("/profiles");
+                    router.push(returnTo);
                 }, 800);
                 return;
             }

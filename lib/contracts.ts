@@ -2,12 +2,20 @@ export type ContractResult<T> =
     | { ok: true; data: T }
     | { ok: false; error: string };
 
-export interface CatalogEpisode {
+export interface CatalogEpisodePayload {
     key: string;
     number: number;
-    url: string;
     sizeBytes: number;
     addedAt: number;
+    title: string | null;
+    synopsis: string | null;
+    durationSeconds: number | null;
+    thumbnail: string | null;
+}
+
+export interface CatalogGenre {
+    name: string;
+    slug: string;
 }
 
 export interface CatalogSeriesPayload {
@@ -15,6 +23,9 @@ export interface CatalogSeriesPayload {
     key: string;
     title: string;
     updatedAt: number;
+    groupId: number | null;
+    baseTitle: string | null;
+    seasonNumber: number | null;
     coverImage: string | null;
     backdropImage: string | null;
     backdropSource: "jikan" | "manual" | null;
@@ -28,9 +39,13 @@ export interface CatalogSeriesPayload {
     safeBottom: number | null;
     dominantColor: string | null;
     placeholder: string | null;
+    studio: string | null;
+    audioLanguages: string[];
+    subtitleLanguages: string[];
+    genres: CatalogGenre[];
     hasMetadata: boolean;
     episodeCount: number;
-    episodes: CatalogEpisode[];
+    episodes: CatalogEpisodePayload[];
 }
 
 export interface CatalogResponse {
@@ -98,6 +113,25 @@ export interface ToggleWatchlistResponse {
     seriesKey: string;
 }
 
+export interface RankingItem {
+    seriesKey: string;
+    playCount: number;
+    rank: number;
+}
+
+export interface RankingsResponse {
+    period: string;
+    items: RankingItem[];
+}
+
+export interface UploadTokenResponse {
+    token: string;
+    expiresAt: number;
+    targetFolder: string;
+    episodeNumber: number;
+    fileName: string;
+}
+
 export interface Profile {
     id: number;
     name: string;
@@ -154,6 +188,13 @@ export interface JikanAnime {
     rating: string | null;
     year: number | null;
     score: number | null;
+    genres: JikanNamedEntry[] | null;
+    studios: JikanNamedEntry[] | null;
+}
+
+export interface JikanNamedEntry {
+    mal_id: number;
+    name: string;
 }
 
 export interface JikanAnimeListResponse {
@@ -195,18 +236,27 @@ const isNullableString = (value: unknown): value is string | null =>
 const isNullableNumber = (value: unknown): value is number | null =>
     value === null || isNumber(value);
 
-const isCatalogEpisode = (value: unknown): value is CatalogEpisode =>
+const isCatalogEpisode = (value: unknown): value is CatalogEpisodePayload =>
     isObject(value)
     && isString(value.key)
     && isNumber(value.number)
-    && isString(value.url)
     && isNumber(value.sizeBytes)
-    && isNumber(value.addedAt);
+    && isNumber(value.addedAt)
+    && isOptionalNullableString(value.title)
+    && isOptionalNullableString(value.synopsis)
+    && isOptionalNullableNumber(value.durationSeconds)
+    && isOptionalNullableString(value.thumbnail);
 
 const isOptionalNullableString = (value: unknown): value is string | null | undefined =>
     value === undefined || isNullableString(value);
 const isOptionalNullableNumber = (value: unknown): value is number | null | undefined =>
     value === undefined || isNullableNumber(value);
+const isOptionalStringArray = (value: unknown): value is string[] | undefined =>
+    value === undefined || (Array.isArray(value) && value.every(isString));
+const isCatalogGenre = (value: unknown): value is CatalogGenre =>
+    isObject(value) && isString(value.name) && isString(value.slug);
+const isOptionalGenreArray = (value: unknown): value is CatalogGenre[] | undefined =>
+    value === undefined || (Array.isArray(value) && value.every(isCatalogGenre));
 const isOptionalBackdropSource = (value: unknown): value is "jikan" | "manual" | null | undefined =>
     value === undefined || value === null || value === "jikan" || value === "manual";
 
@@ -216,6 +266,9 @@ const isCatalogSeries = (value: unknown): value is CatalogSeriesPayload =>
     && isString(value.key)
     && isString(value.title)
     && isNumber(value.updatedAt)
+    && isOptionalNullableNumber(value.groupId)
+    && isOptionalNullableString(value.baseTitle)
+    && isOptionalNullableNumber(value.seasonNumber)
     && isNullableString(value.coverImage)
     && isOptionalNullableString(value.backdropImage)
     && isOptionalBackdropSource(value.backdropSource)
@@ -229,6 +282,10 @@ const isCatalogSeries = (value: unknown): value is CatalogSeriesPayload =>
     && isOptionalNullableNumber(value.safeBottom)
     && isOptionalNullableString(value.dominantColor)
     && isOptionalNullableString(value.placeholder)
+    && isOptionalNullableString(value.studio)
+    && isOptionalStringArray(value.audioLanguages)
+    && isOptionalStringArray(value.subtitleLanguages)
+    && isOptionalGenreArray(value.genres)
     && isBoolean(value.hasMetadata)
     && isNumber(value.episodeCount)
     && Array.isArray(value.episodes)
@@ -265,6 +322,12 @@ const isNullableTrailer = (value: unknown): value is JikanAnime["trailer"] => {
     return isObject(value.images) && isNullableString(value.images.maximum_image_url);
 };
 
+const isNamedEntry = (value: unknown): value is JikanNamedEntry =>
+    isObject(value) && isNumber(value.mal_id) && isString(value.name);
+
+const isOptionalNamedEntryArray = (value: unknown): value is JikanNamedEntry[] | null | undefined =>
+    value === undefined || value === null || (Array.isArray(value) && value.every(isNamedEntry));
+
 const isJikanAnime = (value: unknown): value is JikanAnime =>
     isObject(value)
     && isNumber(value.mal_id)
@@ -279,7 +342,9 @@ const isJikanAnime = (value: unknown): value is JikanAnime =>
     && isNullableTrailer(value.trailer)
     && isNullableString(value.rating)
     && isNullableNumber(value.year)
-    && isNullableNumber(value.score);
+    && isNullableNumber(value.score)
+    && isOptionalNamedEntryArray(value.genres)
+    && isOptionalNamedEntryArray(value.studios);
 
 const isCatalogResponse = (value: unknown): value is CatalogResponse =>
     isObject(value)
@@ -327,6 +392,26 @@ const isToggleWatchlistResponse = (value: unknown): value is ToggleWatchlistResp
     isObject(value)
     && isBoolean(value.success)
     && isString(value.seriesKey);
+
+const isRankingItem = (value: unknown): value is RankingItem =>
+    isObject(value)
+    && isString(value.seriesKey)
+    && isNumber(value.playCount)
+    && isNumber(value.rank);
+
+const isRankingsResponse = (value: unknown): value is RankingsResponse =>
+    isObject(value)
+    && isString(value.period)
+    && Array.isArray(value.items)
+    && value.items.every(isRankingItem);
+
+const isUploadTokenResponse = (value: unknown): value is UploadTokenResponse =>
+    isObject(value)
+    && isString(value.token)
+    && isNumber(value.expiresAt)
+    && isString(value.targetFolder)
+    && isNumber(value.episodeNumber)
+    && isString(value.fileName);
 
 const isProfile = (value: unknown): value is Profile =>
     isObject(value)
@@ -377,6 +462,9 @@ const isJikanEpisodesResponse = (value: unknown): value is JikanEpisodesResponse
 
 const normalizeCatalogSeries = (series: CatalogSeriesPayload): CatalogSeriesPayload => ({
     ...series,
+    groupId: series.groupId ?? null,
+    baseTitle: series.baseTitle ?? null,
+    seasonNumber: series.seasonNumber ?? null,
     backdropImage: series.backdropImage ?? null,
     backdropSource: series.backdropSource ?? null,
     ageRating: series.ageRating ?? null,
@@ -386,6 +474,17 @@ const normalizeCatalogSeries = (series: CatalogSeriesPayload): CatalogSeriesPayl
     safeBottom: series.safeBottom ?? null,
     dominantColor: series.dominantColor ?? null,
     placeholder: series.placeholder ?? null,
+    studio: series.studio ?? null,
+    audioLanguages: series.audioLanguages ?? [],
+    subtitleLanguages: series.subtitleLanguages ?? [],
+    genres: series.genres ?? [],
+    episodes: series.episodes.map((episode) => ({
+        ...episode,
+        title: episode.title ?? null,
+        synopsis: episode.synopsis ?? null,
+        durationSeconds: episode.durationSeconds ?? null,
+        thumbnail: episode.thumbnail ?? null,
+    })),
 });
 
 export const validateCatalogResponse = (value: unknown): ContractResult<CatalogResponse> =>
@@ -422,6 +521,16 @@ export const validateToggleWatchlistResponse = (value: unknown): ContractResult<
     isToggleWatchlistResponse(value)
         ? valid(value)
         : invalid("toggle watchlist");
+
+export const validateRankingsResponse = (value: unknown): ContractResult<RankingsResponse> =>
+    isRankingsResponse(value)
+        ? valid(value)
+        : invalid("rankings");
+
+export const validateUploadTokenResponse = (value: unknown): ContractResult<UploadTokenResponse> =>
+    isUploadTokenResponse(value)
+        ? valid(value)
+        : invalid("upload token");
 
 export const validateProfilesResponse = (value: unknown): ContractResult<ProfilesResponse> =>
     isProfilesResponse(value)

@@ -16,6 +16,8 @@ export interface JikanSeriesMetadata {
     rating: string | null;
     ageRating: string | null;
     year: number | null;
+    genres: string[];
+    studio: string | null;
 }
 
 const mapAgeRating = (classification: string | null): string | null => {
@@ -49,6 +51,8 @@ export const lookupJikanMetadata = async (
         rating: anime.score ? String(anime.score) : null,
         ageRating: mapAgeRating(anime.rating),
         year: anime.year ?? null,
+        genres: (anime.genres ?? []).map((genre) => genre.name.trim()).filter((name) => name !== ""),
+        studio: anime.studios?.[0]?.name.trim() || null,
     });
 };
 

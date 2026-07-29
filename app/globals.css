@@ -2,28 +2,37 @@
 @import "tw-animate-css";
 @source "../components";
 :root {
-  --background: #0B0715;
-  --surface: #151327;
-  --surface-light: #1D1A33;
+  --nx-bg: #07070A;
+  --nx-panel: #15121C;
+  --nx-raised: #23202A;
+  --nx-border: #332E3C;
+  --nx-text: #F3F0EA;
+  --nx-text-2: #A39EAB;
+  --nx-accent: #B9A0FF;
+  --nx-on-accent: #15121C;
+  --nx-accent-2: #D8FF72;
+  --nx-critical: #FF6F61;
 
-  --primary: #8B5CF6;
-  --primary-hover: #9F7AEA;
+  --background: #07070A;
+  --surface: #15121C;
+  --surface-light: #23202A;
 
-  --accent: #38BDF8;
-  --accent-hover: #67E8F9;
+  --primary: #B9A0FF;
+  --primary-hover: #D1C2FF;
 
-  --success: #22C55E;
-  --warning: #F59E0B;
-  --danger: #EF4444;
+  --success: #A39EAB;
+  --warning: #FF6F61;
+  --danger: #FF6F61;
 
-  --foreground: #F8FAFC;
-  --muted: #94A3B8;
+  --foreground: #F3F0EA;
+  --muted: #A39EAB;
 
-  --border: rgba(255, 255, 255, 0.08);
-  --border-hover: rgba(139, 92, 246, 0.4);
+  --border: #332E3C;
+  --border-hover: rgba(185, 160, 255, 0.4);
 
-  --glow-primary: rgba(139, 92, 246, 0.35);
-  --glow-accent: rgba(56, 189, 248, 0.35);
+  --glow-primary: rgba(185, 160, 255, 0.25);
+
+  --on-accent: var(--surface);
 }
 
 @theme inline {
@@ -34,9 +43,6 @@
   --color-primary: var(--primary);
   --color-primary-hover: var(--primary-hover);
 
-  --color-accent: var(--accent);
-  --color-accent-hover: var(--accent-hover);
-
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-danger: var(--danger);
@@ -46,6 +52,19 @@
 
   --color-border: var(--border);
   --color-border-hover: var(--border-hover);
+
+  --color-on-accent: var(--on-accent);
+
+  --color-nx-bg: var(--nx-bg);
+  --color-nx-panel: var(--nx-panel);
+  --color-nx-raised: var(--nx-raised);
+  --color-nx-border: var(--nx-border);
+  --color-nx-text: var(--nx-text);
+  --color-nx-text-2: var(--nx-text-2);
+  --color-nx-accent: var(--nx-accent);
+  --color-nx-on-accent: var(--nx-on-accent);
+  --color-nx-accent-2: var(--nx-accent-2);
+  --color-nx-critical: var(--nx-critical);
 
   --font-ui: var(--font-geist-sans);
   --font-sans: var(--font-ui);
@@ -121,8 +140,8 @@ body {
   --np-color-main: var(--primary);
   --np-color-main-strong: var(--primary-hover);
   --np-color-main-light: var(--primary-hover);
-  --np-color-main-soft: rgba(139, 92, 246, 0.2);
-  --np-color-main-glow: rgba(139, 92, 246, 0.8);
+  --np-color-main-soft: rgba(185, 160, 255, 0.2);
+  --np-color-main-glow: rgba(185, 160, 255, 0.8);
 
   --np-surface: #030712;
   --np-glass-bg: rgba(3, 7, 18, 0.8);
@@ -311,7 +330,7 @@ body {
 .np-control:focus-visible {
   background: var(--np-color-main);
   color: var(--np-control-color-hover);
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.5);
+  box-shadow: 0 0 0 3px rgba(185, 160, 255, 0.5);
 }
 
 .np-control[data-open] {
@@ -333,7 +352,7 @@ body {
   padding: 24px;
   border: 0;
   border-radius: 50%;
-  background: rgba(139, 92, 246, 0.9);
+  background: rgba(185, 160, 255, 0.9);
   color: #fff;
   cursor: pointer;
   transform: translate(-50%, -50%) scale(1);

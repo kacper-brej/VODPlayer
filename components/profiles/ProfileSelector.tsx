@@ -1,24 +1,14 @@
 "use client";
 
-import { useEffect } from "react";
-import Image from "next/image";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Plus } from "lucide-react";
+import type { Profile } from "@/lib/profiles";
+import selectProfileAction from "@/lib/selectProfileAction";
 
-export interface Profile {
-    id: string;
-    name: string;
-    avatar: string;
-}
-
-const MAX_PROFILES = 3;
-
-const PROFILES: Profile[] = [
-    { id: "kacper", name: "Kacper", avatar: "/fallback-cover.jpg" },
-    { id: "kacper2", name: "kacper2", avatar: "/fallback-cover.jpg" },
-];
+const MAX_PROFILES = 5;
 
 const PREFETCH_ROUTES = ["/"];
 
@@ -26,13 +16,29 @@ const TILE_SIZE = "w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40";
 const TILE_RADIUS = "rounded-2xl";
 const TILE_GLOW = "0 0 28px 4px var(--glow-primary)";
 
-const ProfileSelector = () => {
+interface ProfileSelectorProps {
+    profiles: Profile[];
+}
+
+const ProfileSelector = ({ profiles }: ProfileSelectorProps) => {
     const router = useRouter();
-    const canAddProfile = PROFILES.length < MAX_PROFILES;
+    const [isPending, startTransition] = useTransition();
+    const [pendingId, setPendingId] = useState<number | null>(null);
+    const canAddProfile = profiles.length < MAX_PROFILES;
 
     useEffect(() => {
         PREFETCH_ROUTES.forEach((route) => router.prefetch(route));
     }, [router]);
+
+    const handleSelect = (profile: Profile) => {
+        if (isPending) return;
+
+        setPendingId(profile.id);
+        startTransition(async () => {
+            await selectProfileAction(profile.id);
+            router.push("/");
+        });
+    };
 
     return (
         <div className="relative h-dvh w-full overflow-hidden bg-background">
@@ -62,7 +68,7 @@ const ProfileSelector = () => {
                     </h1>
 
                     <ul className="flex flex-wrap items-start justify-center gap-5 sm:gap-8 md:gap-10">
-                        {PROFILES.map((profile, index) => (
+                        {profiles.map((profile, index) => (
                             <motion.li
                                 key={profile.id}
                                 initial={{ opacity: 0, y: 16 }}
@@ -71,7 +77,10 @@ const ProfileSelector = () => {
                             >
                                 <button
                                     type="button"
-                                    className="group flex flex-col items-center gap-3 cursor-pointer outline-none"
+                                    onClick={() => handleSelect(profile)}
+                                    disabled={isPending}
+                                    aria-busy={pendingId === profile.id}
+                                    className="group flex flex-col items-center gap-3 cursor-pointer outline-none disabled:cursor-wait"
                                 >
                                     <div className="relative">
                                         <div
@@ -80,17 +89,14 @@ const ProfileSelector = () => {
                                         />
 
                                         <div
-                                            className={`relative ${TILE_SIZE} ${TILE_RADIUS} overflow-hidden bg-surface border border-border transition-all duration-300 group-hover:scale-105 group-hover:border-border-hover group-focus-visible:scale-105 group-focus-visible:border-border-hover`}
+                                            className={`relative ${TILE_SIZE} ${TILE_RADIUS} overflow-hidden bg-surface border border-border flex items-center justify-center transition-all duration-300 group-hover:scale-105 group-hover:border-border-hover group-focus-visible:scale-105 group-focus-visible:border-border-hover ${
+                                                pendingId === profile.id ? "opacity-60" : ""
+                                            }`}
                                         >
-                                            <Image
-                                                src={profile.avatar}
-                                                alt={profile.name}
-                                                fill
-                                                sizes="(max-width: 640px) 96px, (max-width: 768px) 128px, 160px"
-                                                className="object-cover transition-transform duration-500 group-hover:scale-110"
-                                            />
+                                            <span className="text-3xl sm:text-4xl md:text-5xl font-semibold text-muted transition-colors duration-300 group-hover:text-foreground group-focus-visible:text-foreground">
+                                                {profile.name.charAt(0).toUpperCase()}
+                                            </span>
 
-                                            <div className="absolute inset-0 bg-gradient-to-t from-background/70 via-transparent to-transparent opacity-60 group-hover:opacity-90 transition-opacity duration-300" />
                                             <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-40" />
                                         </div>
                                     </div>
@@ -106,7 +112,7 @@ const ProfileSelector = () => {
                             <motion.li
                                 initial={{ opacity: 0, y: 16 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: 0.15 + PROFILES.length * 0.08, duration: 0.5 }}
+                                transition={{ delay: 0.15 + profiles.length * 0.08, duration: 0.5 }}
                             >
                                 <Link
                                     href="/profiles/create"

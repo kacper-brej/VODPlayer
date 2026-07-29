@@ -1,74 +1,116 @@
-"use client"
-import Image from "next/image";
-import { Play, FileVideo, CheckCircle2 } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { WATCHED_THRESHOLD_PERCENT } from "@/lib/watchProgress";
-import { watchPath } from "@/lib/routes";
+"use client";
 
-export interface EpisodeProps {
-    id: number | string;
-    seriesId: number | string;
+import Image from "next/image";
+import { Check, Play } from "lucide-react";
+import { useState, type KeyboardEvent, type Ref } from "react";
+import { formatEpisodeNumber } from "@/lib/seriesPage";
+
+export interface EpisodeCardData {
+    id: string;
+    seriesId: number;
+    episodeKey: string;
     episodeNumber: number;
     title: string;
-    duration: number | string;
-    description: string;
-    thumbnail: string;
-    progress?: number;
+    fileName: string;
+    thumbnail: string | null;
+    percent: number;
+    remainingTime: string | null;
+    watched: boolean;
+    started: boolean;
+    progressKnown: boolean;
+    isNew: boolean;
 }
 
-const EpisodeCard = ({ seriesId, episodeNumber, thumbnail, progress }: EpisodeProps) => {
-    const router = useRouter();
-    const isWatched = progress !== undefined && progress >= WATCHED_THRESHOLD_PERCENT;
+interface EpisodeCardProps {
+    episode: EpisodeCardData;
+    tabIndex: number;
+    cardRef: Ref<HTMLButtonElement>;
+    onFocus: () => void;
+    onPlay: (episode: EpisodeCardData) => void;
+    onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
+}
 
-    const goToEpisode = () => router.push(watchPath(seriesId, episodeNumber));
+const EpisodeCard = ({
+    episode,
+    tabIndex,
+    cardRef,
+    onFocus,
+    onPlay,
+    onKeyDown,
+}: EpisodeCardProps) => {
+    const [imageFailed, setImageFailed] = useState(false);
 
     return (
-        <div className="flex flex-col gap-2 w-full">
-            <div
-                onClick={goToEpisode}
-                className={`group relative aspect-video w-full rounded-lg md:rounded-xl overflow-hidden bg-surface border border-white/5 hover:border-border-hover cursor-pointer transition-colors ${isWatched ? 'ring-2 ring-success/50' : ''}`}
-            >
-                <Image
-                    src={thumbnail}
-                    alt=""
-                    fill
-                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                    className="object-cover"
-                />
-
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/5 to-black/20 pointer-events-none" />
-
-                {isWatched && (
-                    <span className="absolute top-2 left-2 z-10 flex items-center gap-1 text-[9px] md:text-[10px] font-semibold text-success bg-success/20 backdrop-blur-md border border-success/40 rounded-full px-2 py-0.5">
-                        <CheckCircle2 size={10} />
-                        Obejrzane
+        <button
+            ref={cardRef}
+            type="button"
+            role="gridcell"
+            tabIndex={tabIndex}
+            onFocus={onFocus}
+            onClick={() => onPlay(episode)}
+            onKeyDown={onKeyDown}
+            aria-label={`${episode.title}${episode.watched ? ", obejrzane" : episode.started ? episode.progressKnown ? `, obejrzane w ${episode.percent}%` : ", rozpoczęte" : ""}`}
+            className="group w-full scroll-m-6 overflow-hidden rounded-2xl border border-nx-border bg-nx-panel text-left transition-colors hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent"
+        >
+            <span className="relative block aspect-video overflow-hidden bg-nx-panel">
+                {episode.thumbnail && !imageFailed ? (
+                    <Image
+                        src={episode.thumbnail}
+                        alt=""
+                        fill
+                        sizes="(max-width: 390px) 116px, (max-width: 1024px) 205px, (max-width: 1280px) 165px, 189px"
+                        className={`object-cover transition-opacity ${episode.watched ? "opacity-75" : ""}`}
+                        onError={() => setImageFailed(true)}
+                    />
+                ) : (
+                    <span className="absolute inset-0 flex items-center justify-center font-mono text-xl text-nx-text-2">
+                        {formatEpisodeNumber(episode.episodeNumber)}
                     </span>
                 )}
 
-                <div className="absolute inset-0 flex items-center justify-center">
-                    <div className={`w-11 h-11 md:w-14 md:h-14 flex items-center justify-center rounded-full border-2 backdrop-blur-sm transition-all group-hover:scale-105 ${isWatched ? 'border-success/70 bg-success/10 text-success' : 'border-foreground/70 bg-black/25 text-foreground group-hover:bg-primary/40 group-hover:border-primary'}`}>
-                        <Play size={18} className="fill-current ml-0.5 md:w-5 md:h-5" />
-                    </div>
-                </div>
+                <span className="absolute inset-0 border border-[color-mix(in_srgb,var(--nx-text)_9%,transparent)]" />
+                <span className="absolute inset-0 flex items-center justify-center bg-[color-mix(in_srgb,var(--nx-bg)_32%,transparent)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                    <span className="flex size-11 items-center justify-center rounded-full border border-nx-text bg-[color-mix(in_srgb,var(--nx-bg)_65%,transparent)] text-nx-text">
+                        <Play size={17} fill="currentColor" />
+                    </span>
+                </span>
 
-                {progress !== undefined && progress > 0 && (
-                    <div className="absolute bottom-0 left-0 w-full h-1 bg-white/20 z-10">
-                        <div className="h-full bg-primary" style={{ width: `${progress}%` }} />
-                    </div>
+                {episode.watched && (
+                    <span className="absolute left-2 top-2 flex items-center gap-1 rounded-md border border-nx-border bg-nx-panel px-2 py-1 font-mono text-[9px] tracking-[0.14em] text-nx-text-2">
+                        <Check size={11} />
+                        OBEJRZANE
+                    </span>
                 )}
-            </div>
 
-            <div className="flex flex-col gap-0.5 px-0.5">
-                <span className="text-sm md:text-base font-bold text-foreground">
-                    {episodeNumber}
-                </span>
-                <span className="flex items-center gap-1.5 text-[10px] md:text-xs uppercase tracking-wide text-muted font-semibold">
-                    <FileVideo size={12} />
+                {episode.isNew && (
+                    <span className="absolute right-2 top-2 rounded-md bg-nx-accent-2 px-2 py-1 font-mono text-[9px] tracking-[0.14em] text-nx-on-accent">
+                        NOWY
+                    </span>
+                )}
 
+                {(episode.watched || (episode.started && episode.progressKnown)) && (
+                    <span className="absolute inset-x-0 bottom-0 h-0.5 bg-nx-border">
+                        <span
+                            className={`block h-full ${episode.watched ? "bg-nx-text-2" : "bg-nx-accent"}`}
+                            style={{ width: `${episode.watched ? 100 : episode.percent}%` }}
+                        />
+                    </span>
+                )}
+            </span>
+
+            <span className="block p-4">
+                <span className="block font-mono text-[10px] tracking-[0.16em] text-nx-text-2">
+                    ODCINEK {formatEpisodeNumber(episode.episodeNumber)}
                 </span>
-            </div>
-        </div>
-    )
-}
+                <span className="mt-1 line-clamp-2 block text-[15px] font-semibold leading-[1.35] text-nx-text">
+                    {episode.title}
+                </span>
+                <span className="mt-2 line-clamp-1 block font-mono text-[10px] tracking-[0.08em] text-nx-text-2">
+                    {episode.remainingTime ?? episode.fileName}
+                </span>
+            </span>
+        </button>
+    );
+};
 
 export default EpisodeCard;

@@ -1,151 +1,150 @@
 "use client"
-import {MENU_SECTIONS} from "@/config/menu";
-import {useState} from "react";
 import Link from "next/link";
-import {usePathname, useRouter} from "next/navigation";
-import { Tv, Settings, LogOut, Menu} from "lucide-react";
-import { useAuth } from "@/lib/AuthContext";
+import { usePathname } from "next/navigation";
+import { useRef, useState, type KeyboardEvent } from "react";
+import { Command } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
+import { NAV_ITEMS } from "@/config/menu";
+import ProfileMenu from "@/components/layout/ProfileMenu";
+import { openCommandPalette } from "@/lib/commandPalette";
 
-const Sidebar = () => {
-    const [isMobileOpen, setIsMobileOpen] = useState<boolean>(false);
-    const [isDesktopExpanded, setIsDesktopExpanded] = useState<boolean>(false);
-    const isExpanded = isDesktopExpanded || isMobileOpen;
+interface NavRailItemsProps {
+    orientation: "vertical" | "horizontal";
+    layoutId: string;
+}
+
+const NavRailItems = ({ orientation, layoutId }: NavRailItemsProps) => {
     const pathname = usePathname();
-    const router = useRouter();
-    const { logout } = useAuth();
+    const prefersReducedMotion = useReducedMotion();
+    const activeIndex = NAV_ITEMS.findIndex((item) => item.href === pathname);
 
-    const handleLogout = async () => {
-        await logout();
-        router.push("/login");
+    const [lastPathname, setLastPathname] = useState(pathname);
+    const [rovingIndex, setRovingIndex] = useState(activeIndex >= 0 ? activeIndex : 0);
+    const linkRefs = useRef<(HTMLAnchorElement | null)[]>([]);
+
+    if (pathname !== lastPathname) {
+        setLastPathname(pathname);
+        if (activeIndex >= 0) setRovingIndex(activeIndex);
+    }
+
+    const moveFocus = (nextIndex: number) => {
+        setRovingIndex(nextIndex);
+        linkRefs.current[nextIndex]?.focus();
+    };
+
+    const handleKeyDown = (event: KeyboardEvent<HTMLAnchorElement>, index: number) => {
+        const nextKey = orientation === "vertical" ? "ArrowDown" : "ArrowRight";
+        const prevKey = orientation === "vertical" ? "ArrowUp" : "ArrowLeft";
+
+        if (event.key === nextKey) {
+            event.preventDefault();
+            moveFocus((index + 1) % NAV_ITEMS.length);
+        } else if (event.key === prevKey) {
+            event.preventDefault();
+            moveFocus((index - 1 + NAV_ITEMS.length) % NAV_ITEMS.length);
+        } else if (event.key === "Home") {
+            event.preventDefault();
+            moveFocus(0);
+        } else if (event.key === "End") {
+            event.preventDefault();
+            moveFocus(NAV_ITEMS.length - 1);
+        }
     };
 
     return (
-        <>
-            <div aria-hidden className="max-sm:hidden w-28 shrink-0" />
+        <ul
+            className={
+                orientation === "vertical"
+                    ? "flex flex-col items-stretch gap-1"
+                    : "flex w-full flex-row items-stretch justify-between"
+            }
+        >
+            {NAV_ITEMS.map(({ name, href, icon: Icon }, index) => {
+                const isActive = index === activeIndex;
 
-            {/*Mobile*/}
-            <button
-                onClick = {() => setIsMobileOpen(true)}
-                className='sm:hidden fixed top-4 left-4 z-40 p-3
-              bg-surface/50 backdrop-blur-xl border border-white/5 rounded-xl text-foreground transition-colors'
-            >
-                <Menu size={24} strokeWidth={2}/>
-            </button>
-
-            {isMobileOpen && (
-                <div className='sm:hidden fixed inset-0 bg-background/80
-              backdrop-blur-sm z-40 transition-opacity'
-                     onClick={() => setIsMobileOpen(false)}
-                />
-            )}
-
-            {/*Web*/}
-          {/*Main SideBar */}
-            <aside
-                onMouseEnter={() => setIsDesktopExpanded(true)}
-                onMouseLeave={() => setIsDesktopExpanded(false)}
-                className={`fixed top-4 left-4 h-[calc(100dvh-32px)]  rounded-4xl bg-surface/50 backdrop-blur-xl border border-white/5
-              flex flex-col justify-between py-6 transition-all duration-300 ease-in-out
-              ${isMobileOpen ?  'translate-x-0' : 'translate-x-[-150%]'}
-              sm:translate-x-0
-              ${isExpanded ?  'w-64 z-50' : 'w-20 z-10'}
-           `}>
-                {/*Navigation + logo*/}
-
-                <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-3">
-                    {/*Logo*/}
-                    <div className="flex items-center justify-between mb-8 relative">
-                        <Link href='/' className={`flex items-center group overflow-hidden transition-all duration-300 mx-auto ${isExpanded ? 'w-full' : 'w-11'}`}>
-                            <div className="bg-primary/20 p-2 rounded-xl group-hover:glow-primary transition-all shrink-0">
-                                <Tv className='text-primary' size={24}/>
-                            </div>
-                            <span className={`text-foreground font-bold text-xl whitespace-nowrap overflow-hidden transition-all duration-300 ${
-                                isExpanded ? 'max-w-52 opacity-100 ml-3' : 'max-w-0 opacity-0 ml-0'
-                            }`}>
-                              Nocturna
-                          </span>
+                return (
+                    <li key={href} className={orientation === "horizontal" ? "flex-1" : undefined}>
+                        <Link
+                            ref={(node) => {
+                                linkRefs.current[index] = node;
+                            }}
+                            href={href}
+                            aria-current={isActive ? "page" : undefined}
+                            tabIndex={index === rovingIndex ? 0 : -1}
+                            onFocus={() => setRovingIndex(index)}
+                            onKeyDown={(event) => handleKeyDown(event, index)}
+                            className={`relative flex flex-col items-center gap-1 rounded-lg px-2 py-2.5 text-center outline-none transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary ${
+                                isActive ? "text-foreground" : "text-muted hover:bg-surface-light hover:text-foreground"
+                            }`}
+                        >
+                            {isActive && (
+                                <motion.span
+                                    layoutId={layoutId}
+                                    aria-hidden="true"
+                                    className="absolute left-0 top-1/2 h-8 w-[2px] -translate-y-1/2 rounded-full bg-primary"
+                                    transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.28, ease: [0.2, 0.8, 0.25, 1] }}
+                                />
+                            )}
+                            <Icon size={20} strokeWidth={2} aria-hidden="true" />
+                            <span className="font-ui text-[10px] leading-[1.2] lg:text-[9.5px] xl:text-[10px]">
+                                {name}
+                            </span>
                         </Link>
-                    </div>
-                    {/*Navigation*/}
-                    <div className="space-y-8">
-                        {MENU_SECTIONS.map((section, i) => (
-                            <div key={i}>
-                                <ul>
-                                    {section.items.map(({ name, href, icon: Icon }) => {
-                                        const isActive = pathname === href;
-                                        return (
-                                        <li key={name}>
-                                            <Link
-                                                href={href}
-                                                onClick={() => {setIsMobileOpen(false)}}
-                                                title={!isExpanded ? name : undefined}
-                                                className={`flex items-center py-2.5 px-3 rounded-xl transition-all duration-300 relative group overflow-hidden mx-auto ${
-                                                    isActive ? 'bg-primary/10 text-primary glow-primary' : 'text-muted hover:text-foreground hover:bg-white/5'
-                                                } ${isExpanded ? 'w-full' : 'w-11'}`}
-                                            >
-                                                <div className='shrink-0'>
-                                                    <Icon size={20} strokeWidth={2}/>
-                                                </div>
-                                                <span
-                                                    className={`font-medium text-sm whitespace-nowrap transition-all duration-300 ${
-                                                        isExpanded ? 'max-w-52 opacity-100 ml-4' : 'max-w-0 opacity-0 ml-0'
-                                                    }`}
-                                                >
-                                                  {name}
-                                              </span>
-                                            </Link>
-                                        </li>
-                                        );
-                                    })}
-                                </ul>
-                            </div>
-                        ))}
-                    </div>
+                    </li>
+                );
+            })}
+        </ul>
+    );
+};
+
+const Sidebar = () => {
+    return (
+        <>
+            <aside className="sticky top-0 hidden h-dvh w-20 shrink-0 flex-col items-center justify-between border-r border-border bg-surface py-4 lg:flex xl:w-[92px]">
+                <div className="flex w-full flex-col items-center gap-6">
+                    <Link
+                        href="/"
+                        aria-label="Nocturna — strona główna"
+                        className="flex h-10 w-10 items-center justify-center rounded-lg font-display text-2xl text-foreground outline-none transition-colors hover:bg-surface-light focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
+                    >
+                        N
+                    </Link>
+
+                    <nav aria-label="Główna nawigacja" className="w-full px-2">
+                        <NavRailItems orientation="vertical" layoutId="nav-rail-indicator-desktop" />
+                    </nav>
                 </div>
 
-                {/*Lower nav */}
-                <div className="space-y-2 border-t border-white/5 pt-4 mt-6 px-3">
-                    <Link
-                        href='/settings'
-                        onClick={() => {setIsMobileOpen(false)}}
-                        title={!isExpanded ? 'Settings' : undefined}
-                        className={`flex items-center py-3 px-3 rounded-xl text-muted hover:text-foreground hover:bg-white/5 transition-all duration-300 relative overflow-hidden mx-auto ${
-                            isExpanded ? 'w-full' : 'w-11'
-                        }`}
-                    >
-                        <div className="shrink-0">
-                            <Settings size={24} strokeWidth={2}/>
-                        </div>
-                        <span
-                            className={`font-medium text-sm whitespace-nowrap transition-all duration-300 ${
-                                isExpanded ? 'max-w-52 opacity-100 ml-4' : 'max-w-0 opacity-0 ml-0'
-                            }`}
-                        >
-                          Settings
-                      </span>
-                    </Link>
+                <div className="flex w-full flex-col items-center gap-3 border-t border-border pt-4">
                     <button
-                        onClick={handleLogout}
-                        title={!isExpanded ? 'Logout' : undefined}
-                        className={`flex cursor-pointer items-center py-3 px-3 rounded-xl text-muted hover:text-danger hover:bg-danger/10 transition-all duration-300 relative overflow-hidden mx-auto ${
-                            isExpanded ? 'w-full' : 'w-11'
-                        }`}
+                        type="button"
+                        onClick={openCommandPalette}
+                        className="flex flex-col items-center gap-1 rounded-lg px-2 py-2 text-muted outline-none transition-colors hover:bg-surface-light hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
                     >
-                        <div className='shrink-0'>
-                            <LogOut size={20} strokeWidth={2}/>
-                        </div>
-                        <span
-                            className={`font-medium text-sm whitespace-nowrap transition-all duration-300 ${
-                                isExpanded ? 'max-w-52 opacity-100 ml-4' : 'max-w-0 opacity-0 ml-0'
-                            }`}
-                        >
-                        Logout
-                      </span>
+                        <Command size={18} strokeWidth={2} aria-hidden="true" />
+                        <span className="font-mono text-[9px] tracking-[0.14em] uppercase">Ctrl K</span>
+                        <span className="sr-only">Otwórz wyszukiwanie</span>
                     </button>
+
+                    <ProfileMenu />
                 </div>
             </aside>
 
+            <nav
+                aria-label="Główna nawigacja mobilna"
+                className="fixed inset-x-0 bottom-0 z-40 flex items-center border-t border-border px-2 lg:hidden"
+                style={{
+                    backgroundColor: "rgba(21,18,28,0.86)",
+                    backdropFilter: "blur(26px)",
+                    WebkitBackdropFilter: "blur(26px)",
+                    height: "calc(64px + env(safe-area-inset-bottom))",
+                    paddingBottom: "env(safe-area-inset-bottom)",
+                }}
+            >
+                <NavRailItems orientation="horizontal" layoutId="nav-rail-indicator-mobile" />
+            </nav>
         </>
     );
 };
+
 export default Sidebar;

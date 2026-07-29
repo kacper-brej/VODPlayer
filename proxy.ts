@@ -3,11 +3,12 @@ import type { NextRequest } from "next/server";
 import { hasValidSession } from "@/lib/verifySession";
 
 const PUBLIC_ROUTES = ["/login", "/signup", "/forgot-password", "/reset-password", "/qr-confirm"];
+const AUTH_GATE_DISABLED = process.env.DISABLE_AUTH_GATE === "true";
 
 export default async function proxy(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
-    if (process.env.NODE_ENV !== "production") {
+    if (AUTH_GATE_DISABLED) {
         return NextResponse.next();
     }
 

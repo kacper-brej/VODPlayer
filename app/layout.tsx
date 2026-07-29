@@ -4,6 +4,7 @@ import "./globals.css";
 import AppShell from "@/components/layout/AppShell";
 import PreconnectVideoOrigin from "@/components/layout/PreconnectVideoOrigin";
 import {AuthProvider} from "@/lib/AuthContext";
+import { getSearchIndex } from "@/lib/searchIndex";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,6 +34,8 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const searchIndexPromise = getSearchIndex();
+
   return (
     <html
       lang="pl"
@@ -41,7 +44,7 @@ export default function RootLayout({
       <body className="font-ui bg-background text-foreground antialiased selection:bg-primary/30">
       <PreconnectVideoOrigin />
       <AuthProvider>
-        <AppShell>
+        <AppShell searchIndexPromise={searchIndexPromise}>
           {children}
         </AppShell>
       </AuthProvider>
