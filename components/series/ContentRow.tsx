@@ -1,83 +1,251 @@
-"use client"
-import SeriesCard, { SeriesCardProps } from "./SeriesCard";
+"use client";
+
+import { Children, useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useRef } from "react";
+
+export type ContentRowVariant = "progress" | "ranking" | "mosaic" | "classic";
 
 interface ContentRowProps {
     title: string;
-    series: SeriesCardProps[];
+    kicker: string;
+    variant: ContentRowVariant;
+    itemCount: number;
+    children: ReactNode;
 }
 
-const EAGER_PREVIEW_COUNT = 4;
+const horizontalItemClass: Record<Exclude<ContentRowVariant, "mosaic">, string> = {
+    progress: "basis-[82%] sm:basis-[48%] lg:basis-[calc((100%-40px)/3)] min-[1440px]:basis-[calc((100%-72px)/4)]",
+    ranking: "basis-[40%] sm:basis-[28%] lg:basis-[calc((100%-60px)/4)] xl:basis-[calc((100%-96px)/5)] min-[1440px]:basis-[calc((100%-120px)/6)]",
+    classic: "basis-[70%] sm:basis-[44%] lg:basis-[calc((100%-40px)/3)] xl:basis-[calc((100%-72px)/4)] min-[1440px]:basis-[calc((100%-96px)/5)]",
+};
 
-const ContentRow = ({ title, series }: ContentRowProps) => {
+const ContentRow = ({
+    title,
+    kicker,
+    variant,
+    itemCount,
+    children,
+}: ContentRowProps) => {
+    const titleId = useId();
+    const rowRef = useRef<HTMLDivElement | null>(null);
+    const cardStepRef = useRef(0);
+    const pageStepRef = useRef(0);
+    const [canMoveLeft, setCanMoveLeft] = useState(false);
+    const [canMoveRight, setCanMoveRight] = useState(itemCount > 1);
+    const items = Children.toArray(children);
+    const isMosaic = variant === "mosaic";
 
-    const rowRef = useRef<HTMLDivElement>(null);
+    const cards = useCallback(() => {
+        if (!rowRef.current) return [];
+        return Array.from(rowRef.current.querySelectorAll<HTMLElement>("[data-content-card]"));
+    }, []);
 
-    const uniqueSeries = series.filter(
-        (item, index, self) => self.findIndex((s) => s.id === item.id) === index
-    );
+    const updateNavigation = useCallback(() => {
+        const row = rowRef.current;
+        if (!row || isMosaic) return;
 
-    const scroll = (direction: 'left' | 'right') => {
-        const container = rowRef.current;
-        const firstCard = container?.firstElementChild as HTMLElement | null;
-        if(!container || !firstCard) return;
+        const maxScroll = Math.max(0, row.scrollWidth - row.clientWidth);
+        setCanMoveLeft(row.scrollLeft > 2);
+        setCanMoveRight(row.scrollLeft < maxScroll - 2);
+    }, [isMosaic]);
 
-        const gap = parseFloat(getComputedStyle(container).columnGap || '0');
-        const step = firstCard.offsetWidth + gap;
-        const cardsPerView = Math.max(1, Math.floor(container.clientWidth / step));
-        const scrollAmount = step * cardsPerView;
+    const measure = useCallback(() => {
+        const row = rowRef.current;
+        const firstItem = row?.querySelector<HTMLElement>("[data-row-item]");
 
-        const scrollTo = direction === 'left'
-            ? container.scrollLeft - scrollAmount
-            : container.scrollLeft + scrollAmount;
-        container.scrollTo({left: scrollTo, behavior: 'smooth'});
-    }
+        if (!row || !firstItem || isMosaic) return;
+
+        const gap = Number.parseFloat(getComputedStyle(row).columnGap) || 0;
+        const cardStep = firstItem.getBoundingClientRect().width + gap;
+        const cardsPerView = Math.max(1, Math.floor((row.clientWidth + gap) / cardStep));
+
+        cardStepRef.current = cardStep;
+        pageStepRef.current = cardStep * cardsPerView;
+        updateNavigation();
+    }, [isMosaic, updateNavigation]);
+
+    useEffect(() => {
+        const row = rowRef.current;
+        if (!row) return;
+
+        const rowCards = cards();
+        rowCards.forEach((card, index) => {
+            card.tabIndex = index === 0 ? 0 : -1;
+        });
+
+        measure();
+
+        const observer = new ResizeObserver(measure);
+        observer.observe(row);
+
+        return () => observer.disconnect();
+    }, [cards, measure]);
+
+    const setRovingCard = (target: HTMLElement) => {
+        cards().forEach((card) => {
+            card.tabIndex = card === target ? 0 : -1;
+        });
+    };
+
+    const focusCard = (index: number) => {
+        const rowCards = cards();
+        const target = rowCards[Math.max(0, Math.min(rowCards.length - 1, index))];
+
+        if (!target) return;
+
+        setRovingCard(target);
+        target.focus();
+        target.scrollIntoView({
+            behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+            block: "nearest",
+            inline: "nearest",
+        });
+    };
+
+    const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+
+        const rowCards = cards();
+        const currentIndex = rowCards.findIndex((card) => card === document.activeElement);
+
+        if (currentIndex < 0) return;
+
+        event.preventDefault();
+        focusCard(currentIndex + (event.key === "ArrowLeft" ? -1 : 1));
+    };
+
+    const move = (direction: -1 | 1) => {
+        if (isMosaic) {
+            const rowCards = cards();
+            const currentIndex = rowCards.findIndex((card) => card === document.activeElement);
+            const nextIndex = currentIndex < 0
+                ? direction > 0 ? 0 : rowCards.length - 1
+                : (currentIndex + direction + rowCards.length) % rowCards.length;
+            focusCard(nextIndex);
+            return;
+        }
+
+        const row = rowRef.current;
+        const cardStep = cardStepRef.current;
+        const pageStep = pageStepRef.current;
+
+        if (!row || !cardStep || !pageStep) return;
+
+        const currentIndex = Math.round(row.scrollLeft / cardStep);
+        const cardsPerPage = Math.max(1, Math.round(pageStep / cardStep));
+        const targetIndex = Math.max(0, currentIndex + direction * cardsPerPage);
+        const maxScroll = Math.max(0, row.scrollWidth - row.clientWidth);
+        const target = Math.min(maxScroll, targetIndex * cardStep);
+
+        row.scrollTo({
+            left: target,
+            behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+        });
+    };
+
+    if (itemCount === 0) return null;
 
     return (
-        <div className="w-full group/row my-4">
-            <h2 className="text-xl md:text-2xl font-bold text-foreground pt-4 px-4 md:px-8 mb-2">
-                {title}
-            </h2>
-
-            <div className="relative">
-                <button
-                    onClick={() => scroll('left')}
-                    className='max-md:hidden md:flex absolute left-2 md:left-6 top-1/2 z-40 items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full bg-primary
-                    text-foreground shadow-[0_0_15px_var(--primary)] opacity-0 -translate-y-1/2 -translate-x-4 pointer-events-none
-                    duration-300 group-hover/row:opacity-100 group-hover/row:translate-x-0 group-hover/row:pointer-events-auto hover:scale-110 hover:brightness-110 cursor-pointer transition-all'
-                >
-                    <ChevronLeft size={40}/>
-                </button>
-
-                <div
-                    ref={rowRef}
-                    className='flex flex-nowrap items-center gap-4 md:gap-6 overflow-x-auto scroll-smooth scrollbar-hide px-6 md:px-8 scroll-pl-6 md:scroll-pl-8 scroll-pr-6 md:scroll-pr-8 py-10 snap-x snap-mandatory'
-                >
-                    {uniqueSeries.map((item, index) => (
-                        <div
-                            key={item.id}
-                            className="group/card w-[70vw] sm:w-[45vw] md:w-[30vw] lg:w-[22vw] xl:w-[18vw] aspect-video flex-none shrink-0 snap-start hover:z-20 cursor-pointer"
-                        >
-                            <div
-                                className={`w-full h-full relative rounded-lg overflow-hidden transition-all duration-300 group-hover/card:scale-110 group-hover/card:shadow-[0_0_20px_var(--primary)] border border-white/5 shadow-lg ${index === 0 ? 'origin-left' : index === uniqueSeries.length - 1 ? 'origin-right' : 'origin-center'}`}
-                            >
-                                <SeriesCard {...item} eagerPreview={index < EAGER_PREVIEW_COUNT} />
-                            </div>
-                        </div>
-                    ))}
+        <section
+            aria-labelledby={titleId}
+            className="group/section w-full min-w-0"
+        >
+            <header className="mb-5 flex items-end gap-4 sm:mb-6">
+                <div className="min-w-0">
+                    <span className="block font-mono text-[10px] tracking-[0.22em] text-nx-text-2 sm:text-[11px]">
+                        {kicker}
+                    </span>
+                    <h2
+                        id={titleId}
+                        className="mt-1 text-xl font-semibold leading-[1.08] text-nx-text sm:font-display sm:text-2xl lg:text-[28px] min-[1440px]:text-[30px]"
+                    >
+                        {title}
+                    </h2>
                 </div>
 
-                <button
-                    onClick={() => scroll("right")}
-                    className="max-md:hidden md:flex absolute right-2 md:right-6 top-1/2 z-40 items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full bg-primary
-                    text-foreground shadow-[0_0_15px_var(--primary)] opacity-0 -translate-y-1/2 translate-x-4 pointer-events-none transition-all duration-300 group-hover/row:opacity-100
-                     group-hover/row:translate-x-0 group-hover/row:pointer-events-auto hover:scale-110 hover:brightness-110 cursor-pointer"
-                >
-                    <ChevronRight size={40} />
-                </button>
+                <span className="mb-2 h-px min-w-6 flex-1 bg-nx-border" />
+
+                {itemCount > 1 && (
+                    <span className="mb-0.5 hidden items-center gap-2 [@media(pointer:fine)]:flex">
+                        <button
+                            type="button"
+                            onClick={() => move(-1)}
+                            disabled={!isMosaic && !canMoveLeft}
+                            aria-label={`Przewiń sekcję ${title} w lewo`}
+                            className="flex size-11 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text-2 opacity-0 outline-none transition-[opacity,color,background-color] duration-140 hover:bg-nx-raised hover:text-nx-text focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent disabled:pointer-events-none disabled:opacity-25 group-hover/section:opacity-100"
+                        >
+                            <ChevronLeft size={19} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => move(1)}
+                            disabled={!isMosaic && !canMoveRight}
+                            aria-label={`Przewiń sekcję ${title} w prawo`}
+                            className="flex size-11 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text-2 opacity-0 outline-none transition-[opacity,color,background-color] duration-140 hover:bg-nx-raised hover:text-nx-text focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent disabled:pointer-events-none disabled:opacity-25 group-hover/section:opacity-100"
+                        >
+                            <ChevronRight size={19} />
+                        </button>
+                    </span>
+                )}
+            </header>
+
+            <div
+                ref={rowRef}
+                role="group"
+                aria-label={title}
+                onKeyDown={handleKeyDown}
+                onFocusCapture={(event) => {
+                    const target = (event.target as HTMLElement).closest<HTMLElement>("[data-content-card]");
+                    if (target) setRovingCard(target);
+                }}
+                onScroll={updateNavigation}
+                className={
+                    isMosaic
+                        ? "grid grid-cols-1 gap-4 lg:grid-cols-12 lg:grid-rows-3 lg:gap-5 xl:gap-6"
+                        : "scrollbar-hide flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain py-3 scroll-smooth motion-reduce:scroll-auto lg:gap-5 xl:gap-6"
+                }
+            >
+                {items.map((child, index) => {
+                    if (isMosaic) {
+                        const mosaicClass = index === 0
+                            ? "lg:col-span-7 lg:row-span-3"
+                            : `lg:col-span-5 ${index === 3 ? "lg:max-xl:hidden" : ""}`;
+
+                        return (
+                            <div
+                                key={index}
+                                data-row-item
+                                className={`nx-section-item ${mosaicClass}`}
+                                style={{ animationDelay: `${Math.min(index * 60, 300)}ms` }}
+                            >
+                                {child}
+                            </div>
+                        );
+                    }
+
+                    return (
+                        <div
+                            key={index}
+                            data-row-item
+                            className={`nx-section-item relative min-w-0 shrink-0 snap-start ${horizontalItemClass[variant]}`}
+                            style={{ animationDelay: `${Math.min(index * 60, 300)}ms` }}
+                        >
+                            {variant === "ranking" && (
+                                <span
+                                    aria-hidden="true"
+                                    className="pointer-events-none absolute -left-[0.08em] bottom-7 z-0 font-display text-[76px] leading-[0.84] tracking-[-0.05em] text-transparent [-webkit-text-stroke:1px_color-mix(in_srgb,var(--nx-accent)_42%,transparent)] sm:text-[92px] xl:text-[112px] min-[1440px]:text-[128px]"
+                                >
+                                    {index + 1}
+                                </span>
+                            )}
+                            <div className={variant === "ranking" ? "relative z-10 ml-[18%] w-[82%]" : ""}>
+                                {child}
+                            </div>
+                        </div>
+                    );
+                })}
             </div>
-        </div>
+        </section>
     );
 };
 

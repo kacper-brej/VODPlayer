@@ -9,20 +9,19 @@ import { useAuth } from "@/lib/AuthContext";
 import { ContentSkeleton, DataErrorState } from "@/components/data/DataState";
 import type { SearchIndexEntry } from "@/lib/searchIndex";
 import type { DataResult } from "@/lib/dataResult";
-import { safeReturnPath } from "@/lib/routes";
 
 const NO_CHROME_ROUTES = ["/login", "/signup", "/forgot-password", "/reset-password", "/qr-confirm", "/profiles", "/watch"];
 const PUBLIC_ROUTES = ["/login", "/signup", "/forgot-password", "/reset-password", "/qr-confirm"];
-const AUTH_ONLY_ROUTES = ["/login", "/signup"];
 
 const GRAIN_BACKGROUND = `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`;
 
 const useOnlineStatus = () => {
-    const [isOnline, setIsOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine);
+    const [isOnline, setIsOnline] = useState(true);
 
     useEffect(() => {
         const goOnline = () => setIsOnline(true);
         const goOffline = () => setIsOnline(false);
+        queueMicrotask(() => setIsOnline(navigator.onLine));
         window.addEventListener("online", goOnline);
         window.addEventListener("offline", goOffline);
         return () => {
@@ -86,14 +85,10 @@ const AppShell = ({ children, searchIndexPromise }: AppShellProps) => {
         if (sessionExpiredMidWork) return;
         if (!user && !PUBLIC_ROUTES.includes(pathname)) {
             router.replace("/login");
-        } else if (user && AUTH_ONLY_ROUTES.includes(pathname)) {
-            const returnTo = safeReturnPath(new URLSearchParams(window.location.search).get("returnTo"));
-            router.replace(returnTo);
         }
     }, [error, loading, user, pathname, router, sessionExpiredMidWork]);
 
     if (isNoChrome) {
-        if (user && AUTH_ONLY_ROUTES.includes(pathname)) return null;
         return <>{children}</>;
     }
 

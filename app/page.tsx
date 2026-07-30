@@ -1,192 +1,294 @@
+import Link from "next/link";
 import { Suspense } from "react";
-import HeroBanerSection from "@/components/series/HeroBanerSection";
-import ContentRow from "@/components/series/ContentRow";
+import HeroBanerSection, { type LastWatchedData } from "@/components/series/HeroBanerSection";
+import ContentRowSection from "@/components/series/ContentRowSection";
 import ContentRowSkeleton from "@/components/series/ContentRowSkeleton";
 import SeriesModal from "@/components/series/SeriesModal";
 import HomeRefresher from "@/components/series/HomeRefresher";
-import { getCatalog, FALLBACK_COVER, type CatalogSeries } from "@/lib/catalog";
-import { getWeeklyRanking, RANKING_MIN_ITEMS } from "@/lib/rankings";
+import { DataErrorState } from "@/components/data/DataState";
+import { getCatalog, type CatalogSeries } from "@/lib/catalog";
 import { collapseSeriesGroups, getNewestSeries } from "@/lib/catalogRows";
-import { getLatestResume, getResumeMap } from "@/lib/continueWatching";
+import { getContinueWatching, getLatestResume, getResumeMap } from "@/lib/continueWatching";
+import { getWeeklyRanking, RANKING_MIN_ITEMS } from "@/lib/rankings";
 import { getWatchlist } from "@/lib/watchlist";
-import { progressPercent } from "@/lib/watchProgress";
-import type { SeriesCardProps } from "@/components/series/SeriesCard";
+import { toContentCard, toResumeCard } from "@/lib/contentCards";
+import { seriesPath, watchPath } from "@/lib/routes";
 import type { ResumePoint } from "@/lib/contracts";
-import { DataErrorState, DataState } from "@/components/data/DataState";
 
-const toSeriesCard = (
+const watchlistKeys = (items: { seriesKey: string }[]) =>
+    new Set(items.map((item) => item.seriesKey));
+
+const heroData = (
     series: CatalogSeries,
-    resumeMap: Map<string, ResumePoint>,
-    watchlistedKeys: Set<string>,
-): SeriesCardProps => {
-    const resume = resumeMap.get(series.key);
-    const episode = series.episodes.find((item) => item.key === resume?.episodeKey) ?? series.episodes[0];
+    resume: ResumePoint | null,
+): LastWatchedData | null => {
+    const episode = series.episodes.find((item) => item.key === resume?.episodeKey)
+        ?? series.episodes[0]
+        ?? null;
+
+    if (!episode) return null;
+
+    const hasDuration = Boolean(resume?.durationSeconds && resume.durationSeconds > 0);
+    const percent = resume && hasDuration
+        ? Math.min(100, Math.round((resume.positionSeconds / resume.durationSeconds!) * 100))
+        : null;
 
     return {
-        id: series.id,
-        title: series.baseTitle ?? series.title,
-        coverImage: series.coverImage,
-        rating: series.rating,
-        year: series.year ?? undefined,
-        previewVideoUrl: episode?.url,
-        resumeEpisodeKey: episode?.key,
-        watchedSeconds: resume?.positionSeconds,
-        durationSeconds: resume?.durationSeconds ?? undefined,
         seriesKey: series.key,
-        inWatchlist: watchlistedKeys.has(series.key),
+        title: series.baseTitle ?? series.title,
+        episodeFile: episode.key,
+        episodeNumber: episode.number,
+        lastWatchedTime: resume?.positionSeconds ?? 0,
+        progressPercent: percent,
+        poster: series.sourceCoverImage,
+        backdrop: series.backdropImage,
+        dominantColor: series.dominantColor,
+        focal: {
+            x: series.focalX ?? 0.5,
+            y: series.focalY ?? 0.4,
+        },
+        video: episode.url,
+        description: series.synopsis,
+        href: watchPath(series.key, episode.key),
+        isResume: Boolean(resume),
     };
 };
 
-const Hero = async () => {
-    const [resumeResult, catalogResult] = await Promise.all([getLatestResume(), getCatalog()]);
+const HeroSection = async ({ catalog }: { catalog: CatalogSeries[] }) => {
+    const resumeResult = await getLatestResume();
+    const resume = resumeResult.kind === "success" ? resumeResult.data : null;
+    const resumedSeries = resume
+        ? catalog.find((series) => series.key === resume.seriesKey) ?? null
+        : null;
+    const recommendedSeries = getNewestSeries(catalog)
+        .find((series) => series.episodes.length > 0)
+        ?? catalog.find((series) => series.episodes.length > 0)
+        ?? null;
+    const content = resumedSeries
+        ? heroData(resumedSeries, resume)
+        : recommendedSeries
+            ? heroData(recommendedSeries, null)
+            : null;
 
-    if (resumeResult.kind === "error") {
-        return <DataErrorState reason={resumeResult.reason} />;
+    return <HeroBanerSection lastWatchedData={content} />;
+};
+
+const ContinueSection = async ({ catalog }: { catalog: CatalogSeries[] }) => {
+    const [continueResult, watchlistResult] = await Promise.all([
+        getContinueWatching(),
+        getWatchlist(),
+    ]);
+
+    if (continueResult.kind === "error") {
+        if (continueResult.reason === "unauthorized") return null;
+        return <DataErrorState reason={continueResult.reason} compact />;
     }
 
-    if (catalogResult.kind === "error") {
-        return <DataErrorState reason={catalogResult.reason} />;
-    }
+    if (continueResult.kind === "empty") return null;
 
-    if (resumeResult.kind === "empty" || !resumeResult.data) {
-        return <HeroBanerSection lastWatchedData={null} />;
-    }
-
-    const resume = resumeResult.data;
-    const series = catalogResult.data.find((item) => item.key === resume.seriesKey);
-    const episode = series?.episodes.find((item) => item.key === resume.episodeKey);
-
-    if (!series || !episode) {
-        return <HeroBanerSection lastWatchedData={null} />;
-    }
+    const byKey = new Map(catalog.map((series) => [series.key, series]));
+    const listed = watchlistKeys(
+        watchlistResult.kind === "success" ? watchlistResult.data : [],
+    );
+    const cards = continueResult.data
+        .map((resume) => {
+            const series = byKey.get(resume.seriesKey);
+            return series ? toResumeCard(series, resume, listed.has(series.key)) : null;
+        })
+        .filter((card) => card !== null);
 
     return (
-        <HeroBanerSection
-            lastWatchedData={{
-                seriesId: series.id,
-                title: series.title,
-                episodeFile: resume.episodeKey,
-                lastWatchedTime: resume.positionSeconds,
-                progressPercent: progressPercent(resume.positionSeconds, resume.durationSeconds),
-                image: series?.bannerImage || series?.coverImage || FALLBACK_COVER,
-                video: episode?.url ?? "",
-                description: series?.synopsis || "Kontynuuj oglądanie tam, gdzie skończyłeś.",
-                tags: ["Kontynuuj"],
-            }}
+        <ContentRowSection
+            title="Kontynuuj oglądanie"
+            kicker="N° 01"
+            variant="progress"
+            items={cards}
         />
     );
 };
 
-const LibraryRow = async () => {
-    const [catalogResult, resumeResult, watchlistResult] = await Promise.all([
-        getCatalog(),
+const RankingSection = async ({ catalog }: { catalog: CatalogSeries[] }) => {
+    const [rankingResult, resumeResult, watchlistResult] = await Promise.all([
+        getWeeklyRanking(),
         getResumeMap(),
         getWatchlist(),
     ]);
 
-    if (catalogResult.kind === "error") {
-        return <DataErrorState reason={catalogResult.reason} compact />;
+    if (rankingResult.kind === "error") {
+        if (rankingResult.reason === "unauthorized") return null;
+        return <DataErrorState reason={rankingResult.reason} compact />;
     }
 
-    if (resumeResult.kind === "error") {
-        return <DataErrorState reason={resumeResult.reason} compact />;
-    }
+    if (rankingResult.kind === "empty") return null;
 
-    if (catalogResult.kind === "empty") {
-        return (
-            <DataState
-                kind="empty"
-                title="Biblioteka jest pusta"
-                description="Dodane seriale pojawią się w tym miejscu."
-                compact
-            />
-        );
-    }
-
-    const watchlistedKeys = new Set(
-        watchlistResult.kind === "success" ? watchlistResult.data.map((item) => item.seriesKey) : [],
+    const byKey = new Map(catalog.map((series) => [series.key, series]));
+    const resumeMap = resumeResult.kind === "error"
+        ? new Map<string, ResumePoint>()
+        : resumeResult.data;
+    const listed = watchlistKeys(
+        watchlistResult.kind === "success" ? watchlistResult.data : [],
     );
+    const cards = rankingResult.data
+        .slice(0, 10)
+        .map((ranking) => {
+            const series = byKey.get(ranking.seriesKey);
+            return series
+                ? toContentCard(series, {
+                    resume: resumeMap.get(series.key),
+                    inWatchlist: listed.has(series.key),
+                    allowNew: false,
+                })
+                : null;
+        })
+        .filter((card) => card !== null);
 
-    const cards = collapseSeriesGroups(catalogResult.data).map((series) =>
-        toSeriesCard(series, resumeResult.data, watchlistedKeys)
+    if (cards.length < RANKING_MIN_ITEMS) return null;
+
+    return (
+        <ContentRowSection
+            title="Dziesiątka tej nocy"
+            kicker="N° 02"
+            variant="ranking"
+            items={cards}
+        />
+    );
+};
+
+const SelectedSection = async ({ catalog }: { catalog: CatalogSeries[] }) => {
+    const [resumeResult, watchlistResult] = await Promise.all([
+        getResumeMap(),
+        getWatchlist(),
+    ]);
+    const resumeMap = resumeResult.kind === "error"
+        ? new Map<string, ResumePoint>()
+        : resumeResult.data;
+    const listed = watchlistKeys(
+        watchlistResult.kind === "success" ? watchlistResult.data : [],
+    );
+    const collapsed = getNewestSeries(collapseSeriesGroups(catalog), 20);
+    const selected = [
+        ...collapsed.filter((series) => listed.has(series.key)),
+        ...collapsed.filter((series) => !listed.has(series.key) && !resumeMap.has(series.key)),
+        ...collapsed.filter((series) => !listed.has(series.key) && resumeMap.has(series.key)),
+    ].filter((series, index, all) =>
+        all.findIndex((item) => item.key === series.key) === index
+    ).slice(0, 4);
+    const cards = selected.map((series) =>
+        toContentCard(series, {
+            resume: resumeMap.get(series.key),
+            inWatchlist: listed.has(series.key),
+        })
     );
 
     return (
-        <div className="animate-in fade-in duration-700 ease-out">
-            <ContentRow title="Biblioteka" series={cards} />
-        </div>
+        <ContentRowSection
+            title="Wybrane dla Ciebie"
+            kicker="N° 03"
+            variant="mosaic"
+            items={cards}
+        />
     );
 };
 
-const RankingRow = async () => {
-    const [rankingResult, catalogResult, resumeResult, watchlistResult] = await Promise.all([
-        getWeeklyRanking(),
-        getCatalog(),
+const LibrarySection = async ({ catalog }: { catalog: CatalogSeries[] }) => {
+    const [resumeResult, watchlistResult] = await Promise.all([
         getResumeMap(),
         getWatchlist(),
     ]);
-
-    if (rankingResult.kind !== "success" || catalogResult.kind !== "success") return null;
-
-    const byKey = new Map(catalogResult.data.map((series) => [series.key, series]));
-    const resumeMap = resumeResult.kind === "error" ? new Map<string, ResumePoint>() : resumeResult.data;
-    const watchlistedKeys = new Set(
-        watchlistResult.kind === "success" ? watchlistResult.data.map((item) => item.seriesKey) : [],
+    const resumeMap = resumeResult.kind === "error"
+        ? new Map<string, ResumePoint>()
+        : resumeResult.data;
+    const listed = watchlistKeys(
+        watchlistResult.kind === "success" ? watchlistResult.data : [],
+    );
+    const cards = collapseSeriesGroups(catalog).map((series) =>
+        toContentCard(series, {
+            resume: resumeMap.get(series.key),
+            inWatchlist: listed.has(series.key),
+            href: seriesPath(series.key),
+        })
     );
 
-    const ranked = rankingResult.data
-        .map((item) => byKey.get(item.seriesKey))
-        .filter((series): series is CatalogSeries => series !== undefined)
-        .map((series) => toSeriesCard(series, resumeMap, watchlistedKeys));
-
-    if (ranked.length < RANKING_MIN_ITEMS) return null;
-
-    return <ContentRow title="Dziesiątka tej nocy" series={ranked} />;
+    return (
+        <ContentRowSection
+            title="Biblioteka"
+            kicker="N° 04"
+            variant="classic"
+            items={cards}
+        />
+    );
 };
 
-const NewestRow = async () => {
-    const [catalogResult, resumeResult, watchlistResult] = await Promise.all([
-        getCatalog(),
-        getResumeMap(),
-        getWatchlist(),
-    ]);
+const EmptyArchive = () => (
+    <div className="mx-auto flex min-h-[70vh] w-full max-w-3xl flex-col items-start justify-center px-5 sm:px-8">
+        <span className="font-mono text-[11px] tracking-[0.22em] text-nx-text-2">
+            ARCHIWUM / 0 TYTUŁÓW
+        </span>
+        <h1 className="mt-4 max-w-[12ch] font-display text-[34px] leading-[.95] tracking-[-0.03em] text-nx-text sm:text-[44px]">
+            Archiwum jest puste
+        </h1>
+        <p className="mt-5 max-w-[40ch] text-[15px] leading-[1.65] text-nx-text-2">
+            Wyślij pierwszy plik, a pojawi się tutaj wraz z odcinkami.
+        </p>
+        <Link
+            href="/upload"
+            className="mt-7 flex min-h-12 items-center rounded-full bg-nx-accent px-6 text-[15px] font-semibold text-nx-on-accent outline-none transition-colors duration-140 hover:bg-[color-mix(in_srgb,var(--nx-accent)_88%,var(--nx-text))] focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent"
+        >
+            Wyślij plik
+        </Link>
+    </div>
+);
 
-    if (catalogResult.kind !== "success") return null;
+const HomeDashboard = async () => {
+    const catalogResult = await getCatalog();
 
-    const resumeMap = resumeResult.kind === "error" ? new Map<string, ResumePoint>() : resumeResult.data;
-    const watchlistedKeys = new Set(
-        watchlistResult.kind === "success" ? watchlistResult.data.map((item) => item.seriesKey) : [],
+    if (catalogResult.kind === "error") {
+        return (
+            <div className="px-5 py-16 sm:px-8 xl:px-10 min-[1440px]:px-12">
+                <DataErrorState reason={catalogResult.reason} />
+            </div>
+        );
+    }
+
+    if (catalogResult.kind === "empty") return <EmptyArchive />;
+
+    const catalog = catalogResult.data;
+
+    return (
+        <>
+            <Suspense fallback={<div className="h-[46vh] min-h-80 w-full bg-nx-panel skeleton-pulse lg:h-[52vh] lg:min-h-105 xl:h-[58vh] xl:min-h-130 min-[1440px]:h-[62vh]" />}>
+                <HeroSection catalog={catalog} />
+            </Suspense>
+
+            <div className="flex flex-col gap-12 px-5 py-12 sm:px-8 lg:gap-[72px] lg:py-[72px] xl:gap-[88px] xl:px-10 xl:py-[88px] min-[1440px]:gap-24 min-[1440px]:px-12 min-[1440px]:py-24">
+                <Suspense fallback={<ContentRowSkeleton title="Kontynuuj oglądanie" kicker="N° 01" variant="progress" />}>
+                    <ContinueSection catalog={catalog} />
+                </Suspense>
+
+                <Suspense fallback={<ContentRowSkeleton title="Dziesiątka tej nocy" kicker="N° 02" variant="ranking" />}>
+                    <RankingSection catalog={catalog} />
+                </Suspense>
+
+                <Suspense fallback={<ContentRowSkeleton title="Wybrane dla Ciebie" kicker="N° 03" variant="mosaic" />}>
+                    <SelectedSection catalog={catalog} />
+                </Suspense>
+
+                <Suspense fallback={<ContentRowSkeleton title="Biblioteka" kicker="N° 04" variant="classic" />}>
+                    <LibrarySection catalog={catalog} />
+                </Suspense>
+            </div>
+        </>
     );
-
-    const newest = getNewestSeries(catalogResult.data).map((series) =>
-        toSeriesCard(series, resumeMap, watchlistedKeys)
-    );
-
-    if (newest.length === 0) return null;
-
-    return <ContentRow title="Nowości" series={newest} />;
 };
 
 export default function Home() {
     return (
-        <main className="w-full min-w-0 max-w-full min-h-screen bg-background pb-20 overflow-x-hidden">
+        <main className="min-h-screen w-full min-w-0 overflow-x-hidden bg-nx-bg">
             <HomeRefresher />
 
-            <Suspense fallback={null}>
-                <Hero />
+            <Suspense fallback={<div className="min-h-screen bg-nx-bg" />}>
+                <HomeDashboard />
             </Suspense>
-
-            <div className="mt-8 md:mt-12 flex flex-col gap-6 px-8">
-                <Suspense fallback={<ContentRowSkeleton title="Biblioteka" />}>
-                    <LibraryRow />
-                </Suspense>
-                <Suspense fallback={null}>
-                    <RankingRow />
-                </Suspense>
-                <Suspense fallback={null}>
-                    <NewestRow />
-                </Suspense>
-            </div>
 
             <Suspense fallback={null}>
                 <SeriesModal />

@@ -42,12 +42,14 @@ const SeriesModal = () => {
 
     const goToSeriesPage = () => {
         if (!details) return;
-        scheduleAfterClose(() => router.push(seriesPath(details.id)));
+        const routeId = details.seriesKey ?? details.id;
+        scheduleAfterClose(() => router.push(seriesPath(routeId)));
     };
 
     const openEpisode = (episodeKey: string) => {
         if (!details?.seriesKey) return;
-        scheduleAfterClose(() => router.push(watchPath(details.id, episodeKey)));
+        const seriesKey = details.seriesKey;
+        scheduleAfterClose(() => router.push(watchPath(seriesKey, episodeKey)));
     };
 
     useEffect(() => {

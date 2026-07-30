@@ -30,27 +30,27 @@ export const DataState = ({
     return (
         <div
             role={isError ? "alert" : "status"}
-            className={`flex w-full flex-col items-center justify-center rounded-xl border border-border bg-surface text-center ${compact ? "min-h-36 px-5 py-6" : "min-h-64 px-6 py-10"}`}
+            className={`flex w-full flex-col items-center justify-center rounded-2xl border border-nx-border bg-nx-panel text-center ${compact ? "min-h-36 px-5 py-6" : "min-h-64 px-6 py-10"}`}
         >
-            <h2 className="text-base font-semibold text-foreground md:text-lg">{title}</h2>
-            <p className="mt-2 max-w-lg text-sm text-muted">{description}</p>
+            <h2 className="text-base font-semibold text-nx-text md:text-lg">{title}</h2>
+            <p className="mt-2 max-w-lg text-sm text-nx-text-2">{description}</p>
 
             {action === "retry" && (
                 <button
                     type="button"
                     onClick={onRetry ?? (() => router.refresh())}
-                    className="mt-5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-accent outline-none transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
+                    className="mt-5 min-h-11 rounded-full bg-nx-accent px-5 py-2 text-sm font-semibold text-nx-on-accent outline-none transition-colors duration-140 hover:bg-[color-mix(in_srgb,var(--nx-accent)_88%,var(--nx-text))] focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent"
                 >
-                    Try again
+                    Spróbuj ponownie
                 </button>
             )}
 
             {action === "login" && (
                 <Link
                     href="/login"
-                    className="mt-5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-accent outline-none transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
+                    className="mt-5 flex min-h-11 items-center rounded-full bg-nx-accent px-5 py-2 text-sm font-semibold text-nx-on-accent outline-none transition-colors duration-140 hover:bg-[color-mix(in_srgb,var(--nx-accent)_88%,var(--nx-text))] focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent"
                 >
-                    Sign in
+                    Zaloguj się
                 </Link>
             )}
         </div>
@@ -70,8 +70,8 @@ export const DataErrorState = ({
         return (
             <DataState
                 kind="forbidden"
-                title="Sign in required"
-                description="Sign in to load this data."
+                title="Wymagane logowanie"
+                description="Zaloguj się, aby wczytać te dane."
                 action="login"
                 compact={compact}
             />
@@ -82,8 +82,8 @@ export const DataErrorState = ({
         return (
             <DataState
                 kind="forbidden"
-                title="Access denied"
-                description="Your account does not have access to this data."
+                title="Brak dostępu"
+                description="To konto nie ma dostępu do tych danych."
                 compact={compact}
             />
         );
@@ -93,8 +93,8 @@ export const DataErrorState = ({
         return (
             <DataState
                 kind="offline"
-                title="No connection"
-                description="Check your connection and try again."
+                title="Brak połączenia"
+                description="Sprawdź połączenie i spróbuj ponownie."
                 action="retry"
                 compact={compact}
                 onRetry={onRetry}
@@ -105,8 +105,8 @@ export const DataErrorState = ({
     return (
         <DataState
             kind="error"
-            title="Could not load data"
-            description="The server returned an invalid response or is temporarily unavailable."
+            title="Nie udało się wczytać danych"
+            description="Serwer jest chwilowo niedostępny albo zwrócił nieprawidłową odpowiedź."
             action="retry"
             compact={compact}
             onRetry={onRetry}

@@ -1,224 +1,273 @@
 "use client";
-import { Play, Download, MoreHorizontal, Clock, Volume2, VolumeX } from "lucide-react";
-import { useState, useRef, useEffect, KeyboardEvent, MouseEvent } from "react";
+
+import Image from "next/image";
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { Clock, Play, Volume2, VolumeX } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { hasPageInteraction } from "@/lib/pageInteraction";
-import { watchPath } from "@/lib/routes";
 
 export interface LastWatchedData {
-    seriesId: number;
+    seriesKey: string;
     title: string;
     episodeFile: string;
-    progressPercent: number;
+    episodeNumber: number;
     lastWatchedTime: number;
-    image: string;
+    progressPercent: number | null;
+    poster: string | null;
+    backdrop: string | null;
+    dominantColor?: string | null;
+    focal?: { x: number; y: number };
     video: string;
-    description: string;
-    tags: string[];
+    description: string | null;
+    href: string;
+    isResume: boolean;
 }
 
 interface HeroBanerProps {
     lastWatchedData: LastWatchedData | null;
 }
 
+const HOVER_INTENT_MS = 400;
+
 const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
-
     const router = useRouter();
-    const activeContent = lastWatchedData;
-    const [isPlaying, setIsPlaying] = useState<boolean>(false);
-    const [videoSource, setVideoSource] = useState<string | undefined>();
-    const hoverTimeout = useRef<NodeJS.Timeout | null>(null);
     const videoRef = useRef<HTMLVideoElement | null>(null);
-    const [isMuted, setIsMuted] = useState<boolean>(true);
-
-    const handleHover = () => {
-        if (!activeContent || typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches) {
-            return;
-        }
-        hoverTimeout.current = setTimeout(() => {
-            setIsMuted(!hasPageInteraction());
-            setVideoSource(activeContent.video);
-            setIsPlaying(true);
-        }, 250);
-    }
-
-    const handleHoverEnd = () => {
-        if (hoverTimeout.current) clearTimeout(hoverTimeout.current);
-        setIsPlaying(false);
-        setIsMuted(true);
-        const video = videoRef.current;
-        if (!video) return;
-        video.pause();
-        if (videoSource && activeContent) {
-            video.currentTime = Math.max(0, activeContent.lastWatchedTime - 10);
-        }
-    }
-
-    useEffect(() => {
-        if (!isPlaying || !videoSource || !activeContent || !videoRef.current) return;
-
-        const video = videoRef.current;
-        video.currentTime = Math.max(0, activeContent.lastWatchedTime - 10);
-        video.play().catch(() => {
-            video.muted = true;
-            setIsMuted(true);
-            video.play().catch(() => {});
-        });
-    }, [activeContent, isPlaying, videoSource]);
+    const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [videoSource, setVideoSource] = useState<string | null>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [isMuted, setIsMuted] = useState(true);
+    const [failedArtwork, setFailedArtwork] = useState<string | null>(null);
 
     useEffect(() => {
         return () => {
-            if (hoverTimeout.current) clearTimeout(hoverTimeout.current);
+            if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
         };
     }, []);
 
     useEffect(() => {
-        if (activeContent) setVideoSource(activeContent.video);
-    }, [activeContent]);
+        const video = videoRef.current;
+
+        if (!videoSource || !video) return;
+
+        video.load();
+        video.play().catch(() => {
+            video.muted = true;
+            setIsMuted(true);
+            video.play().catch(() => setIsPlaying(false));
+        });
+    }, [videoSource]);
+
+    if (!lastWatchedData) return null;
+
+    const activeContent = lastWatchedData;
+    const preferredArtwork = activeContent.backdrop ?? activeContent.poster;
+    const artwork = preferredArtwork === failedArtwork ? null : preferredArtwork;
+    const usesPosterFallback = artwork === activeContent.poster && !activeContent.backdrop;
+    const safeDominantColor = activeContent.dominantColor
+        && /^#[0-9a-f]{6}$/i.test(activeContent.dominantColor)
+        ? activeContent.dominantColor
+        : null;
+    const focal = activeContent.focal ?? { x: 0.5, y: 0.4 };
+
+    const openEpisode = () => router.push(activeContent.href);
+
+    const startPreview = () => {
+        const connection = (navigator as Navigator & {
+            connection?: { saveData?: boolean };
+        }).connection;
+
+        if (
+            connection?.saveData
+            || window.matchMedia("(hover: none)").matches
+            || window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ) {
+            return;
+        }
+
+        setIsMuted(!hasPageInteraction());
+        setVideoSource(activeContent.video);
+        setIsPlaying(true);
+    };
+
+    const handleHover = () => {
+        if (!activeContent.video) return;
+        if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+        hoverTimerRef.current = setTimeout(startPreview, HOVER_INTENT_MS);
+    };
+
+    const handleHoverEnd = () => {
+        if (hoverTimerRef.current) {
+            clearTimeout(hoverTimerRef.current);
+            hoverTimerRef.current = null;
+        }
+
+        const video = videoRef.current;
+
+        if (video) {
+            video.pause();
+            video.currentTime = activeContent.isResume
+                ? Math.max(0, activeContent.lastWatchedTime - 10)
+                : 2;
+        }
+
+        setIsPlaying(false);
+        setIsMuted(true);
+        setVideoSource(null);
+    };
 
     const handleLoadedMetadata = () => {
         const video = videoRef.current;
-        if (!video || !activeContent) return;
-        video.currentTime = Math.max(0, activeContent.lastWatchedTime - 10);
+        if (!video) return;
+
+        video.currentTime = activeContent.isResume
+            ? Math.max(0, activeContent.lastWatchedTime - 10)
+            : Math.min(2, Math.max(0, video.duration - 1));
+
+        video.play().catch(() => {
+            video.muted = true;
+            setIsMuted(true);
+            video.play().catch(() => setIsPlaying(false));
+        });
     };
 
-    const toggleMute = (e: MouseEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (videoRef.current) {
-            videoRef.current.muted = !isMuted;
-            setIsMuted(!isMuted);
-        }
-    };
-
-    const openEpisode = () => {
-        if (!activeContent) return;
-        router.push(watchPath(activeContent.seriesId, activeContent.episodeFile));
-    };
-
-    const handlePlayClick = (event: MouseEvent) => {
+    const toggleMute = (event: MouseEvent<HTMLButtonElement>) => {
         event.stopPropagation();
-        openEpisode();
+        const video = videoRef.current;
+        if (!video) return;
+
+        video.muted = !video.muted;
+        setIsMuted(video.muted);
     };
 
-    const handleHeroKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
         if (event.target !== event.currentTarget || (event.key !== "Enter" && event.key !== " ")) return;
 
         event.preventDefault();
         openEpisode();
     };
 
-    if (!activeContent) {
-        return (
-            <div className="m-auto mt-15 flex h-[50vh] w-[85%] items-end overflow-hidden rounded-3xl border border-white/5 bg-surface p-5 shadow-2xl md:h-[60vh] md:p-10">
-                <div className="max-w-xl">
-                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Nocturna</span>
-                    <h1 className="mt-3 text-2xl max-sm:font-bold text-foreground sm:font-display sm:text-3xl md:text-5xl">
-                        Wybierz coś na wieczór
-                    </h1>
-                    <p className="mt-3 text-sm text-muted md:text-base">
-                        Rozpoczęty tytuł pojawi się tutaj, aby można było łatwo wrócić do oglądania.
-                    </p>
-                </div>
-            </div>
-        );
-    }
-
     return (
-        <div
-            onClick={openEpisode}
-            onKeyDown={handleHeroKeyDown}
-            onMouseEnter={handleHover}
-            onMouseLeave={handleHoverEnd}
+        <section
             role="link"
             tabIndex={0}
-            className={`rounded-3xl shadow-2xl m-auto mt-15 relative bg-surface w-[85%] border border-white/5 h-[50vh] md:h-[60vh] overflow-hidden group  
-            duration-700 cursor-pointer hover:scale-105 hover:shadow-[0_0_50px_var(--primary)]`}
+            aria-label={`${activeContent.isResume ? "Wznów" : "Odtwórz"} ${activeContent.title}`}
+            onClick={openEpisode}
+            onKeyDown={handleKeyDown}
+            onMouseEnter={handleHover}
+            onMouseLeave={handleHoverEnd}
+            className="group/hero relative h-[46vh] min-h-80 max-h-105 w-full cursor-pointer overflow-hidden border-y border-nx-border bg-nx-panel outline-none lg:h-[52vh] lg:min-h-105 lg:max-h-155 xl:h-[58vh] xl:min-h-130 xl:max-h-190 min-[1440px]:h-[62vh] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-nx-accent"
+            style={safeDominantColor ? {
+                background: `linear-gradient(to top, var(--nx-bg), color-mix(in srgb, ${safeDominantColor} 8%, var(--nx-panel)))`,
+            } : undefined}
         >
-            <video
-                ref={videoRef}
-                src={videoSource}
-                poster={activeContent.image}
-                onLoadedMetadata={handleLoadedMetadata}
-                muted={isMuted}
-                loop
-                playsInline
-                preload="metadata"
-                className={`w-full h-full object-cover transition-transform duration-700 ${isPlaying ? 'scale-105' : 'scale-100'}`}
-            />
+            {artwork && usesPosterFallback && (
+                <>
+                    <Image
+                        src={artwork}
+                        alt=""
+                        fill
+                        preload
+                        sizes="(max-width: 390px) 100vw, (max-width: 1024px) 944px, (max-width: 1280px) 1188px, 1348px"
+                        onError={() => setFailedArtwork(artwork)}
+                        className="scale-110 object-cover brightness-[.55] blur-3xl"
+                    />
+                    <span className="absolute inset-y-[8%] right-[4%] w-[46%] max-sm:right-0 max-sm:w-[58%]">
+                        <Image
+                            src={artwork}
+                            alt={activeContent.title}
+                            fill
+                            sizes="(max-width: 639px) 58vw, 46vw"
+                            onError={() => setFailedArtwork(artwork)}
+                            className="object-contain object-right"
+                        />
+                        <span className="pointer-events-none absolute inset-0 shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--nx-text)_9%,transparent)]" />
+                    </span>
+                </>
+            )}
 
-            <div className="absolute inset-x-0 bg-linear-to-t from-background/95 via-background/40 to-transparent md:bg-linear-to-r md:from-background md:via-background/80 md:to-transparent z-10 pointer-events-none"/>
-            <div className="absolute inset-0 bg-linear-to-t from-background via-transparent to-transparent opacity-100 md:opacity-80 z-10 pointer-events-none"/>
+            {artwork && !usesPosterFallback && (
+                <Image
+                    src={artwork}
+                    alt=""
+                    fill
+                    preload
+                    sizes="(max-width: 390px) 100vw, (max-width: 1024px) 944px, (max-width: 1280px) 1188px, 1348px"
+                    onError={() => setFailedArtwork(artwork)}
+                    className="object-cover"
+                    style={{ objectPosition: `${Math.round(focal.x * 100)}% ${Math.round(focal.y * 100)}%` }}
+                />
+            )}
+
+            {videoSource && (
+                <video
+                    ref={videoRef}
+                    src={videoSource}
+                    onLoadedMetadata={handleLoadedMetadata}
+                    muted={isMuted}
+                    loop
+                    playsInline
+                    preload="none"
+                    className={`absolute inset-0 size-full object-cover transition-opacity duration-520 motion-reduce:transition-none ${isPlaying ? "opacity-100" : "opacity-0"}`}
+                />
+            )}
+
+            <span className="pointer-events-none absolute inset-0 bg-linear-to-t from-nx-bg via-nx-bg/15 to-transparent md:bg-[linear-gradient(90deg,var(--nx-bg)_0%,color-mix(in_srgb,var(--nx-bg)_88%,transparent)_34%,color-mix(in_srgb,var(--nx-bg)_20%,transparent)_64%,color-mix(in_srgb,var(--nx-bg)_55%,transparent)_100%)]" />
+            <span className="pointer-events-none absolute inset-0 hidden bg-linear-to-t from-nx-bg via-transparent to-transparent md:block" />
 
             {isPlaying && (
                 <button
+                    type="button"
                     onClick={toggleMute}
-                    className="absolute cursor-pointer bottom-6 right-6 z-40 max-md:hidden md:flex items-center justify-center w-10 h-10 bg-surface/50 hover:bg-surface/80 backdrop-blur-md border border-white/10 rounded-full text-foreground transition-all duration-300 active:scale-95"
+                    aria-label={isMuted ? "Włącz dźwięk" : "Wycisz"}
+                    className="absolute bottom-6 right-5 z-30 hidden size-11 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text outline-none transition-colors duration-140 hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent [@media(pointer:fine)]:flex sm:right-8 xl:right-10 min-[1440px]:right-12"
                 >
                     {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
                 </button>
             )}
 
-            <div className="absolute inset-0 p-5 md:p-10 flex flex-col justify-end w-full md:max-w-3xl z-20 pointer-events-none">
-                {lastWatchedData && (
-                    <div className="flex items-center gap-2 bg-white/10 backdrop-blur border border-white/5 rounded-full px-3 py-1.5 w-fit mb-3 md:mb-4">
-                        <Clock size={14} className='text-primary' />
-                        <span className="text-xs font-medium text-foreground">Kontynuuj Oglądanie</span>
-                    </div>
-                )}
+            <div className="absolute inset-0 z-20 flex max-w-[760px] flex-col justify-end px-5 pb-6 pt-20 sm:px-8 sm:pb-10 lg:px-8 lg:pb-12 xl:px-10 xl:pb-14 min-[1440px]:px-12">
+                <span className="mb-3 flex w-fit items-center gap-2 font-mono text-[10px] tracking-[0.18em] text-nx-text-2 sm:text-[11px]">
+                    {activeContent.isResume && <Clock size={14} className="text-nx-accent" />}
+                    {activeContent.isResume ? "KONTYNUUJ OGLĄDANIE" : "DZISIEJSZY WYBÓR"}
+                </span>
 
-                <div className="flex flex-wrap items-center gap-2 mb-2 md:mb-3">
-                    {activeContent.tags.map((tag, idx) => (
-                        <span key={idx} className="text-[0.625rem] md:text-xs font-medium px-2.5 py-1 bg-surface/50 backdrop-blur-md border border-white/5 rounded-full text-foreground/80">
-                            {tag}
-                        </span>
-                    ))}
-                </div>
-
-                <h1 className="mb-2 text-balance text-2xl max-sm:font-bold leading-tight text-foreground sm:font-display sm:text-3xl md:mb-3 md:text-5xl">
+                <h1
+                    title={activeContent.title}
+                    className="line-clamp-3 max-w-[16ch] text-balance font-display text-[34px] leading-none tracking-[-0.02em] text-nx-text sm:text-[42px] lg:line-clamp-2 lg:text-[54px] lg:leading-[.92] lg:tracking-[-0.035em] xl:text-[66px] xl:leading-[.89] min-[1440px]:text-[76px] min-[1440px]:leading-[.88]"
+                >
                     {activeContent.title}
                 </h1>
 
-                <p className="text-xs md:text-base text-muted line-clamp-2 md:line-clamp-3 mb-6 md:mb-8 max-w-xl">
-                    {activeContent.description}
-                </p>
+                {activeContent.description && (
+                    <p className="mt-4 line-clamp-3 max-w-[46ch] text-[15px] leading-[1.65] text-nx-text-2 lg:line-clamp-4 lg:text-[15.5px] lg:leading-[1.68] xl:text-base xl:leading-[1.7]">
+                        {activeContent.description}
+                    </p>
+                )}
 
-                <div className="flex items-center gap-2 md:gap-3 w-full md:w-auto z-30 pointer-events-auto">
-                    <button
-                        onClick={handlePlayClick}
-                        className='flex-1 md:flex-none min-w-0 flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-foreground font-semibold cursor-pointer py-2.5 md:py-3 px-4 sm:px-6 rounded-3xl transition-all duration-300 active:scale-95'
-                    >
-                        <Play size={18} fill='currentColor' className='shrink-0 md:w-5 md:h-5'/>
-                        <span className="min-w-0 text-xs sm:text-sm md:text-base leading-snug break-words md:whitespace-nowrap">
-                            Wznów {activeContent.episodeFile.replace('.mp4', '')}
-                        </span>
-                    </button>
-
-                    <button
-                        onClick={(event) => event.stopPropagation()}
-                        className='flex items-center cursor-pointer justify-center bg-surface/50 hover:bg-white/10 border border-white/10 text-foreground w-11 h-11 md:w-12 md:h-12 rounded-xl transition-all duration-300 backdrop-blur-md shrink-0 active:scale-95'
-                    >
-                        <Download size={18} className="md:w-5 md:h-5" />
-                    </button>
-
-                    <button
-                        onClick={(event) => event.stopPropagation()}
-                        className='flex items-center justify-center cursor-pointer bg-surface/50 hover:bg-white/10 border border-white/10 text-foreground w-11 h-11 md:w-12 md:h-12 rounded-xl transition-all backdrop-blur-md shrink-0 active:scale-95'
-                    >
-                        <MoreHorizontal size={18} className="md:w-5 md:h-5" />
-                    </button>
-                </div>
+                <button
+                    type="button"
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        openEpisode();
+                    }}
+                    className="mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-nx-accent px-6 text-[15px] font-semibold text-nx-on-accent outline-none transition-[transform,background-color] duration-140 hover:bg-[color-mix(in_srgb,var(--nx-accent)_88%,var(--nx-text))] active:scale-[.98] focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent motion-reduce:transition-none sm:w-fit"
+                >
+                    <Play size={18} fill="currentColor" />
+                    {activeContent.isResume
+                        ? `Wznów odcinek ${activeContent.episodeNumber}`
+                        : `Odtwórz odcinek ${activeContent.episodeNumber}`}
+                </button>
             </div>
 
-            {lastWatchedData && (
-                <div className="absolute bottom-0 left-0 w-full h-1 md:h-1.5 bg-surface/50 z-30 pointer-events-none">
-                    <div
-                        className="h-full bg-primary glow-primary rounded-r-full transition-all duration-1000"
+            {activeContent.progressPercent !== null && (
+                <span className="absolute inset-x-0 bottom-0 z-30 h-0.5 bg-nx-border">
+                    <span
+                        className="block h-full bg-nx-accent"
                         style={{ width: `${activeContent.progressPercent}%` }}
                     />
-                </div>
+                </span>
             )}
-        </div>
+        </section>
     );
 };
 

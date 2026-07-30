@@ -1,89 +1,96 @@
 "use client";
-import Image from "next/image";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Play, Plus, Check, ThumbsUp, ChevronDown } from "lucide-react";
-import { hasPageInteraction } from "@/lib/pageInteraction";
-import { progressPercent } from "@/lib/watchProgress";
-import { watchPath } from "@/lib/routes";
-import toggleWatchlistAction from "@/lib/toggleWatchlistAction";
 
-export interface SeriesCardProps {
-    id: number;
+import Image from "next/image";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
+import { Check, Info, Plus } from "lucide-react";
+import toggleWatchlistAction from "@/lib/toggleWatchlistAction";
+import { hasPageInteraction } from "@/lib/pageInteraction";
+
+export type ContentCardVariant = "landscape" | "poster" | "row" | "mosaic";
+
+export interface CardInput {
+    seriesKey: string;
     title: string;
-    coverImage: string;
-    rating?: string;
-    year?: number;
-    previewVideoUrl?: string;
-    resumeEpisodeKey?: string;
-    watchedSeconds?: number;
-    durationSeconds?: number;
-    eagerPreview?: boolean;
-    previewStartSeconds?: number;
-    seriesKey?: string;
+    poster: string | null;
+    backdrop: string | null;
+    focal?: { x: number; y: number };
+    dominantColor?: string | null;
+    placeholder?: string | null;
+    year?: number | null;
+    score?: string | null;
+    ageRating?: string | null;
+    description?: string | null;
+    episodeKey?: string;
+    episodeNumber?: number;
+    positionSeconds?: number;
+    durationSeconds?: number | null;
+    completed?: boolean;
+    addedAt?: number;
+    isNew?: boolean;
+    href: string;
+    infoId?: string | number;
     inWatchlist?: boolean;
+    previewVideoUrl?: string;
 }
 
+export interface SeriesCardProps {
+    item: CardInput;
+    variant?: ContentCardVariant;
+    featured?: boolean;
+    imagePreload?: boolean;
+    sizes?: string;
+    tabIndex?: number;
+}
+
+const HOVER_INTENT_MS = 400;
 const WATCHLIST_ERROR_DISPLAY_MS = 2500;
 
-const HOVER_INTENT_MS = 80;
-const NEAR_VIEWPORT_MARGIN = "300px";
-const DEFAULT_PREVIEW_START_SECONDS = 2;
+let activePreview: HTMLVideoElement | null = null;
+
+const formatEpisode = (value: number) => String(value).padStart(2, "0");
 
 const SeriesCard = ({
-    id,
-    title,
-    coverImage,
-    rating = "16+",
-    year,
-    previewVideoUrl,
-    resumeEpisodeKey,
-    watchedSeconds,
-    durationSeconds,
-    eagerPreview = false,
-    previewStartSeconds = DEFAULT_PREVIEW_START_SECONDS,
-    seriesKey,
-    inWatchlist = false,
+    item,
+    variant = "landscape",
+    featured = false,
+    imagePreload = false,
+    sizes = "(max-width: 639px) 82vw, (max-width: 1023px) 44vw, (max-width: 1439px) 30vw, 22vw",
+    tabIndex = -1,
 }: SeriesCardProps) => {
     const router = useRouter();
-    const containerRef = useRef<HTMLDivElement | null>(null);
+    const pathname = usePathname();
+    const containerRef = useRef<HTMLElement | null>(null);
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const hasSourceRef = useRef(false);
     const watchlistErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
+    const hasVideoSourceRef = useRef(false);
+    const [failedArtwork, setFailedArtwork] = useState<string | null>(null);
     const [isNearViewport, setIsNearViewport] = useState(false);
-    const [isPlaying, setIsPlaying] = useState(false);
-    const [watchlisted, setWatchlisted] = useState(inWatchlist);
-    const [syncedInWatchlist, setSyncedInWatchlist] = useState(inWatchlist);
+    const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
+    const [watchlisted, setWatchlisted] = useState(Boolean(item.inWatchlist));
+    const [syncedWatchlist, setSyncedWatchlist] = useState(Boolean(item.inWatchlist));
     const [watchlistError, setWatchlistError] = useState<string | null>(null);
 
-    if (inWatchlist !== syncedInWatchlist) {
-        setSyncedInWatchlist(inWatchlist);
-        setWatchlisted(inWatchlist);
+    if (Boolean(item.inWatchlist) !== syncedWatchlist) {
+        setSyncedWatchlist(Boolean(item.inWatchlist));
+        setWatchlisted(Boolean(item.inWatchlist));
     }
 
     useEffect(() => {
-        return () => {
-            if (watchlistErrorTimerRef.current) clearTimeout(watchlistErrorTimerRef.current);
-        };
-    }, []);
-
-    const percent = watchedSeconds ? progressPercent(watchedSeconds, durationSeconds) : null;
-
-    const attachSource = useCallback(() => {
         const video = videoRef.current;
 
-        if (!video || !previewVideoUrl || hasSourceRef.current) return;
-
-        hasSourceRef.current = true;
-        video.src = previewVideoUrl;
-    }, [previewVideoUrl]);
+        return () => {
+            if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+            if (watchlistErrorTimerRef.current) clearTimeout(watchlistErrorTimerRef.current);
+            if (activePreview === video) activePreview = null;
+        };
+    }, []);
 
     useEffect(() => {
         const node = containerRef.current;
 
-        if (!node || !previewVideoUrl || typeof IntersectionObserver === "undefined") return;
+        if (!node || !item.previewVideoUrl || typeof IntersectionObserver === "undefined") return;
 
         const observer = new IntersectionObserver(
             (entries) => {
@@ -92,97 +99,77 @@ const SeriesCard = ({
                     observer.disconnect();
                 }
             },
-            { rootMargin: NEAR_VIEWPORT_MARGIN },
+            { rootMargin: "300px" },
         );
 
         observer.observe(node);
 
         return () => observer.disconnect();
-    }, [previewVideoUrl]);
+    }, [item.previewVideoUrl]);
 
-    useEffect(() => {
-        if (isNearViewport && eagerPreview) attachSource();
-    }, [isNearViewport, eagerPreview, attachSource]);
+    const preferredArtwork = variant === "poster"
+        ? item.poster ?? item.backdrop
+        : item.backdrop ?? item.poster;
+    const artwork = preferredArtwork === failedArtwork ? null : preferredArtwork;
+    const usesPosterFallback = variant !== "poster" && artwork === item.poster && !item.backdrop;
+    const hasKnownDuration = typeof item.durationSeconds === "number" && item.durationSeconds > 0;
+    const hasPosition = typeof item.positionSeconds === "number" && item.positionSeconds > 0;
+    const completed = Boolean(item.completed);
+    const progress = completed
+        ? 100
+        : hasPosition && hasKnownDuration
+            ? Math.min(100, Math.round((item.positionSeconds! / item.durationSeconds!) * 100))
+            : null;
+    const progressDescription = completed
+        ? ", obejrzane"
+        : progress !== null
+            ? `, obejrzane w ${progress}%`
+            : hasPosition
+                ? ", rozpoczęte"
+                : "";
+    const remainingMinutes = hasPosition && hasKnownDuration
+        ? Math.max(0, Math.ceil((item.durationSeconds! - item.positionSeconds!) / 60))
+        : null;
+    const safeDominantColor = item.dominantColor && /^#[0-9a-f]{6}$/i.test(item.dominantColor)
+        ? item.dominantColor
+        : null;
+    const artworkStyle: CSSProperties | undefined = safeDominantColor
+        ? { background: `color-mix(in srgb, ${safeDominantColor} 8%, var(--nx-panel))` }
+        : undefined;
+    const objectPosition = `${Math.round((item.focal?.x ?? 0.5) * 100)}% ${Math.round((item.focal?.y ?? 0.4) * 100)}%`;
 
-    useEffect(() => {
-        return () => {
-            if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-        };
-    }, []);
+    const navigate = () => router.push(item.href);
 
-    const handleLoadedMetadata = () => {
-        const video = videoRef.current;
-        if (!video) return;
+    const openInfo = () => {
+        if (item.infoId === undefined) return;
+        const params = new URLSearchParams(window.location.search);
+        params.set("info", String(item.infoId));
+        router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    };
 
-        if (video.currentTime < previewStartSeconds && video.duration > previewStartSeconds) {
-            video.currentTime = previewStartSeconds;
+    const handleCardKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            navigate();
+        } else if ((event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) && item.infoId !== undefined) {
+            event.preventDefault();
+            openInfo();
         }
     };
 
-    const startPreview = () => {
-        const video = videoRef.current;
-
-        if (!video || !previewVideoUrl) return;
-
-        attachSource();
-        video.muted = !hasPageInteraction();
-        setIsPlaying(true);
-
-        video.play().catch(() => {
-            video.muted = true;
-            video.play().catch(() => {});
-        });
-    };
-
-    const handlePointerEnter = (event: React.PointerEvent) => {
-        if (event.pointerType !== "mouse" || !previewVideoUrl) return;
-
-        if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-        hoverTimerRef.current = setTimeout(startPreview, HOVER_INTENT_MS);
-    };
-
-    const handlePointerLeave = () => {
-        if (hoverTimerRef.current) {
-            clearTimeout(hoverTimerRef.current);
-            hoverTimerRef.current = null;
-        }
-
-        const video = videoRef.current;
-        if (!video) return;
-
-        video.pause();
-        if (hasSourceRef.current) video.currentTime = previewStartSeconds;
-        setIsPlaying(false);
-    };
-
-    const handleCardClick = () => {
-        router.push(watchPath(id, resumeEpisodeKey));
-    };
-
-    const handleInfoClick = (event: React.MouseEvent) => {
+    const handleInfoClick = (event: MouseEvent<HTMLButtonElement>) => {
         event.stopPropagation();
-        router.push(`?info=${id}`, { scroll: false });
+        openInfo();
     };
 
-    const handlePlayFromStart = (event: React.MouseEvent) => {
+    const handleToggleWatchlist = (event: MouseEvent<HTMLButtonElement>) => {
         event.stopPropagation();
-        router.push(watchPath(id, 1));
-    };
-
-    const handleAction = (event: React.MouseEvent) => {
-        event.stopPropagation();
-    };
-
-    const handleToggleWatchlist = (event: React.MouseEvent) => {
-        event.stopPropagation();
-
-        if (!seriesKey) return;
 
         const nextState = !watchlisted;
         setWatchlisted(nextState);
         setWatchlistError(null);
 
-        void toggleWatchlistAction({ seriesKey, inWatchlist: nextState }).then((result) => {
+        void toggleWatchlistAction({ seriesKey: item.seriesKey, inWatchlist: nextState }).then((result) => {
             if (result.success) return;
 
             setWatchlisted(!nextState);
@@ -196,109 +183,271 @@ const SeriesCard = ({
         });
     };
 
-    return (
-        <div
-            ref={containerRef}
-            onClick={handleCardClick}
-            onPointerEnter={handlePointerEnter}
-            onPointerLeave={handlePointerLeave}
-            className="relative w-full h-full cursor-pointer bg-surface group"
+    const startPreview = () => {
+        const video = videoRef.current;
+
+        if (!video || !item.previewVideoUrl || !isNearViewport) return;
+
+        const connection = (navigator as Navigator & {
+            connection?: { saveData?: boolean };
+        }).connection;
+
+        if (
+            connection?.saveData
+            || window.matchMedia("(hover: none)").matches
+            || window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ) {
+            return;
+        }
+
+        if (activePreview && activePreview !== video) {
+            activePreview.pause();
+            activePreview.currentTime = 0;
+        }
+
+        if (!hasVideoSourceRef.current) {
+            video.src = item.previewVideoUrl;
+            hasVideoSourceRef.current = true;
+        }
+
+        activePreview = video;
+        video.muted = !hasPageInteraction();
+        setIsPreviewPlaying(true);
+        video.play().catch(() => {
+            video.muted = true;
+            video.play().catch(() => setIsPreviewPlaying(false));
+        });
+    };
+
+    const handlePointerEnter = (event: PointerEvent<HTMLElement>) => {
+        if (event.pointerType !== "mouse" || !item.previewVideoUrl) return;
+
+        if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+        hoverTimerRef.current = setTimeout(startPreview, HOVER_INTENT_MS);
+    };
+
+    const handlePointerLeave = () => {
+        if (hoverTimerRef.current) {
+            clearTimeout(hoverTimerRef.current);
+            hoverTimerRef.current = null;
+        }
+
+        const video = videoRef.current;
+
+        if (video) {
+            video.pause();
+            video.currentTime = 0;
+        }
+
+        if (activePreview === video) activePreview = null;
+        setIsPreviewPlaying(false);
+    };
+
+    const media = (
+        <span
+            className={`relative block overflow-hidden bg-nx-panel ${
+                variant === "poster"
+                    ? "aspect-2/3 rounded-t-2xl"
+                    : variant === "row"
+                        ? "my-auto ml-3 aspect-video w-[116px] shrink-0 rounded-[10px] sm:w-[132px]"
+                        : variant === "mosaic"
+                            ? "aspect-video"
+                            : "aspect-video rounded-t-2xl"
+            }`}
+            style={artworkStyle}
         >
-            {previewVideoUrl ? (
+            {artwork ? (
+                <Image
+                    src={artwork}
+                    alt=""
+                    fill
+                    preload={imagePreload}
+                    sizes={sizes}
+                    onError={() => setFailedArtwork(artwork)}
+                    className={`${usesPosterFallback ? "object-contain" : "object-cover"} ${completed ? "opacity-75" : ""}`}
+                    style={{ objectPosition }}
+                />
+            ) : (
+                <span className="absolute inset-0 flex flex-col justify-end gap-2 p-4">
+                    {item.episodeNumber !== undefined && (
+                        <span className="font-mono text-[10px] tracking-[0.18em] text-nx-text-2">
+                            ODCINEK {formatEpisode(item.episodeNumber)}
+                        </span>
+                    )}
+                    <span className="line-clamp-3 text-sm font-semibold leading-[1.35] text-nx-text">
+                        {item.title}
+                    </span>
+                </span>
+            )}
+
+            {item.previewVideoUrl && (
                 <video
                     ref={videoRef}
-                    poster={coverImage}
-                    onLoadedMetadata={handleLoadedMetadata}
                     muted
                     loop
                     playsInline
-                    preload={eagerPreview ? "metadata" : "none"}
-                    className={`w-full h-full object-cover transition-transform duration-300 ${isPlaying ? "scale-105" : "scale-100"}`}
-                />
-            ) : (
-                <Image
-                    src={coverImage}
-                    alt={title}
-                    fill
-                    className="object-cover"
-                    sizes="(max-width: 768px) 70vw, 22vw"
+                    preload="none"
+                    aria-hidden="true"
+                    className={`absolute inset-0 size-full object-cover transition-opacity duration-280 motion-reduce:transition-none ${isPreviewPlaying ? "opacity-100" : "opacity-0"}`}
                 />
             )}
 
-            <div className="absolute inset-0 bg-linear-to-t from-background via-background/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3 md:p-4">
-                <h3 className="text-foreground font-bold text-sm md:text-base leading-tight drop-shadow-md line-clamp-1 mb-3">
-                    {title}
-                </h3>
+            <span className="pointer-events-none absolute inset-0 shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--nx-text)_9%,transparent)]" />
 
-                <div className="flex items-center justify-between w-full mb-3">
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={handlePlayFromStart}
-                            className="w-7 h-7 md:w-9 md:h-9 bg-foreground cursor-pointer rounded-full flex items-center justify-center hover:bg-foreground/80 transition-colors"
-                        >
-                            <Play size={16} className="fill-background text-background ml-0.5" />
-                        </button>
-
-                        <button
-                            onClick={seriesKey ? handleToggleWatchlist : handleAction}
-                            aria-pressed={watchlisted}
-                            aria-label={watchlisted ? "Usuń z listy" : "Dodaj do listy"}
-                            className={`w-7 h-7 md:w-9 md:h-9 border-2 cursor-pointer rounded-full flex items-center justify-center transition-all ${
-                                watchlisted
-                                    ? "border-primary bg-primary/20 text-primary hover:bg-primary/30"
-                                    : "border-muted bg-surface/50 text-foreground hover:border-foreground hover:bg-surface-light"
-                            }`}
-                        >
-                            {watchlisted ? <Check size={16} /> : <Plus size={16} />}
-                        </button>
-
-                        <button
-                            onClick={handleAction}
-                            className="w-7 h-7 md:w-9 md:h-9 border-2 cursor-pointer border-muted rounded-full flex items-center justify-center hover:border-foreground bg-surface/50
-                            hover:bg-surface-light transition-all text-foreground"
-                        >
-                            <ThumbsUp size={14} />
-                        </button>
-                    </div>
-
-                    <button
-                        onClick={handleInfoClick}
-                        className="w-7 h-7 md:w-9 md:h-9 border-2 cursor-pointer border-muted rounded-full flex items-center justify-center hover:border-foreground
-                        bg-surface/50 hover:bg-surface-light transition-all text-foreground"
-                    >
-                        <ChevronDown size={18} />
-                    </button>
-                </div>
-
-                <div className="flex items-center gap-2 text-[10px] md:text-xs text-foreground font-medium mb-1.5">
-                    <span className="border border-muted/50 px-1 py-0.5 text-foreground/80">
-                        {rating === "NR" ? "16+" : rating}
+            <span className="absolute left-2 top-2 flex items-center gap-2">
+                {completed && (
+                    <span className="rounded-full border border-nx-border bg-nx-panel px-2.5 py-1 font-mono text-[9px] tracking-[0.16em] text-nx-text-2">
+                        OBEJRZANE
                     </span>
-                    {year && <span className="text-muted">{year}</span>}
-                    <span className="border border-muted/50 px-1 py-0.5 text-foreground/80 text-[8px] md:text-[10px] rounded-sm font-bold">
-                        HD
-                    </span>
-                </div>
-
-                <div className="flex items-center gap-1.5 text-[9px] md:text-[11px] text-muted font-medium line-clamp-1">
-                    <span>Anime</span>
-                    <span className="w-1 h-1 bg-muted rounded-full"></span>
-                    <span>Akcja</span>
-                    <span className="w-1 h-1 bg-muted rounded-full"></span>
-                    <span>Dramat</span>
-                </div>
-
-                {watchlistError && (
-                    <span className="mt-1.5 text-[10px] md:text-xs text-danger">{watchlistError}</span>
                 )}
-            </div>
+                {!completed && item.isNew && (
+                    <span className="rounded-full bg-nx-accent-2 px-2.5 py-1 font-mono text-[9px] tracking-[0.16em] text-nx-on-accent">
+                        NOWY
+                    </span>
+                )}
+            </span>
 
-            {percent !== null && percent > 0 && (
-                <div className="absolute bottom-0 left-0 w-full h-1 bg-background/50 z-10">
-                    <div className="h-full bg-primary" style={{ width: `${percent}%` }} />
-                </div>
+            {(progress !== null || completed) && (
+                <span className="absolute inset-x-0 bottom-0 h-0.5 bg-nx-border">
+                    <span
+                        className={`block h-full ${completed ? "bg-nx-text-2" : "bg-nx-accent"}`}
+                        style={{ width: `${completed ? 100 : progress}%` }}
+                    />
+                </span>
             )}
-        </div>
+        </span>
+    );
+
+    const metadata = [
+        item.episodeNumber !== undefined ? `ODCINEK ${formatEpisode(item.episodeNumber)}` : null,
+        item.year ? String(item.year) : null,
+        item.score ? `OCENA ${item.score}` : null,
+        remainingMinutes !== null ? `${remainingMinutes} MIN DO KOŃCA` : null,
+    ].filter((value): value is string => Boolean(value));
+    const metadataLine = (metadata.length > 0 || item.ageRating) && (
+        <span className="flex min-w-0 items-center gap-2 font-mono text-[10px] tracking-[0.16em] text-nx-text-2">
+            {item.ageRating && (
+                <span className="shrink-0 rounded-[10px] border border-nx-border px-2 py-1 text-nx-text-2">
+                    {item.ageRating}
+                </span>
+            )}
+            {metadata.length > 0 && (
+                <span className="line-clamp-1">{metadata.join(" · ")}</span>
+            )}
+        </span>
+    );
+
+    const actions = (
+        <span className="flex items-center gap-2">
+            <button
+                type="button"
+                tabIndex={-1}
+                onClick={handleToggleWatchlist}
+                aria-pressed={watchlisted}
+                aria-label={watchlisted ? "Usuń z listy" : "Dodaj do listy"}
+                className={`flex size-11 items-center justify-center rounded-full border bg-nx-panel text-nx-text outline-none transition-colors duration-140 ${
+                    watchlisted
+                        ? "border-nx-accent text-nx-accent"
+                        : "border-nx-border hover:bg-nx-raised hover:text-nx-text"
+                }`}
+            >
+                {watchlisted ? <Check size={18} /> : <Plus size={18} />}
+            </button>
+
+            {item.infoId !== undefined && (
+                <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={handleInfoClick}
+                    aria-label={`Więcej informacji o ${item.title}`}
+                    className="flex size-11 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text-2 outline-none transition-colors duration-140 hover:bg-nx-raised hover:text-nx-text"
+                >
+                    <Info size={18} />
+                </button>
+            )}
+        </span>
+    );
+
+    const body = variant === "row" ? (
+        <span className="flex min-w-0 flex-1 flex-col justify-center py-3 pl-3 pr-27">
+            {metadataLine && <span className="mb-1.5">{metadataLine}</span>}
+            <span className="line-clamp-2 text-[15px] font-semibold leading-[1.35] text-nx-text" title={item.title}>
+                {item.title}
+            </span>
+            {item.description && (
+                <span className="mt-2 line-clamp-2 text-[13px] leading-[1.6] text-nx-text-2">
+                    {item.description}
+                </span>
+            )}
+        </span>
+    ) : variant === "mosaic" ? (
+        <span className="absolute inset-0 flex flex-col justify-end bg-linear-to-t from-nx-bg via-nx-bg/55 to-transparent p-4 sm:p-5">
+            {metadataLine && <span className="mb-2">{metadataLine}</span>}
+            <span
+                className={`line-clamp-2 text-nx-text ${
+                    featured
+                        ? "font-display text-[28px] leading-[1.02] tracking-[-0.015em] sm:text-[30px]"
+                        : "text-[15px] font-semibold leading-[1.35]"
+                }`}
+                title={item.title}
+            >
+                {item.title}
+            </span>
+            {featured && item.description && (
+                <span className="mt-3 line-clamp-2 max-w-[52ch] text-[13px] leading-[1.6] text-nx-text-2">
+                    {item.description}
+                </span>
+            )}
+        </span>
+    ) : (
+        <span className="flex min-w-0 flex-col gap-2 px-1 pb-1 pt-3">
+            {metadataLine}
+            <span className="line-clamp-2 text-[15px] font-semibold leading-[1.35] text-nx-text sm:text-base" title={item.title}>
+                {item.title}
+            </span>
+        </span>
+    );
+
+    return (
+        <article
+            ref={containerRef}
+            data-content-card
+            role="link"
+            tabIndex={tabIndex}
+            aria-label={`${item.title}${progressDescription}`}
+            onClick={navigate}
+            onKeyDown={handleCardKeyDown}
+            onContextMenu={(event) => {
+                if (item.infoId === undefined) return;
+                event.preventDefault();
+                openInfo();
+            }}
+            onPointerEnter={handlePointerEnter}
+            onPointerLeave={handlePointerLeave}
+            className={`nx-content-card group/card relative w-full scroll-mx-6 cursor-pointer rounded-2xl border border-nx-border bg-nx-panel text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent ${
+                variant === "row"
+                    ? "flex min-h-22 overflow-hidden"
+                    : variant === "mosaic"
+                        ? "overflow-hidden"
+                        : "overflow-visible"
+            }`}
+        >
+            {media}
+            {body}
+
+            <span className={`absolute right-2 z-10 ${variant === "row" ? "top-1/2 -translate-y-1/2" : "top-2"}`}>
+                {actions}
+            </span>
+
+            {watchlistError && (
+                <span
+                    role="status"
+                    className="absolute bottom-2 right-2 z-20 rounded-full border border-nx-critical/40 bg-nx-panel px-3 py-1.5 text-xs text-nx-critical"
+                >
+                    {watchlistError}
+                </span>
+            )}
+        </article>
     );
 };
 
