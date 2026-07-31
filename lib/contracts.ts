@@ -98,6 +98,14 @@ export interface SaveProgressResponse {
     completed: boolean;
 }
 
+export type EpisodeChapterType = "intro" | "outro" | "recap";
+
+export interface EpisodeChapter {
+    startSeconds: number;
+    endSeconds: number;
+    type: EpisodeChapterType;
+}
+
 export interface WatchlistItem {
     seriesKey: string;
     addedAt: number;
@@ -231,6 +239,8 @@ const isString = (value: unknown): value is string => typeof value === "string";
 const isNumber = (value: unknown): value is number =>
     typeof value === "number" && Number.isFinite(value);
 const isBoolean = (value: unknown): value is boolean => typeof value === "boolean";
+const isNonNegativeInteger = (value: unknown): value is number =>
+    isNumber(value) && Number.isInteger(value) && value >= 0;
 const isNullableString = (value: unknown): value is string | null =>
     value === null || isString(value);
 const isNullableNumber = (value: unknown): value is number | null =>
@@ -377,6 +387,16 @@ const isSaveProgressResponse = (value: unknown): value is SaveProgressResponse =
     && isNumber(value.profileId)
     && isBoolean(value.completed);
 
+const isEpisodeChapter = (value: unknown): value is EpisodeChapter =>
+    isObject(value)
+    && isNonNegativeInteger(value.startSeconds)
+    && isNonNegativeInteger(value.endSeconds)
+    && value.startSeconds < value.endSeconds
+    && (value.type === "intro" || value.type === "outro" || value.type === "recap");
+
+const isEpisodeChaptersResponse = (value: unknown): value is EpisodeChapter[] =>
+    Array.isArray(value) && value.every(isEpisodeChapter);
+
 const isWatchlistItem = (value: unknown): value is WatchlistItem =>
     isObject(value)
     && isString(value.seriesKey)
@@ -511,6 +531,11 @@ export const validateSaveProgressResponse = (value: unknown): ContractResult<Sav
     isSaveProgressResponse(value)
         ? valid(value)
         : invalid("save progress");
+
+export const validateEpisodeChaptersResponse = (value: unknown): ContractResult<EpisodeChapter[]> =>
+    isEpisodeChaptersResponse(value)
+        ? valid(value)
+        : invalid("episode chapters");
 
 export const validateWatchlistResponse = (value: unknown): ContractResult<WatchlistResponse> =>
     isWatchlistResponse(value)

@@ -5,6 +5,7 @@ import { Component, ReactNode } from "react";
 interface PlayerErrorBoundaryProps {
     children: ReactNode;
     onRetry: () => void;
+    onBack?: () => void;
 }
 
 interface PlayerErrorBoundaryState {
@@ -30,14 +31,23 @@ class PlayerErrorBoundary extends Component<PlayerErrorBoundaryProps, PlayerErro
     render() {
         if (this.state.hasError) {
             return (
-                <div className="w-full h-full bg-black flex flex-col items-center justify-center gap-4 text-foreground">
-                    <p className="text-sm text-muted">Odtwarzacz napotkał błąd.</p>
-                    <button
-                        onClick={this.handleReload}
-                        className="px-5 py-2.5 bg-primary hover:bg-primary-hover rounded-md font-semibold cursor-pointer transition-colors"
-                    >
-                        Odśwież odtwarzacz
-                    </button>
+                <div className="np-player-boundary" role="alert">
+                    <div className="np-error-panel">
+                        <div className="np-error-copy">
+                            <h2>Odtwarzacz napotkał błąd</h2>
+                            <p>Nie udało się uruchomić interfejsu odtwarzania.</p>
+                        </div>
+                        <div className="np-error-actions">
+                            <button type="button" onClick={this.handleReload} className="np-error-primary">
+                                Odśwież odtwarzacz
+                            </button>
+                            {this.props.onBack && (
+                                <button type="button" onClick={this.props.onBack} className="np-error-secondary">
+                                    Wróć do serialu
+                                </button>
+                            )}
+                        </div>
+                    </div>
                 </div>
             );
         }

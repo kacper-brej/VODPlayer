@@ -3,18 +3,11 @@ import { resolveCatalogSeries } from "@/lib/catalog";
 import { getSeriesResume } from "@/lib/continueWatching";
 import { getSeriesProgressAction } from "@/lib/getProgressAction";
 import { signedEpisodeUrl } from "@/lib/videoAccess";
+import { getEpisodeChapters } from "@/lib/chapters";
 import { notFound } from "next/navigation";
 import { DataErrorState } from "@/components/data/DataState";
 
 const RESUME_REWIND_SECONDS = 10;
-
-const buildEpisodeTitle = (seriesTitle: string, episodeKey: string, episodeNumber: number) => {
-    const label = episodeKey.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
-
-    if (!label || /^\d+$/.test(label)) return `${seriesTitle} - Odcinek ${episodeNumber}`;
-
-    return label;
-};
 
 const ErrorScreen = ({ message }: { message: string }) => (
     <div className="fixed inset-0 z-[999] bg-black min-h-screen flex items-center justify-center text-foreground">
@@ -74,29 +67,43 @@ const WatchPage = async ({ searchParams }: { searchParams: Promise<{ id?: string
 
     if (!episode) return <ErrorScreen message="Nie znaleziono pliku odcinka na serwerze" />;
 
+    const chaptersPromise = getEpisodeChapters(series.key, episode.key);
+    let chaptersResult;
+
     if (!timeResolved) {
-        const progressResult = await getSeriesProgressAction(series.key);
+        const [progressResult, resolvedChapters] = await Promise.all([
+            getSeriesProgressAction(series.key),
+            chaptersPromise,
+        ]);
+        chaptersResult = resolvedChapters;
 
         if (progressResult.kind === "error") {
             return <DataErrorScreen reason={progressResult.reason} />;
         }
 
         savedTime = progressResult.data.episodes[episode.key]?.positionSeconds ?? 0;
+    } else {
+        chaptersResult = await chaptersPromise;
     }
 
     const nextEpisode = series.episodes.find((item) => item.number === episode.number + 1) ?? null;
+    const chapters = chaptersResult.kind === "error" ? [] : chaptersResult.data;
 
     return (
         <WatchClient
             videoSrc={signedEpisodeUrl(series.key, episode.key)}
-            title={`${series.title} - Odcinek ${episode.number}`}
+            seriesTitle={series.title}
+            episodeTitle={episode.title ?? `Odcinek ${episode.number}`}
+            seasonNumber={series.seasonNumber}
+            episodeSynopsis={episode.synopsis ?? series.synopsis}
             seriesId={series.id}
             seriesKey={series.key}
             currentEpisode={episode.number}
             totalEpisodes={series.episodeCount}
             fileName={episode.key}
             startTime={Math.max(0, savedTime - RESUME_REWIND_SECONDS)}
-            nextEpisodeTitle={nextEpisode ? buildEpisodeTitle(series.title, nextEpisode.key, nextEpisode.number) : undefined}
+            nextEpisodeTitle={nextEpisode ? nextEpisode.title ?? `Odcinek ${nextEpisode.number}` : undefined}
+            chapters={chapters}
         />
     );
 };

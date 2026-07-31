@@ -5,14 +5,16 @@ import { useEffect, useRef, useState } from "react";
 import saveProgressAction from "@/lib/saveProgressAction";
 import PlayerErrorBoundary from "@/components/video/PlayerErrorBoundary";
 import { seriesPath, watchPath } from "@/lib/routes";
+import type { EpisodeChapter } from "@/lib/contracts";
 
 const VideoPlayer = dynamic(
     () => import("@/components/video/VideoPlayer").then((mod) => mod.VideoPlayer),
     {
         ssr: false,
         loading: () => (
-            <div className="w-full h-full bg-black flex items-center justify-center">
-                <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            <div className="np-player-loading" role="status">
+                <span className="np-player-loading-ring" />
+                <span>Ładowanie odtwarzacza</span>
             </div>
         ),
     }
@@ -20,7 +22,10 @@ const VideoPlayer = dynamic(
 
 interface WatchClientProps {
     videoSrc: string;
-    title: string;
+    seriesTitle: string;
+    episodeTitle: string;
+    seasonNumber: number | null;
+    episodeSynopsis: string | null;
     seriesId: number;
     seriesKey: string;
     currentEpisode: number;
@@ -28,9 +33,24 @@ interface WatchClientProps {
     fileName: string;
     startTime: number;
     nextEpisodeTitle?: string;
+    chapters: EpisodeChapter[];
 }
 
-const WatchClient = ({ videoSrc, title, seriesId, seriesKey, currentEpisode, totalEpisodes, fileName, startTime, nextEpisodeTitle }: WatchClientProps) => {
+const WatchClient = ({
+    videoSrc,
+    seriesTitle,
+    episodeTitle,
+    seasonNumber,
+    episodeSynopsis,
+    seriesId,
+    seriesKey,
+    currentEpisode,
+    totalEpisodes,
+    fileName,
+    startTime,
+    nextEpisodeTitle,
+    chapters,
+}: WatchClientProps) => {
     const router = useRouter();
     const [playerInstanceKey, setPlayerInstanceKey] = useState(0);
     const isNavigatingRef = useRef(false);
@@ -88,14 +108,22 @@ const WatchClient = ({ videoSrc, title, seriesId, seriesKey, currentEpisode, tot
     }
 
     return (
-        <div className="fixed inset-0 z-[999] bg-black flex flex-col w-screen h-screen">
+        <div className="fixed inset-0 z-[999] bg-[var(--nx-bg)] flex flex-col w-screen h-screen">
 
             <div className="flex-1 w-full h-full flex items-center justify-center">
-                <PlayerErrorBoundary key={playerInstanceKey} onRetry={() => setPlayerInstanceKey((k) => k + 1)}>
+                <PlayerErrorBoundary
+                    key={playerInstanceKey}
+                    onRetry={() => setPlayerInstanceKey((k) => k + 1)}
+                    onBack={handleBack}
+                >
                     <VideoPlayer
                         src={videoSrc}
-                        title={title}
-                        subtitle={`Odcinek ${currentEpisode} z ${totalEpisodes}`}
+                        title={seriesTitle}
+                        kicker={`Odcinek ${currentEpisode}`}
+                        subtitle={episodeTitle}
+                        seasonNumber={seasonNumber}
+                        episodeNumber={currentEpisode}
+                        episodeSynopsis={episodeSynopsis}
                         episodesLeft={Math.max(0, totalEpisodes - currentEpisode)}
                         nextEpisodeTitle={nextEpisodeTitle}
                         onBack={handleBack}
@@ -103,6 +131,7 @@ const WatchClient = ({ videoSrc, title, seriesId, seriesKey, currentEpisode, tot
                         onPreviousEpisode={currentEpisode > 1 ? handlePreviousEpisode : undefined}
                         onProgressUpdate={handleProgressUpdate}
                         startTime={startTime}
+                        chapters={chapters}
                     />
                 </PlayerErrorBoundary>
             </div>

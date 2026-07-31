@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { PlayButton, useMediaState } from '@vidstack/react';
-import { FastForward, Play, StepForward, Volume1, Volume2, VolumeX } from 'lucide-react';
+import { Play, RotateCcw, RotateCw, SkipForward, StepForward, Volume1, Volume2, VolumeX } from 'lucide-react';
 
 const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
@@ -31,36 +31,118 @@ export const formatEpisodesLeft = (count: number) => {
     return null;
 };
 
-export const OverlaidPlayButton = () => {
+interface OverlaidPlayButtonProps {
+    seriesTitle: string;
+    seasonNumber?: number | null;
+    episodeNumber?: number;
+    episodeTitle?: string;
+    synopsis?: string | null;
+}
+
+export const OverlaidPlayButton = ({
+    seriesTitle,
+    seasonNumber,
+    episodeNumber,
+    episodeTitle,
+    synopsis,
+}: OverlaidPlayButtonProps) => {
     const paused = useMediaState('paused');
     const ended = useMediaState('ended');
     const canPlay = useMediaState('canPlay');
+    const waiting = useMediaState('waiting');
+    const started = useMediaState('started');
+    const defaultEpisodeTitle = episodeNumber ? `Odcinek ${episodeNumber}` : null;
+    const episodeLine = episodeTitle && episodeTitle !== defaultEpisodeTitle
+        ? `${episodeTitle}${episodeNumber ? ` · odc. ${episodeNumber}` : ''}`
+        : defaultEpisodeTitle;
 
     return (
         <AnimatePresence>
-            {paused && !ended && canPlay && (
+            {paused && !ended && canPlay && !waiting && (
                 <motion.div
+                    className="np-overlaid-play-layer"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.2, ease: EASE_OUT }}
                 >
-                    <PlayButton className="np-control np-control--overlaid">
-                        <Play className="fill-current" />
+                    <div className="np-pause-scrim" />
+                    {started && (
+                        <motion.div
+                            className="np-pause-copy"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 10 }}
+                            transition={{ duration: 0.28, ease: EASE_OUT }}
+                        >
+                            <span className="np-pause-kicker">Oglądasz</span>
+                            <h2>{seriesTitle}</h2>
+                            {seasonNumber !== null && seasonNumber !== undefined && (
+                                <span className="np-pause-season">Sezon {seasonNumber}</span>
+                            )}
+                            {episodeLine && <h3>{episodeLine}</h3>}
+                            {synopsis && <p>{synopsis}</p>}
+                        </motion.div>
+                    )}
+                    <PlayButton className="np-overlaid-play" aria-label="Odtwórz">
+                        <Play />
                     </PlayButton>
+                    {started && <span className="np-pause-status">Wstrzymane</span>}
                 </motion.div>
             )}
         </AnimatePresence>
     );
 };
 
+interface SeekFeedbackProps {
+    feedback: {
+        direction: 'backward' | 'forward';
+        seconds: number;
+        id: number;
+    } | null;
+}
+
+export const SeekFeedback = ({ feedback }: SeekFeedbackProps) => (
+    <div className="np-seek-feedback-layer" aria-live="polite">
+        <AnimatePresence>
+            {feedback && (
+                <motion.div
+                    key={feedback.id}
+                    className="np-seek-feedback"
+                    data-direction={feedback.direction}
+                    initial={{ opacity: 0, x: feedback.direction === 'backward' ? 22 : -22, scale: 0.92 }}
+                    animate={{ opacity: 1, x: 0, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.96 }}
+                    transition={{ duration: 0.24, ease: EASE_OUT }}
+                >
+                    <motion.span
+                        initial={{ rotate: feedback.direction === 'backward' ? 30 : -30 }}
+                        animate={{ rotate: 0 }}
+                        transition={{ duration: 0.32, ease: EASE_OUT }}
+                    >
+                        {feedback.direction === 'backward' ? <RotateCcw /> : <RotateCw />}
+                    </motion.span>
+                    <strong>{feedback.seconds} s</strong>
+                </motion.div>
+            )}
+        </AnimatePresence>
+    </div>
+);
+
 export const BufferingIndicator = () => {
     const waiting = useMediaState('waiting');
     const canPlay = useMediaState('canPlay');
+    const buffering = waiting || !canPlay;
+    const [delayElapsed, setDelayElapsed] = useState(false);
+
+    useEffect(() => {
+        const timeout = setTimeout(() => setDelayElapsed(buffering), buffering ? 400 : 0);
+        return () => clearTimeout(timeout);
+    }, [buffering]);
 
     return (
         <AnimatePresence>
-            {(waiting || !canPlay) && (
+            {buffering && delayElapsed && (
                 <motion.div
                     className="np-buffering"
                     initial={{ opacity: 0, scale: 0.9 }}
@@ -69,6 +151,7 @@ export const BufferingIndicator = () => {
                     transition={{ duration: 0.2, ease: EASE_OUT }}
                 >
                     <span className="np-buffering-ring" />
+                    <span className="np-buffering-label">Ładowanie</span>
                 </motion.div>
             )}
         </AnimatePresence>
@@ -97,32 +180,30 @@ export const VolumeHud = () => {
     const percent = Math.round(value * 100);
 
     return (
-        <div className="absolute top-12 left-0 right-0 z-[65] flex justify-center pointer-events-none">
+        <div className="np-volume-hud-layer">
             <AnimatePresence>
                 {visible && (
                     <motion.div
-                        className="bg-[#030712]/80 backdrop-blur-xl border border-white/10 rounded-full px-6 py-3 flex items-center gap-4 text-white shadow-[0_10px_40px_rgba(0,0,0,0.8)]"
+                        className="np-volume-hud"
                         initial={{ opacity: 0, y: -16, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -16, scale: 0.95 }}
                         transition={{ duration: 0.3, ease: EASE_OUT }}
                     >
                         {value === 0 ? (
-                            <VolumeX size={20} className="text-primary-hover" />
+                            <VolumeX />
                         ) : value < 0.5 ? (
-                            <Volume1 size={20} className="text-primary-hover" />
+                            <Volume1 />
                         ) : (
-                            <Volume2 size={20} className="text-primary-hover" />
+                            <Volume2 />
                         )}
-                        <div className="w-32 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                        <div className="np-volume-hud-track">
                             <div
-                                className="h-full bg-primary transition-all duration-200"
+                                className="np-volume-hud-fill"
                                 style={{ width: `${percent}%` }}
                             />
                         </div>
-                        <span className="font-bold text-[10px] uppercase tracking-widest w-10 text-right">
-                            {percent}%
-                        </span>
+                        <span>{percent}%</span>
                     </motion.div>
                 )}
             </AnimatePresence>
@@ -139,17 +220,20 @@ export const SkipIntroPill = ({ visible, onSkip }: SkipIntroPillProps) => (
     <AnimatePresence>
         {visible && (
             <motion.div
-                className="absolute bottom-32 md:bottom-40 left-6 md:left-12 z-[60] pointer-events-auto"
-                initial={{ opacity: 0, y: 32, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 32, scale: 0.95 }}
-                transition={{ duration: 0.4, ease: EASE_OUT }}
+                className="np-skip-intro-layer"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 8 }}
+                transition={{ duration: 0.28, ease: EASE_OUT }}
             >
-                <button type="button" onClick={onSkip} className={PILL_CLASS}>
-                    <div className={PILL_ICON_CLASS}>
-                        <FastForward size={18} />
-                    </div>
-                    <span className={PILL_TITLE_CLASS}>Pomiń czołówkę</span>
+                <button
+                    type="button"
+                    onClick={onSkip}
+                    aria-keyshortcuts="S"
+                    className="np-skip-intro"
+                >
+                    <SkipForward />
+                    <span>Pomiń czołówkę</span>
                 </button>
             </motion.div>
         )}
