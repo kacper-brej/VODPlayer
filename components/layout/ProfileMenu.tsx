@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LogOut, Settings, User } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
+import { getUnreadNotificationsCountAction } from "@/lib/notificationsActions";
 
 const initialsFrom = (username: string) => {
     const trimmed = username.trim();
@@ -19,8 +20,25 @@ const ProfileMenu = () => {
     const { user, logout } = useAuth();
     const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
+    const [unreadCount, setUnreadCount] = useState(0);
     const containerRef = useRef<HTMLDivElement>(null);
     const triggerRef = useRef<HTMLButtonElement>(null);
+
+    useEffect(() => {
+        if (!user) return;
+
+        let active = true;
+
+        getUnreadNotificationsCountAction().then((count) => {
+            if (active) setUnreadCount(count);
+        });
+
+        return () => {
+            active = false;
+        };
+    }, [user]);
+
+    const displayedUnreadCount = user ? unreadCount : 0;
 
     useEffect(() => {
         if (!isOpen) return;
@@ -59,21 +77,29 @@ const ProfileMenu = () => {
                 onClick={() => setIsOpen((open) => !open)}
                 aria-haspopup="menu"
                 aria-expanded={isOpen}
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-surface-light text-foreground outline-none transition-colors hover:border-primary/50 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
+                className="relative flex size-11 items-center justify-center rounded-full border border-border bg-surface-light text-foreground outline-none hover:border-primary/50 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
             >
                 {initials ? (
                     <span className="font-mono text-[11px] text-foreground">{initials}</span>
                 ) : (
                     <User size={16} className="text-muted" aria-hidden="true" />
                 )}
-                <span className="sr-only">Menu profilu</span>
+                {displayedUnreadCount > 0 && (
+                    <span
+                        aria-hidden="true"
+                        className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-danger ring-2 ring-surface"
+                    />
+                )}
+                <span className="sr-only">
+                    Menu profilu{displayedUnreadCount > 0 ? ` — ${displayedUnreadCount} nieprzeczytanych powiadomień` : ""}
+                </span>
             </button>
 
             {isOpen && (
                 <div
                     role="menu"
                     aria-label="Menu profilu"
-                    className="absolute bottom-0 left-full z-50 ml-3 flex min-w-44 flex-col gap-0.5 rounded-xl border border-border p-1.5 shadow-[0_4px_8px_rgba(0,0,0,0.5),0_34px_70px_-20px_rgba(0,0,0,0.9)] backdrop-blur-[26px]"
+            className="absolute bottom-0 left-full z-50 ml-3 flex min-w-44 flex-col gap-0.5 rounded-xl border border-border bg-surface p-1.5 shadow-[0_4px_8px_rgba(0,0,0,0.5),0_34px_70px_-20px_rgba(0,0,0,0.9)]"
                     style={{ backgroundColor: "rgba(12,10,17,0.86)", boxShadow: "inset 0 1px 0 rgba(243,240,234,0.09)" }}
                 >
                     <Link

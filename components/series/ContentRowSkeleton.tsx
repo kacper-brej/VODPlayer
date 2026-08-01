@@ -33,7 +33,7 @@ const ContentRowSkeleton = ({
                     <span className="block font-mono text-[10px] tracking-[0.22em] text-nx-text-2 sm:text-[11px]">
                         {kicker}
                     </span>
-                    <h2 className="mt-1 text-xl font-semibold text-nx-text sm:font-display sm:text-2xl lg:text-[28px]">
+            <h2 className="mt-1 text-xl font-semibold text-nx-text sm:font-display sm:text-[28px]">
                         {title}
                     </h2>
                 </div>

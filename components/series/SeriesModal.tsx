@@ -7,6 +7,7 @@ import getSeriesDetailsAction, { SeriesDetails } from "@/lib/getSeriesDetailsAct
 import { DataErrorState, DataState } from "@/components/data/DataState";
 import type { DataErrorReason } from "@/lib/dataResult";
 import { seriesPath, watchPath } from "@/lib/routes";
+import { useModalFocus } from "@/lib/useModalFocus";
 
 const CLOSE_ANIMATION_MS = 200;
 
@@ -39,6 +40,7 @@ const SeriesModal = () => {
             router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
         });
     };
+    const modalRef = useModalFocus<HTMLDivElement>(Boolean(movieId), closeModal);
 
     const goToSeriesPage = () => {
         if (!details) return;
@@ -108,12 +110,19 @@ const SeriesModal = () => {
             className={`fixed inset-0 z-50 flex items-start pt-0 md:pt-[5vh] justify-center bg-background/90 p-0 md:p-4 transition-opacity duration-200 ease-out ${showAnimation ? "opacity-100" : "opacity-0"}`}
         >
             <div
+                ref={modalRef}
+                role="dialog"
+                aria-modal="true"
+                aria-label="Szczegóły serialu"
+                tabIndex={-1}
                 onClick={(e) => e.stopPropagation()}
-                className={`relative w-full max-h-dvh md:max-h-[90vh] md:max-w-4xl bg-surface md:rounded-xl shadow-2xl overflow-y-auto scrollbar-hide transition-all duration-200 ease-out ${showAnimation ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-8"}`}
+                className={`relative max-h-dvh w-full overflow-y-auto bg-surface shadow-2xl outline-none transition-[transform,opacity] duration-200 ease-out scrollbar-hide md:max-h-[90vh] md:max-w-4xl md:rounded-xl ${showAnimation ? "translate-y-0 scale-100 opacity-100" : "translate-y-8 scale-[.97] opacity-0"}`}
             >
                 <button
+                    type="button"
                     onClick={closeModal}
-                    className="absolute top-4 right-4 z-50 w-8 h-8 md:w-10 md:h-10 bg-surface-light/80 hover:bg-primary text-foreground rounded-full flex items-center justify-center transition-colors cursor-pointer backdrop-blur-sm"
+                    aria-label="Zamknij szczegóły serialu"
+                    className="absolute right-4 top-4 z-50 flex size-11 cursor-pointer items-center justify-center rounded-full border border-border bg-surface-light text-foreground transition-colors hover:bg-primary hover:text-on-accent focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
                 >
                     <X size={20} className="md:w-6 md:h-6" />
                 </button>
@@ -168,68 +177,68 @@ const SeriesModal = () => {
                                 fill
                                 className="object-cover"
                                 sizes="(max-width: 768px) 100vw, 896px"
-                                priority
                             />
                             <div className="absolute inset-0 bg-linear-to-t from-surface via-surface/40 to-transparent" />
                         </div>
 
                         <div className="px-4 md:px-8 mt-4 relative z-10">
-                            <h1 className="mb-2 text-2xl font-bold text-foreground drop-shadow-lg md:font-display md:text-4xl">
+                            <h2 id="series-modal-title" className="mb-2 text-2xl font-bold text-foreground drop-shadow-lg md:font-display md:text-4xl">
                                 {details.title}
-                            </h1>
+                            </h2>
                             <p className="text-sm md:text-base text-muted mb-6 line-clamp-4 md:line-clamp-none">
                                 {details.synopsis}
                             </p>
 
                             <button
                                 onClick={goToSeriesPage}
-                                className="mb-8 flex items-center gap-2 w-fit bg-surface-light hover:bg-primary text-foreground px-4 md:px-5 py-2 md:py-2.5 text-sm md:text-base rounded-lg font-semibold border border-border hover:border-primary transition-colors cursor-pointer"
+                                className="mb-8 flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface-light px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:border-primary hover:bg-primary hover:text-on-accent focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary md:px-5 md:py-2.5 md:text-base"
                             >
                                 Przejdź do strony serialu
                                 <ArrowUpRight size={18} />
                             </button>
 
-                            <h2 className="text-lg md:text-xl font-semibold mb-4 text-foreground">
+                            <h3 className="mb-4 text-lg font-semibold text-foreground md:text-xl">
                                 Odcinki ({details.episodes.length})
-                            </h2>
+                            </h3>
 
                             <div className="flex flex-col gap-3 max-h-[40vh] overflow-y-auto pr-1 -mr-1 scrollbar-hide">
                                 {details.episodes.map((episode) => (
-                                    <div
+                                    <button
+                                        type="button"
                                         key={episode.key}
                                         onClick={() => openEpisode(episode.key)}
-                                        className="flex items-center gap-4 p-3 md:p-4 bg-surface-light/50 rounded-lg border border-border hover:border-border-hover hover:bg-surface-light transition-all cursor-pointer group"
+                                        className="group flex w-full cursor-pointer items-center gap-4 rounded-lg border border-border bg-surface-light/50 p-3 text-left transition-[background-color,border-color] hover:border-border-hover hover:bg-surface-light focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary md:p-4"
                                     >
-                                        <div className={`relative w-32 h-20 md:w-40 md:h-24 shrink-0 rounded-md overflow-hidden bg-background transition-all ${episode.watched ? "opacity-75 ring-2 ring-nx-text-2/40" : ""}`}>
+                                        <span className={`relative h-20 w-32 shrink-0 overflow-hidden rounded-md bg-background transition-opacity md:h-24 md:w-40 ${episode.watched ? "opacity-75 ring-2 ring-nx-text-2/40" : ""}`}>
                                             <Image
                                                 src={episode.thumbnail}
                                                 alt={episode.title}
                                                 fill
-                                                className="object-cover group-hover:scale-105 transition-transform duration-300"
+                                                className="object-cover transition-transform duration-300 group-hover:scale-[1.03] motion-reduce:transition-none"
                                                 sizes="(max-width: 768px) 128px, 160px"
                                             />
 
                                             <div className="absolute inset-0 bg-background/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                                <div className={`w-10 h-10 flex items-center justify-center rounded-full border-2 backdrop-blur-sm ${episode.watched ? "border-nx-text-2/70 bg-nx-text-2/10 text-nx-text-2" : "border-foreground/60 bg-background/30 text-foreground"}`}>
-                                                    <Play size={16} className="fill-current" />
-                                                </div>
+                                                    <span className={`flex size-11 items-center justify-center rounded-full border-2 ${episode.watched ? "border-nx-text-2/70 bg-nx-text-2/10 text-nx-text-2" : "border-foreground/60 bg-background/30 text-foreground"}`}>
+                                                        <Play size={16} className="fill-current" />
+                                                    </span>
                                             </div>
 
                                             {episode.watched && (
-                                                <span className="absolute top-1.5 right-1.5 z-10 flex items-center gap-1 text-[9px] md:text-[10px] font-semibold text-nx-text-2 bg-nx-text-2/20 backdrop-blur-md border border-nx-text-2/40 rounded-full px-2 py-0.5">
+                                                <span className="absolute right-1.5 top-1.5 z-10 flex items-center gap-1 rounded-full border border-nx-text-2/40 bg-nx-panel px-2 py-0.5 text-[10px] font-semibold text-nx-text-2">
                                                     <CheckCircle2 size={10} />
                                                     Obejrzane
                                                 </span>
                                             )}
 
                                             {episode.percent > 0 && (
-                                                <div className="absolute bottom-0 left-0 w-full h-1 bg-black/50">
-                                                    <div className={`h-full ${episode.watched ? "bg-nx-text-2" : "bg-primary"}`} style={{ width: `${episode.watched ? 100 : episode.percent}%` }} />
-                                                </div>
+                                                <span className="absolute bottom-0 left-0 h-1 w-full bg-black/50">
+                                                    <span className={`block h-full ${episode.watched ? "bg-nx-text-2" : "bg-primary"}`} style={{ width: `${episode.watched ? 100 : episode.percent}%` }} />
+                                                </span>
                                             )}
-                                        </div>
+                                        </span>
 
-                                        <div className="flex flex-col flex-1">
+                                        <span className="flex flex-1 flex-col">
                                             <span className="text-foreground font-semibold text-sm md:text-base line-clamp-2">
                                                 {episode.number}. {episode.title}
                                             </span>
@@ -237,8 +246,8 @@ const SeriesModal = () => {
                                                 <FileVideo size={12} />
                                                 {episode.key === details.resumeEpisodeKey ? "Wznów oglądanie" : "Wideo MP4"}
                                             </span>
-                                        </div>
-                                    </div>
+                                        </span>
+                                    </button>
                                 ))}
 
                                 {details.episodes.length === 0 && (

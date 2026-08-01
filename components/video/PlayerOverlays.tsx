@@ -8,7 +8,9 @@ import { Play, RotateCcw, RotateCw, SkipForward, StepForward, Volume1, Volume2, 
 const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 const PILL_CLASS =
-    'group relative px-6 py-3 md:px-8 md:py-4 bg-[#030712]/80 hover:bg-primary-hover border border-white/10 hover:border-primary-hover text-slate-200 hover:text-white rounded-full transition-all duration-500 backdrop-blur-xl flex items-center gap-4 shadow-[0_10px_40px_rgba(0,0,0,0.6)] hover:shadow-[0_0_50px_rgba(139,92,246,0.8)] hover:scale-105 overflow-hidden cursor-pointer pointer-events-auto';
+    'group relative px-6 py-3 md:px-8 md:py-4 bg-[#030712]/80 hover:bg-primary-hover border border-white/10 hover:border-primary-hover ' +
+    'text-slate-200 hover:text-white rounded-full transition-transform duration-500 backdrop-blur-xl flex items-center gap-4 shadow-[0_10px_40px_rgba(0,0,0,0.6)]' +
+    'hover:shadow-[0_0_50px_rgba(139,92,246,0.8)] hover:scale-[1.03] overflow-hidden cursor-pointer pointer-events-auto';
 
 const PILL_ICON_CLASS =
     'relative z-10 bg-primary/20 p-2.5 rounded-full group-hover:bg-white/20 transition-colors shadow-inner text-primary-hover group-hover:text-white';

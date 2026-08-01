@@ -14,6 +14,7 @@ interface DataStateProps {
     action?: DataStateAction;
     compact?: boolean;
     onRetry?: () => void;
+    headingLevel?: 1 | 2;
 }
 
 export const DataState = ({
@@ -23,16 +24,18 @@ export const DataState = ({
     action = null,
     compact = false,
     onRetry,
+    headingLevel = 2,
 }: DataStateProps) => {
     const router = useRouter();
     const isError = kind === "error" || kind === "offline" || kind === "forbidden";
+    const Heading = headingLevel === 1 ? "h1" : "h2";
 
     return (
         <div
             role={isError ? "alert" : "status"}
             className={`flex w-full flex-col items-center justify-center rounded-2xl border border-nx-border bg-nx-panel text-center ${compact ? "min-h-36 px-5 py-6" : "min-h-64 px-6 py-10"}`}
         >
-            <h2 className="text-base font-semibold text-nx-text md:text-lg">{title}</h2>
+            <Heading className="text-base font-semibold text-nx-text md:text-lg">{title}</Heading>
             <p className="mt-2 max-w-lg text-sm text-nx-text-2">{description}</p>
 
             {action === "retry" && (
@@ -61,10 +64,12 @@ export const DataErrorState = ({
     reason,
     compact = false,
     onRetry,
+    headingLevel = 2,
 }: {
     reason: DataErrorReason;
     compact?: boolean;
     onRetry?: () => void;
+    headingLevel?: 1 | 2;
 }) => {
     if (reason === "unauthorized") {
         return (
@@ -74,6 +79,7 @@ export const DataErrorState = ({
                 description="Zaloguj się, aby wczytać te dane."
                 action="login"
                 compact={compact}
+                headingLevel={headingLevel}
             />
         );
     }
@@ -85,6 +91,7 @@ export const DataErrorState = ({
                 title="Brak dostępu"
                 description="To konto nie ma dostępu do tych danych."
                 compact={compact}
+                headingLevel={headingLevel}
             />
         );
     }
@@ -98,6 +105,7 @@ export const DataErrorState = ({
                 action="retry"
                 compact={compact}
                 onRetry={onRetry}
+                headingLevel={headingLevel}
             />
         );
     }
@@ -110,6 +118,7 @@ export const DataErrorState = ({
             action="retry"
             compact={compact}
             onRetry={onRetry}
+            headingLevel={headingLevel}
         />
     );
 };

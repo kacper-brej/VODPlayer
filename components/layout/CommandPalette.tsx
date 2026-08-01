@@ -11,6 +11,7 @@ import { seriesPath } from "@/lib/routes";
 import { DataErrorState } from "@/components/data/DataState";
 import type { DataResult } from "@/lib/dataResult";
 import revalidateCatalogAction from "@/lib/revalidateCatalogAction";
+import { useModalFocus } from "@/lib/useModalFocus";
 
 export interface SearchIndexEntry {
     key: string;
@@ -61,13 +62,12 @@ const CommandPalette = ({ searchIndex }: CommandPaletteProps) => {
     const [isRefreshing, setIsRefreshing] = useState(false);
 
     const inputRef = useRef<HTMLInputElement>(null);
-    const panelRef = useRef<HTMLDivElement>(null);
-    const triggerRef = useRef<Element | null>(null);
     const itemRefs = useRef<(HTMLLIElement | null)[]>([]);
+    const close = () => setIsOpen(false);
+    const dialogRef = useModalFocus<HTMLDivElement>(isOpen, close);
 
     useEffect(() => {
         const openPalette = () => {
-            triggerRef.current = document.activeElement;
             setIsOpen(true);
         };
 
@@ -100,14 +100,6 @@ const CommandPalette = ({ searchIndex }: CommandPaletteProps) => {
         if (!isOpen) return;
         const focusTimer = window.setTimeout(() => inputRef.current?.focus(), 0);
         return () => window.clearTimeout(focusTimer);
-    }, [isOpen]);
-
-    useEffect(() => {
-        if (!isOpen) return;
-        document.body.style.overflow = "hidden";
-        return () => {
-            document.body.style.overflow = "";
-        };
     }, [isOpen]);
 
     useEffect(() => {
@@ -211,12 +203,6 @@ const CommandPalette = ({ searchIndex }: CommandPaletteProps) => {
         itemRefs.current[clampedActiveIndex]?.scrollIntoView({ block: "nearest" });
     }, [clampedActiveIndex]);
 
-    const close = () => {
-        setIsOpen(false);
-        const trigger = triggerRef.current;
-        if (trigger instanceof HTMLElement) trigger.focus();
-    };
-
     const runAction = (action: PaletteAction) => {
         if (action.kind === "navigate") {
             close();
@@ -254,8 +240,6 @@ const CommandPalette = ({ searchIndex }: CommandPaletteProps) => {
             event.preventDefault();
             const item = flatItems[clampedActiveIndex];
             if (item) runAction(item.action);
-        } else if (event.key === "Tab") {
-            event.preventDefault();
         }
     };
 
@@ -285,7 +269,7 @@ const CommandPalette = ({ searchIndex }: CommandPaletteProps) => {
                     onKeyDown={handleOverlayKeyDown}
                 >
                     <motion.div
-                        ref={panelRef}
+                        ref={dialogRef}
                         role="dialog"
                         aria-modal="true"
                         aria-label="Paleta poleceń"

@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Bodoni_Moda, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import AppShell from "@/components/layout/AppShell";
-import PreconnectVideoOrigin from "@/components/layout/PreconnectVideoOrigin";
 import {AuthProvider} from "@/lib/AuthContext";
 import { getSearchIndex } from "@/lib/searchIndex";
 
@@ -42,7 +41,6 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${bodoniModa.variable} h-full`}
     >
       <body className="font-ui bg-background text-foreground antialiased selection:bg-primary/30">
-      <PreconnectVideoOrigin />
       <AuthProvider>
         <AppShell searchIndexPromise={searchIndexPromise}>
           {children}

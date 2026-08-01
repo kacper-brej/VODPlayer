@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import EpisodeCard, { type EpisodeCardData } from "@/components/episodes/EpisodeCard";
 import SeasonsSelector, { type SeasonOption } from "@/components/series/SeasonsSelector";
 import { watchPath } from "@/lib/routes";
+import { useModalFocus } from "@/lib/useModalFocus";
 
 export interface SeasonEpisodes extends SeasonOption {
     seriesId: number;
@@ -27,6 +28,8 @@ const EpisodeList = ({ seasons, initialSeason, authRequired }: EpisodeListProps)
     const [activeCard, setActiveCard] = useState(0);
     const [blockedEpisode, setBlockedEpisode] = useState<EpisodeCardData | null>(null);
     const cards = useRef<Array<HTMLButtonElement | null>>([]);
+    const closeBlockedEpisode = () => setBlockedEpisode(null);
+    const loginDialogRef = useModalFocus<HTMLDivElement>(Boolean(blockedEpisode), closeBlockedEpisode);
     const season = seasons.find((entry) => entry.id === activeSeason) ?? seasons[0];
 
     const resumeEpisode = useMemo(() => {
@@ -103,7 +106,7 @@ const EpisodeList = ({ seasons, initialSeason, authRequired }: EpisodeListProps)
                                 {resumeEpisode.thumbnail ? (
                                     <Image
                                         src={resumeEpisode.thumbnail}
-                                        alt=""
+                                        alt={resumeEpisode.title}
                                         fill
                                         sizes="(max-width: 1024px) 100vw, 40vw"
                                         className={`object-cover ${resumeEpisode.watched ? "opacity-75" : ""}`}
@@ -162,10 +165,17 @@ const EpisodeList = ({ seasons, initialSeason, authRequired }: EpisodeListProps)
 
             {blockedEpisode && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-[color-mix(in_srgb,var(--nx-bg)_88%,transparent)] p-5">
-                    <div role="dialog" aria-modal="true" aria-labelledby="login-title" className="relative w-full max-w-md rounded-[28px] border border-nx-border bg-nx-panel p-7">
+                    <div
+                        ref={loginDialogRef}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="login-title"
+                        tabIndex={-1}
+                        className="relative w-full max-w-md rounded-[28px] border border-nx-border bg-nx-panel p-7 outline-none"
+                    >
                         <button
                             type="button"
-                            onClick={() => setBlockedEpisode(null)}
+                            onClick={closeBlockedEpisode}
                             aria-label="Anuluj"
                             className="absolute right-4 top-4 flex size-11 items-center justify-center rounded-full border border-nx-border text-nx-text focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent"
                         >
@@ -182,7 +192,7 @@ const EpisodeList = ({ seasons, initialSeason, authRequired }: EpisodeListProps)
                             >
                                 Zaloguj się
                             </Link>
-                            <button type="button" onClick={() => setBlockedEpisode(null)} className="min-h-12 rounded-xl border border-nx-border px-5 text-sm font-semibold text-nx-text">
+                            <button type="button" onClick={closeBlockedEpisode} className="min-h-12 rounded-xl border border-nx-border px-5 text-sm font-semibold text-nx-text focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent">
                                 Anuluj
                             </button>
                         </div>

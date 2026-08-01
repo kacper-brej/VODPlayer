@@ -18,7 +18,11 @@ export interface MovieMappers {
 export const getTopMovie = async (): Promise<DataResult<MovieMappers[]>> => {
 
     try {
-        const response = await fetchJikanResult(`/top/anime?limit=20`);
+        const response = await fetchJikanResult(
+            `/top/anime?limit=20`,
+            undefined,
+            (value) => validateJikanAnimeListResponse(value).ok,
+        );
 
         if (response.kind === "error") return response;
 

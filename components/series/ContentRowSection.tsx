@@ -61,7 +61,6 @@ const ContentRowSection = ({
                         item={{
                             ...item,
                             isNew: showNew,
-                            previewVideoUrl: undefined,
                         }}
                         variant={cardVariant(variant, index)}
                         featured={variant === "mosaic" && index === 0}

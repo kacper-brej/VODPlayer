@@ -12,7 +12,6 @@ interface ContentCardOptions {
     inWatchlist?: boolean;
     href?: string;
     completed?: boolean;
-    previewVideo?: boolean;
     allowNew?: boolean;
 }
 
@@ -29,7 +28,6 @@ export const toContentCard = (
         inWatchlist = false,
         href,
         completed,
-        previewVideo = false,
         allowNew = true,
     }: ContentCardOptions = {},
 ): CardInput => {
@@ -68,7 +66,6 @@ export const toContentCard = (
         href: href ?? seriesPath(series.key),
         infoId: series.id,
         inWatchlist,
-        previewVideoUrl: previewVideo ? episode?.url : undefined,
     };
 };
 

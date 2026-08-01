@@ -64,6 +64,15 @@ interface AppShellProps {
     searchIndexPromise: Promise<DataResult<SearchIndexEntry[]>>;
 }
 
+const SkipLink = () => (
+    <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[1000] focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-on-accent focus:outline-2 focus:outline-offset-[3px] focus:outline-primary"
+    >
+        Przejdź do treści
+    </a>
+);
+
 const AppShell = ({ children, searchIndexPromise }: AppShellProps) => {
     const pathname = usePathname();
     const router = useRouter();
@@ -89,7 +98,14 @@ const AppShell = ({ children, searchIndexPromise }: AppShellProps) => {
     }, [error, loading, user, pathname, router, sessionExpiredMidWork]);
 
     if (isNoChrome) {
-        return <>{children}</>;
+        return (
+            <>
+                <SkipLink />
+                <main id="main-content" tabIndex={-1} className="min-h-dvh outline-none">
+                    {children}
+                </main>
+            </>
+        );
     }
 
     let mainContent: React.ReactNode;
@@ -99,7 +115,7 @@ const AppShell = ({ children, searchIndexPromise }: AppShellProps) => {
     } else if (error && error !== "unauthorized") {
         mainContent = (
             <div className="flex min-h-[60vh] w-full items-center justify-center px-4 py-10 sm:px-8">
-                <DataErrorState reason={error} onRetry={refreshUser} />
+                <DataErrorState reason={error} onRetry={refreshUser} headingLevel={1} />
             </div>
         );
     } else {
@@ -119,12 +135,7 @@ const AppShell = ({ children, searchIndexPromise }: AppShellProps) => {
                 style={{ backgroundImage: GRAIN_BACKGROUND, backgroundSize: "200px 200px" }}
             />
 
-            <a
-                href="#main-content"
-                className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-on-accent focus:outline-2 focus:outline-offset-[3px] focus:outline-primary"
-            >
-                Przejdź do treści
-            </a>
+            <SkipLink />
 
             <div className="relative z-10 flex w-full">
                 <Sidebar />

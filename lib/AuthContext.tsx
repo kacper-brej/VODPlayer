@@ -8,12 +8,12 @@ type AuthContextType = {
 };
 import { useState, useEffect, useContext, createContext, useCallback, type ReactNode } from "react";
 import clearSessionCookieAction from "@/lib/clearSessionCookieAction";
+import { getCurrentUserAction } from "@/lib/authActions";
 import { clearRecentSearches } from "@/lib/recentSearches";
-import { validateMeResponse, type AuthUser } from "@/lib/contracts";
+import { type AuthUser } from "@/lib/contracts";
 import {
     dataFailure,
     dataSuccess,
-    failureFromStatus,
     type DataErrorReason,
     type DataResult,
 } from "@/lib/dataResult";
@@ -28,21 +28,7 @@ const AuthContext = createContext<AuthContextType>({
 
 export const fetchCurrentUser = async (): Promise<DataResult<AuthUser | null>> => {
     try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/me.php`, {
-            credentials: 'include',
-        });
-
-        if (!res.ok) return failureFromStatus(res.status);
-
-        const payload: unknown = await res.json();
-        const result = validateMeResponse(payload);
-
-        if (!result.ok) {
-            console.error(result.error);
-            return dataFailure("invalid_response");
-        }
-
-        return dataSuccess(result.data.user);
+        return dataSuccess(await getCurrentUserAction());
     } catch {
         return dataFailure("network");
     }

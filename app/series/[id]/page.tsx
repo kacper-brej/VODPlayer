@@ -41,7 +41,7 @@ const SeriesPage = async ({ params, searchParams }: SeriesPageProps) => {
     if (catalogResult.kind === "error") {
         return (
             <div className="min-h-screen bg-nx-bg px-5 py-28 sm:px-8">
-                <DataErrorState reason={catalogResult.reason} />
+                <DataErrorState reason={catalogResult.reason} headingLevel={1} />
             </div>
         );
     }
@@ -62,7 +62,7 @@ const SeriesPage = async ({ params, searchParams }: SeriesPageProps) => {
     if (seriesResult.kind === "error") {
         return (
             <div className="min-h-screen bg-nx-bg px-5 py-28 sm:px-8">
-                <DataErrorState reason={seriesResult.reason} />
+                <DataErrorState reason={seriesResult.reason} headingLevel={1} />
             </div>
         );
     }

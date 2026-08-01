@@ -103,7 +103,11 @@ const localDetails = async (id: number): Promise<DataResult<SeriesDetails | null
 };
 
 const remoteDetails = async (id: number): Promise<DataResult<SeriesDetails | null>> => {
-    const detailsResponse = await fetchJikanResult(`/anime/${id}`);
+    const detailsResponse = await fetchJikanResult(
+        `/anime/${id}`,
+        undefined,
+        (value) => validateJikanAnimeResponse(value).ok,
+    );
     if (detailsResponse.kind === "error") return detailsResponse;
 
     const detailsResult = validateJikanAnimeResponse(detailsResponse.data);
@@ -114,7 +118,11 @@ const remoteDetails = async (id: number): Promise<DataResult<SeriesDetails | nul
     const episodes: SeriesDetailsEpisode[] = [];
 
     for (let page = 1; page <= MAX_JIKAN_EPISODE_PAGES; page++) {
-        const episodeResponse = await fetchJikanResult(`/anime/${id}/episodes?page=${page}`);
+        const episodeResponse = await fetchJikanResult(
+            `/anime/${id}/episodes?page=${page}`,
+            undefined,
+            (value) => validateJikanEpisodesResponse(value).ok,
+        );
         if (episodeResponse.kind === "error") return episodeResponse;
 
         const episodeResult = validateJikanEpisodesResponse(episodeResponse.data);

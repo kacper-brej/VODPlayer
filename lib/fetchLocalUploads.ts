@@ -8,7 +8,6 @@ import {
 
 export type LocalMovieMapper = MovieMappers & {
     localEpisodes: string[];
-    previewVideoUrl?: string;
 };
 
 export type LocalSeriesRaw = {
@@ -43,7 +42,6 @@ export const getLocalUploads = async (): Promise<DataResult<LocalMovieMapper[]>>
         rating: item.rating,
         year: item.year ?? undefined,
         localEpisodes: item.episodes.map((episode) => episode.key),
-        previewVideoUrl: item.episodes[0]?.url,
     }));
 
     return movies.length === 0

@@ -1,5 +1,6 @@
+import { Suspense } from "react";
 import { SignUpCard } from "@/components/auth/SignUpCard";
 
 export default function SignUpPage() {
-    return <SignUpCard />;
+    return <Suspense><SignUpCard /></Suspense>;
 }

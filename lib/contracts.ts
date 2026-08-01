@@ -42,6 +42,8 @@ export interface CatalogSeriesPayload {
     studio: string | null;
     audioLanguages: string[];
     subtitleLanguages: string[];
+    metadataProvider: string | null;
+    externalId: number | null;
     genres: CatalogGenre[];
     hasMetadata: boolean;
     episodeCount: number;
@@ -121,6 +123,64 @@ export interface ToggleWatchlistResponse {
     seriesKey: string;
 }
 
+export interface CollectionSummary {
+    id: number;
+    name: string;
+    createdAt: number;
+    itemCount: number;
+}
+
+export interface CollectionsResponse {
+    collections: CollectionSummary[];
+}
+
+export interface CollectionDetail {
+    id: number;
+    name: string;
+    createdAt: number;
+    items: string[];
+}
+
+export interface CreateCollectionResponse {
+    id: number;
+    name: string;
+    createdAt: number;
+}
+
+export interface RenameCollectionResponse {
+    id: number;
+    name: string;
+}
+
+export interface DeleteCollectionResponse {
+    success: boolean;
+}
+
+export interface AddCollectionItemResponse {
+    success: boolean;
+    seriesKey: string;
+}
+
+export interface RemoveCollectionItemResponse {
+    success: boolean;
+}
+
+export interface NotificationItem {
+    id: number;
+    seriesKey: string;
+    episodeKey: string;
+    createdAt: number;
+}
+
+export interface NotificationsResponse {
+    count: number;
+    items: NotificationItem[];
+}
+
+export interface MarkNotificationsReadResponse {
+    success: boolean;
+}
+
 export interface RankingItem {
     seriesKey: string;
     playCount: number;
@@ -165,6 +225,25 @@ export interface DeleteProfileResponse {
     success: boolean;
 }
 
+export interface ProfileSettings {
+    autoplayNext: boolean;
+    skipIntroPrompt: boolean;
+    preferredSubtitleLang: string | null;
+    preferredAudioLang: string | null;
+    defaultVolume: number;
+    reduceData: boolean;
+}
+
+export interface SettingsResponse {
+    profileId: number;
+    settings: ProfileSettings;
+}
+
+export interface RequestEmailChangeResponse {
+    success: boolean;
+    message: string;
+}
+
 export interface AuthUser {
     id: number;
     username: string;
@@ -196,6 +275,7 @@ export interface JikanAnime {
     rating: string | null;
     year: number | null;
     score: number | null;
+    type: string | null;
     genres: JikanNamedEntry[] | null;
     studios: JikanNamedEntry[] | null;
 }
@@ -295,6 +375,8 @@ const isCatalogSeries = (value: unknown): value is CatalogSeriesPayload =>
     && isOptionalNullableString(value.studio)
     && isOptionalStringArray(value.audioLanguages)
     && isOptionalStringArray(value.subtitleLanguages)
+    && isOptionalNullableString(value.metadataProvider)
+    && isOptionalNullableNumber(value.externalId)
     && isOptionalGenreArray(value.genres)
     && isBoolean(value.hasMetadata)
     && isNumber(value.episodeCount)
@@ -353,6 +435,7 @@ const isJikanAnime = (value: unknown): value is JikanAnime =>
     && isNullableString(value.rating)
     && isNullableNumber(value.year)
     && isNullableNumber(value.score)
+    && isNullableString(value.type)
     && isOptionalNamedEntryArray(value.genres)
     && isOptionalNamedEntryArray(value.studios);
 
@@ -413,6 +496,64 @@ const isToggleWatchlistResponse = (value: unknown): value is ToggleWatchlistResp
     && isBoolean(value.success)
     && isString(value.seriesKey);
 
+const isCollectionSummary = (value: unknown): value is CollectionSummary =>
+    isObject(value)
+    && isNumber(value.id)
+    && isString(value.name)
+    && isNumber(value.createdAt)
+    && isNumber(value.itemCount);
+
+const isCollectionsResponse = (value: unknown): value is CollectionsResponse =>
+    isObject(value)
+    && Array.isArray(value.collections)
+    && value.collections.every(isCollectionSummary);
+
+const isCollectionDetail = (value: unknown): value is CollectionDetail =>
+    isObject(value)
+    && isNumber(value.id)
+    && isString(value.name)
+    && isNumber(value.createdAt)
+    && Array.isArray(value.items)
+    && value.items.every(isString);
+
+const isCreateCollectionResponse = (value: unknown): value is CreateCollectionResponse =>
+    isObject(value)
+    && isNumber(value.id)
+    && isString(value.name)
+    && isNumber(value.createdAt);
+
+const isRenameCollectionResponse = (value: unknown): value is RenameCollectionResponse =>
+    isObject(value)
+    && isNumber(value.id)
+    && isString(value.name);
+
+const isDeleteCollectionResponse = (value: unknown): value is DeleteCollectionResponse =>
+    isObject(value) && isBoolean(value.success);
+
+const isAddCollectionItemResponse = (value: unknown): value is AddCollectionItemResponse =>
+    isObject(value)
+    && isBoolean(value.success)
+    && isString(value.seriesKey);
+
+const isRemoveCollectionItemResponse = (value: unknown): value is RemoveCollectionItemResponse =>
+    isObject(value) && isBoolean(value.success);
+
+const isNotificationItem = (value: unknown): value is NotificationItem =>
+    isObject(value)
+    && isNumber(value.id)
+    && isString(value.seriesKey)
+    && isString(value.episodeKey)
+    && isNumber(value.createdAt);
+
+const isNotificationsResponse = (value: unknown): value is NotificationsResponse =>
+    isObject(value)
+    && isNumber(value.count)
+    && Array.isArray(value.items)
+    && value.items.every(isNotificationItem);
+
+const isMarkNotificationsReadResponse = (value: unknown): value is MarkNotificationsReadResponse =>
+    isObject(value) && isBoolean(value.success);
+
 const isRankingItem = (value: unknown): value is RankingItem =>
     isObject(value)
     && isString(value.seriesKey)
@@ -432,6 +573,21 @@ const isUploadTokenResponse = (value: unknown): value is UploadTokenResponse =>
     && isString(value.targetFolder)
     && isNumber(value.episodeNumber)
     && isString(value.fileName);
+
+const isProfileSettings = (value: unknown): value is ProfileSettings =>
+    isObject(value)
+    && isBoolean(value.autoplayNext)
+    && isBoolean(value.skipIntroPrompt)
+    && isNullableString(value.preferredSubtitleLang)
+    && isNullableString(value.preferredAudioLang)
+    && isNumber(value.defaultVolume)
+    && isBoolean(value.reduceData);
+
+const isSettingsResponse = (value: unknown): value is SettingsResponse =>
+    isObject(value) && isNumber(value.profileId) && isProfileSettings(value.settings);
+
+const isRequestEmailChangeResponse = (value: unknown): value is RequestEmailChangeResponse =>
+    isObject(value) && isBoolean(value.success) && isString(value.message);
 
 const isProfile = (value: unknown): value is Profile =>
     isObject(value)
@@ -497,6 +653,8 @@ const normalizeCatalogSeries = (series: CatalogSeriesPayload): CatalogSeriesPayl
     studio: series.studio ?? null,
     audioLanguages: series.audioLanguages ?? [],
     subtitleLanguages: series.subtitleLanguages ?? [],
+    metadataProvider: series.metadataProvider ?? null,
+    externalId: series.externalId ?? null,
     genres: series.genres ?? [],
     episodes: series.episodes.map((episode) => ({
         ...episode,
@@ -547,6 +705,51 @@ export const validateToggleWatchlistResponse = (value: unknown): ContractResult<
         ? valid(value)
         : invalid("toggle watchlist");
 
+export const validateCollectionsResponse = (value: unknown): ContractResult<CollectionsResponse> =>
+    isCollectionsResponse(value)
+        ? valid(value)
+        : invalid("collections");
+
+export const validateCollectionDetailResponse = (value: unknown): ContractResult<CollectionDetail> =>
+    isCollectionDetail(value)
+        ? valid(value)
+        : invalid("collection detail");
+
+export const validateCreateCollectionResponse = (value: unknown): ContractResult<CreateCollectionResponse> =>
+    isCreateCollectionResponse(value)
+        ? valid(value)
+        : invalid("create collection");
+
+export const validateRenameCollectionResponse = (value: unknown): ContractResult<RenameCollectionResponse> =>
+    isRenameCollectionResponse(value)
+        ? valid(value)
+        : invalid("rename collection");
+
+export const validateDeleteCollectionResponse = (value: unknown): ContractResult<DeleteCollectionResponse> =>
+    isDeleteCollectionResponse(value)
+        ? valid(value)
+        : invalid("delete collection");
+
+export const validateAddCollectionItemResponse = (value: unknown): ContractResult<AddCollectionItemResponse> =>
+    isAddCollectionItemResponse(value)
+        ? valid(value)
+        : invalid("add collection item");
+
+export const validateRemoveCollectionItemResponse = (value: unknown): ContractResult<RemoveCollectionItemResponse> =>
+    isRemoveCollectionItemResponse(value)
+        ? valid(value)
+        : invalid("remove collection item");
+
+export const validateNotificationsResponse = (value: unknown): ContractResult<NotificationsResponse> =>
+    isNotificationsResponse(value)
+        ? valid(value)
+        : invalid("notifications");
+
+export const validateMarkNotificationsReadResponse = (value: unknown): ContractResult<MarkNotificationsReadResponse> =>
+    isMarkNotificationsReadResponse(value)
+        ? valid(value)
+        : invalid("mark notifications read");
+
 export const validateRankingsResponse = (value: unknown): ContractResult<RankingsResponse> =>
     isRankingsResponse(value)
         ? valid(value)
@@ -576,6 +779,16 @@ export const validateDeleteProfileResponse = (value: unknown): ContractResult<De
     isDeleteProfileResponse(value)
         ? valid(value)
         : invalid("delete profile");
+
+export const validateSettingsResponse = (value: unknown): ContractResult<SettingsResponse> =>
+    isSettingsResponse(value)
+        ? valid(value)
+        : invalid("settings");
+
+export const validateRequestEmailChangeResponse = (value: unknown): ContractResult<RequestEmailChangeResponse> =>
+    isRequestEmailChangeResponse(value)
+        ? valid(value)
+        : invalid("request email change");
 
 export const validateMeResponse = (value: unknown): ContractResult<MeResponse> => {
     if (!isObject(value) || !isObject(value.user)) return invalid("me");

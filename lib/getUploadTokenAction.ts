@@ -11,6 +11,7 @@ import {
 const getUploadTokenAction = async (
     folder: string,
     episodeNumber: number,
+    allowOverwrite = false,
 ): Promise<DataResult<UploadTokenResponse>> => {
     const headers = await sessionHeaders();
 
@@ -21,7 +22,7 @@ const getUploadTokenAction = async (
             method: "POST",
             headers: { ...headers, "Content-Type": "application/json" },
             cache: "no-store",
-            body: JSON.stringify({ folder, episodeNumber }),
+            body: JSON.stringify({ folder, episodeNumber, allowOverwrite }),
         });
 
         if (!res.ok) return failureFromStatus(res.status);

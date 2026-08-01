@@ -1,10 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
-import { Clock, Play, Volume2, VolumeX } from "lucide-react";
+import { useState, type KeyboardEvent } from "react";
+import { Clock, Play } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { hasPageInteraction } from "@/lib/pageInteraction";
 
 export interface LastWatchedData {
     seriesKey: string;
@@ -17,7 +16,6 @@ export interface LastWatchedData {
     backdrop: string | null;
     dominantColor?: string | null;
     focal?: { x: number; y: number };
-    video: string;
     description: string | null;
     href: string;
     isResume: boolean;
@@ -27,35 +25,9 @@ interface HeroBanerProps {
     lastWatchedData: LastWatchedData | null;
 }
 
-const HOVER_INTENT_MS = 400;
-
 const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
     const router = useRouter();
-    const videoRef = useRef<HTMLVideoElement | null>(null);
-    const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const [videoSource, setVideoSource] = useState<string | null>(null);
-    const [isPlaying, setIsPlaying] = useState(false);
-    const [isMuted, setIsMuted] = useState(true);
     const [failedArtwork, setFailedArtwork] = useState<string | null>(null);
-
-    useEffect(() => {
-        return () => {
-            if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-        };
-    }, []);
-
-    useEffect(() => {
-        const video = videoRef.current;
-
-        if (!videoSource || !video) return;
-
-        video.load();
-        video.play().catch(() => {
-            video.muted = true;
-            setIsMuted(true);
-            video.play().catch(() => setIsPlaying(false));
-        });
-    }, [videoSource]);
 
     if (!lastWatchedData) return null;
 
@@ -71,74 +43,6 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
 
     const openEpisode = () => router.push(activeContent.href);
 
-    const startPreview = () => {
-        const connection = (navigator as Navigator & {
-            connection?: { saveData?: boolean };
-        }).connection;
-
-        if (
-            connection?.saveData
-            || window.matchMedia("(hover: none)").matches
-            || window.matchMedia("(prefers-reduced-motion: reduce)").matches
-        ) {
-            return;
-        }
-
-        setIsMuted(!hasPageInteraction());
-        setVideoSource(activeContent.video);
-        setIsPlaying(true);
-    };
-
-    const handleHover = () => {
-        if (!activeContent.video) return;
-        if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-        hoverTimerRef.current = setTimeout(startPreview, HOVER_INTENT_MS);
-    };
-
-    const handleHoverEnd = () => {
-        if (hoverTimerRef.current) {
-            clearTimeout(hoverTimerRef.current);
-            hoverTimerRef.current = null;
-        }
-
-        const video = videoRef.current;
-
-        if (video) {
-            video.pause();
-            video.currentTime = activeContent.isResume
-                ? Math.max(0, activeContent.lastWatchedTime - 10)
-                : 2;
-        }
-
-        setIsPlaying(false);
-        setIsMuted(true);
-        setVideoSource(null);
-    };
-
-    const handleLoadedMetadata = () => {
-        const video = videoRef.current;
-        if (!video) return;
-
-        video.currentTime = activeContent.isResume
-            ? Math.max(0, activeContent.lastWatchedTime - 10)
-            : Math.min(2, Math.max(0, video.duration - 1));
-
-        video.play().catch(() => {
-            video.muted = true;
-            setIsMuted(true);
-            video.play().catch(() => setIsPlaying(false));
-        });
-    };
-
-    const toggleMute = (event: MouseEvent<HTMLButtonElement>) => {
-        event.stopPropagation();
-        const video = videoRef.current;
-        if (!video) return;
-
-        video.muted = !video.muted;
-        setIsMuted(video.muted);
-    };
-
     const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
         if (event.target !== event.currentTarget || (event.key !== "Enter" && event.key !== " ")) return;
 
@@ -153,8 +57,6 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
             aria-label={`${activeContent.isResume ? "Wznów" : "Odtwórz"} ${activeContent.title}`}
             onClick={openEpisode}
             onKeyDown={handleKeyDown}
-            onMouseEnter={handleHover}
-            onMouseLeave={handleHoverEnd}
             className="group/hero relative h-[46vh] min-h-80 max-h-105 w-full cursor-pointer overflow-hidden border-y border-nx-border bg-nx-panel outline-none lg:h-[52vh] lg:min-h-105 lg:max-h-155 xl:h-[58vh] xl:min-h-130 xl:max-h-190 min-[1440px]:h-[62vh] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-nx-accent"
             style={safeDominantColor ? {
                 background: `linear-gradient(to top, var(--nx-bg), color-mix(in srgb, ${safeDominantColor} 8%, var(--nx-panel)))`,
@@ -198,32 +100,8 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
                 />
             )}
 
-            {videoSource && (
-                <video
-                    ref={videoRef}
-                    src={videoSource}
-                    onLoadedMetadata={handleLoadedMetadata}
-                    muted={isMuted}
-                    loop
-                    playsInline
-                    preload="none"
-                    className={`absolute inset-0 size-full object-cover transition-opacity duration-520 motion-reduce:transition-none ${isPlaying ? "opacity-100" : "opacity-0"}`}
-                />
-            )}
-
             <span className="pointer-events-none absolute inset-0 bg-linear-to-t from-nx-bg via-nx-bg/15 to-transparent md:bg-[linear-gradient(90deg,var(--nx-bg)_0%,color-mix(in_srgb,var(--nx-bg)_88%,transparent)_34%,color-mix(in_srgb,var(--nx-bg)_20%,transparent)_64%,color-mix(in_srgb,var(--nx-bg)_55%,transparent)_100%)]" />
             <span className="pointer-events-none absolute inset-0 hidden bg-linear-to-t from-nx-bg via-transparent to-transparent md:block" />
-
-            {isPlaying && (
-                <button
-                    type="button"
-                    onClick={toggleMute}
-                    aria-label={isMuted ? "Włącz dźwięk" : "Wycisz"}
-                    className="absolute bottom-6 right-5 z-30 hidden size-11 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text outline-none transition-colors duration-140 hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent [@media(pointer:fine)]:flex sm:right-8 xl:right-10 min-[1440px]:right-12"
-                >
-                    {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
-                </button>
-            )}
 
             <div className="absolute inset-0 z-20 flex max-w-[760px] flex-col justify-end px-5 pb-6 pt-20 sm:px-8 sm:pb-10 lg:px-8 lg:pb-12 xl:px-10 xl:pb-14 min-[1440px]:px-12">
                 <span className="mb-3 flex w-fit items-center gap-2 font-mono text-[10px] tracking-[0.18em] text-nx-text-2 sm:text-[11px]">

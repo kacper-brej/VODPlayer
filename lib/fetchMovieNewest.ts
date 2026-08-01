@@ -10,7 +10,11 @@ import {
 
 export const getMovieNewest = async (): Promise<DataResult<MovieMappers[]>> => {
     try {
-        const response = await fetchJikanResult(`/seasons/now?limit=20`);
+        const response = await fetchJikanResult(
+            `/seasons/now?limit=20`,
+            undefined,
+            (value) => validateJikanAnimeListResponse(value).ok,
+        );
 
         if (response.kind === "error") return response;
 

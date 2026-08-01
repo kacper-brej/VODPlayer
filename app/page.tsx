@@ -47,7 +47,6 @@ const heroData = (
             x: series.focalX ?? 0.5,
             y: series.focalY ?? 0.4,
         },
-        video: episode.url,
         description: series.synopsis,
         href: watchPath(series.key, episode.key),
         isResume: Boolean(resume),
@@ -245,7 +244,7 @@ const HomeDashboard = async () => {
     if (catalogResult.kind === "error") {
         return (
             <div className="px-5 py-16 sm:px-8 xl:px-10 min-[1440px]:px-12">
-                <DataErrorState reason={catalogResult.reason} />
+                <DataErrorState reason={catalogResult.reason} headingLevel={1} />
             </div>
         );
     }
@@ -283,7 +282,7 @@ const HomeDashboard = async () => {
 
 export default function Home() {
     return (
-        <main className="min-h-screen w-full min-w-0 overflow-x-hidden bg-nx-bg">
+        <div className="min-h-screen w-full min-w-0 overflow-x-hidden bg-nx-bg">
             <HomeRefresher />
 
             <Suspense fallback={<div className="min-h-screen bg-nx-bg" />}>
@@ -293,6 +292,6 @@ export default function Home() {
             <Suspense fallback={null}>
                 <SeriesModal />
             </Suspense>
-        </main>
+        </div>
     );
 }

@@ -2,10 +2,9 @@
 
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
 import { Check, Info, Plus } from "lucide-react";
 import toggleWatchlistAction from "@/lib/toggleWatchlistAction";
-import { hasPageInteraction } from "@/lib/pageInteraction";
 
 export type ContentCardVariant = "landscape" | "poster" | "row" | "mosaic";
 
@@ -31,7 +30,6 @@ export interface CardInput {
     href: string;
     infoId?: string | number;
     inWatchlist?: boolean;
-    previewVideoUrl?: string;
 }
 
 export interface SeriesCardProps {
@@ -43,10 +41,7 @@ export interface SeriesCardProps {
     tabIndex?: number;
 }
 
-const HOVER_INTENT_MS = 400;
 const WATCHLIST_ERROR_DISPLAY_MS = 2500;
-
-let activePreview: HTMLVideoElement | null = null;
 
 const formatEpisode = (value: number) => String(value).padStart(2, "0");
 
@@ -61,13 +56,8 @@ const SeriesCard = ({
     const router = useRouter();
     const pathname = usePathname();
     const containerRef = useRef<HTMLElement | null>(null);
-    const videoRef = useRef<HTMLVideoElement | null>(null);
-    const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const watchlistErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const hasVideoSourceRef = useRef(false);
     const [failedArtwork, setFailedArtwork] = useState<string | null>(null);
-    const [isNearViewport, setIsNearViewport] = useState(false);
-    const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
     const [watchlisted, setWatchlisted] = useState(Boolean(item.inWatchlist));
     const [syncedWatchlist, setSyncedWatchlist] = useState(Boolean(item.inWatchlist));
     const [watchlistError, setWatchlistError] = useState<string | null>(null);
@@ -78,34 +68,10 @@ const SeriesCard = ({
     }
 
     useEffect(() => {
-        const video = videoRef.current;
-
         return () => {
-            if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
             if (watchlistErrorTimerRef.current) clearTimeout(watchlistErrorTimerRef.current);
-            if (activePreview === video) activePreview = null;
         };
     }, []);
-
-    useEffect(() => {
-        const node = containerRef.current;
-
-        if (!node || !item.previewVideoUrl || typeof IntersectionObserver === "undefined") return;
-
-        const observer = new IntersectionObserver(
-            (entries) => {
-                if (entries.some((entry) => entry.isIntersecting)) {
-                    setIsNearViewport(true);
-                    observer.disconnect();
-                }
-            },
-            { rootMargin: "300px" },
-        );
-
-        observer.observe(node);
-
-        return () => observer.disconnect();
-    }, [item.previewVideoUrl]);
 
     const preferredArtwork = variant === "poster"
         ? item.poster ?? item.backdrop
@@ -183,66 +149,6 @@ const SeriesCard = ({
         });
     };
 
-    const startPreview = () => {
-        const video = videoRef.current;
-
-        if (!video || !item.previewVideoUrl || !isNearViewport) return;
-
-        const connection = (navigator as Navigator & {
-            connection?: { saveData?: boolean };
-        }).connection;
-
-        if (
-            connection?.saveData
-            || window.matchMedia("(hover: none)").matches
-            || window.matchMedia("(prefers-reduced-motion: reduce)").matches
-        ) {
-            return;
-        }
-
-        if (activePreview && activePreview !== video) {
-            activePreview.pause();
-            activePreview.currentTime = 0;
-        }
-
-        if (!hasVideoSourceRef.current) {
-            video.src = item.previewVideoUrl;
-            hasVideoSourceRef.current = true;
-        }
-
-        activePreview = video;
-        video.muted = !hasPageInteraction();
-        setIsPreviewPlaying(true);
-        video.play().catch(() => {
-            video.muted = true;
-            video.play().catch(() => setIsPreviewPlaying(false));
-        });
-    };
-
-    const handlePointerEnter = (event: PointerEvent<HTMLElement>) => {
-        if (event.pointerType !== "mouse" || !item.previewVideoUrl) return;
-
-        if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-        hoverTimerRef.current = setTimeout(startPreview, HOVER_INTENT_MS);
-    };
-
-    const handlePointerLeave = () => {
-        if (hoverTimerRef.current) {
-            clearTimeout(hoverTimerRef.current);
-            hoverTimerRef.current = null;
-        }
-
-        const video = videoRef.current;
-
-        if (video) {
-            video.pause();
-            video.currentTime = 0;
-        }
-
-        if (activePreview === video) activePreview = null;
-        setIsPreviewPlaying(false);
-    };
-
     const media = (
         <span
             className={`relative block overflow-hidden bg-nx-panel ${
@@ -259,7 +165,7 @@ const SeriesCard = ({
             {artwork ? (
                 <Image
                     src={artwork}
-                    alt=""
+                    alt={item.title}
                     fill
                     preload={imagePreload}
                     sizes={sizes}
@@ -278,18 +184,6 @@ const SeriesCard = ({
                         {item.title}
                     </span>
                 </span>
-            )}
-
-            {item.previewVideoUrl && (
-                <video
-                    ref={videoRef}
-                    muted
-                    loop
-                    playsInline
-                    preload="none"
-                    aria-hidden="true"
-                    className={`absolute inset-0 size-full object-cover transition-opacity duration-280 motion-reduce:transition-none ${isPreviewPlaying ? "opacity-100" : "opacity-0"}`}
-                />
             )}
 
             <span className="pointer-events-none absolute inset-0 shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--nx-text)_9%,transparent)]" />
@@ -422,8 +316,6 @@ const SeriesCard = ({
                 event.preventDefault();
                 openInfo();
             }}
-            onPointerEnter={handlePointerEnter}
-            onPointerLeave={handlePointerLeave}
             className={`nx-content-card group/card relative w-full scroll-mx-6 cursor-pointer rounded-2xl border border-nx-border bg-nx-panel text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent ${
                 variant === "row"
                     ? "flex min-h-22 overflow-hidden"

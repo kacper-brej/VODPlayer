@@ -86,7 +86,11 @@ export const fetchMovieInfo = async (id: number): Promise<DataResult<MovieInfo>>
             };
 
             try {
-                const response = await fetchJikanResult(`/anime?q=${encodeURIComponent(series.title)}&limit=1`);
+                const response = await fetchJikanResult(
+                    `/anime?q=${encodeURIComponent(series.title)}&limit=1`,
+                    undefined,
+                    (value) => validateJikanAnimeListResponse(value).ok,
+                );
                 if (response.kind !== "error") {
                     const result = validateJikanAnimeListResponse(response.data);
                     if (result.ok && result.data.data[0]) {
@@ -117,7 +121,11 @@ export const fetchMovieInfo = async (id: number): Promise<DataResult<MovieInfo>>
             });
         }
 
-        const detailsResponse = await fetchJikanResult(`/anime/${id}`);
+        const detailsResponse = await fetchJikanResult(
+            `/anime/${id}`,
+            undefined,
+            (value) => validateJikanAnimeResponse(value).ok,
+        );
         if (detailsResponse.kind === "error") return detailsResponse;
 
         const detailsResult = validateJikanAnimeResponse(detailsResponse.data);
@@ -130,7 +138,11 @@ export const fetchMovieInfo = async (id: number): Promise<DataResult<MovieInfo>>
         const MAX_PAGES = 20;
 
         while (page <= MAX_PAGES) {
-            const episodeResponse = await fetchJikanResult(`/anime/${id}/episodes?page=${page}`);
+            const episodeResponse = await fetchJikanResult(
+                `/anime/${id}/episodes?page=${page}`,
+                undefined,
+                (value) => validateJikanEpisodesResponse(value).ok,
+            );
             if (episodeResponse.kind === "error") return episodeResponse;
 
             const episodeResult = validateJikanEpisodesResponse(episodeResponse.data);

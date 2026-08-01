@@ -1,7 +1,7 @@
 import { updateTag } from "next/cache";
 import { CATALOG_TAG, VOD_ORIGIN, VOD_SERVICE_KEY } from "@/lib/vodConfig";
 import { fetchJikanResult } from "@/lib/jikanClient";
-import { validateJikanAnimeListResponse } from "@/lib/contracts";
+import { validateJikanAnimeListResponse, type JikanAnime } from "@/lib/contracts";
 import {
     dataEmpty,
     dataFailure,
@@ -10,6 +10,8 @@ import {
 } from "@/lib/dataResult";
 
 export interface JikanSeriesMetadata {
+    metadataProvider: "jikan";
+    externalId: number;
     coverImage: string | null;
     backdropImage: string | null;
     synopsis: string | null;
@@ -30,10 +32,27 @@ const mapAgeRating = (classification: string | null): string | null => {
     return null;
 };
 
+export const mapJikanSeriesMetadata = (anime: JikanAnime): JikanSeriesMetadata => ({
+    metadataProvider: "jikan",
+    externalId: anime.mal_id,
+    coverImage: anime.images.webp.large_image_url,
+    backdropImage: anime.trailer?.images?.maximum_image_url ?? null,
+    synopsis: anime.synopsis ?? null,
+    rating: anime.score ? String(anime.score) : null,
+    ageRating: mapAgeRating(anime.rating),
+    year: anime.year ?? null,
+    genres: (anime.genres ?? []).map((genre) => genre.name.trim()).filter((name) => name !== ""),
+    studio: anime.studios?.[0]?.name.trim() || null,
+});
+
 export const lookupJikanMetadata = async (
     title: string,
 ): Promise<DataResult<JikanSeriesMetadata | null>> => {
-    const response = await fetchJikanResult(`/anime?q=${encodeURIComponent(title)}&limit=1`);
+    const response = await fetchJikanResult(
+        `/anime?q=${encodeURIComponent(title)}&limit=1`,
+        undefined,
+        (value) => validateJikanAnimeListResponse(value).ok,
+    );
     if (response.kind === "error") return response;
 
     const result = validateJikanAnimeListResponse(response.data);
@@ -44,16 +63,7 @@ export const lookupJikanMetadata = async (
 
     if (anime.rating?.startsWith("Rx")) return dataEmpty(null);
 
-    return dataSuccess({
-        coverImage: anime.images.webp.large_image_url,
-        backdropImage: anime.trailer?.images?.maximum_image_url ?? null,
-        synopsis: anime.synopsis ?? null,
-        rating: anime.score ? String(anime.score) : null,
-        ageRating: mapAgeRating(anime.rating),
-        year: anime.year ?? null,
-        genres: (anime.genres ?? []).map((genre) => genre.name.trim()).filter((name) => name !== ""),
-        studio: anime.studios?.[0]?.name.trim() || null,
-    });
+    return dataSuccess(mapJikanSeriesMetadata(anime));
 };
 
 export const persistSeriesMetadata = async (title: string, entry: JikanSeriesMetadata): Promise<boolean> => {

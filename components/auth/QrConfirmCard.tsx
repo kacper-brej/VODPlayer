@@ -1,278 +1,102 @@
-'use client'
-import React, { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { Tv, Mail, Lock, Unlock, Eye, EyeClosed } from 'lucide-react';
-import { cn } from "@/lib/utils"
-import { AuthStatusMessage } from "@/components/auth/AuthStatusMessage";
-import type { AuthUser } from "@/lib/contracts";
-import { fetchCurrentUser } from "@/lib/AuthContext";
-import { DataErrorState } from "@/components/data/DataState";
-import type { DataErrorReason } from "@/lib/dataResult";
+"use client";
 
-type Phase = 'checking' | 'needsLogin' | 'confirm' | 'approved' | 'invalid' | 'error';
+import { useEffect, useState, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
+import { Check, Smartphone } from "lucide-react";
+import { AuthCardShell, authInputClass, authPrimaryButtonClass } from "@/components/auth/AuthCardShell";
+import { AuthStatusMessage } from "@/components/auth/AuthStatusMessage";
+import { PasswordField } from "@/components/auth/PasswordField";
+import { approveQrSessionAction, getCurrentUserAction, loginAction, type AuthActionResult } from "@/lib/authActions";
+import type { AuthUser } from "@/lib/contracts";
+
+type Phase = "checking" | "login" | "confirm" | "approved" | "invalid";
 
 export function QrConfirmCard() {
-    const searchParams = useSearchParams();
-    const token = searchParams.get('token') ?? '';
-
-    const [phase, setPhase] = useState<Phase>(token ? 'checking' : 'invalid');
-    const [lastToken, setLastToken] = useState(token);
+    const token = useSearchParams().get("token") ?? "";
+    const [phase, setPhase] = useState<Phase>(token ? "checking" : "invalid");
     const [user, setUser] = useState<AuthUser | null>(null);
-    const [failure, setFailure] = useState<DataErrorReason | null>(null);
-    const [retryKey, setRetryKey] = useState(0);
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [showPassword, setShowPassword] = useState(false);
-    const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-    const [statusMessage, setStatusMessage] = useState("");
-
-    if (token !== lastToken) {
-        setLastToken(token);
-        setPhase(token ? 'checking' : 'invalid');
-    }
+    const [result, setResult] = useState<AuthActionResult | null>(null);
+    const [pending, startTransition] = useTransition();
 
     useEffect(() => {
+        let active = true;
         if (!token) return;
+        getCurrentUserAction().then((currentUser) => {
+            if (!active) return;
+            setUser(currentUser);
+            setPhase(currentUser ? "confirm" : "login");
+        });
+        return () => {
+            active = false;
+        };
+    }, [token]);
 
-        (async () => {
-            const result = await fetchCurrentUser();
+    useEffect(() => {
+        const clearStatus = (event: KeyboardEvent) => {
+            if (event.key === "Escape") setResult(null);
+        };
+        window.addEventListener("keydown", clearStatus);
+        return () => window.removeEventListener("keydown", clearStatus);
+    }, []);
 
-            if (result.kind === "error") {
-                if (result.reason === "unauthorized") {
-                    setPhase('needsLogin');
-                } else {
-                    setFailure(result.reason);
-                    setPhase('error');
-                }
+    const signIn = (formData: FormData) => {
+        setResult(null);
+        startTransition(async () => {
+            const next = await loginAction(formData);
+            if (!next.ok) {
+                setResult(next);
                 return;
             }
-
-            if (!result.data) {
-                setPhase('needsLogin');
+            const currentUser = await getCurrentUserAction();
+            if (!currentUser) {
+                setResult({ ok: false, code: "server", message: "Could not verify the current user." });
                 return;
             }
-
-            setUser(result.data);
-            setPhase('confirm');
-        })();
-    }, [retryKey, token]);
-
-    const handleLogin = async (event: React.FormEvent) => {
-        event.preventDefault();
-        setStatus('loading');
-        setStatusMessage("");
-
-        try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/login.php`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ email, password, rememberMe: false }),
-            });
-
-            if (res.ok) {
-                setStatus('idle');
-                const result = await fetchCurrentUser();
-
-                if (result.kind === "error") {
-                    setStatus('error');
-                    setStatusMessage('Could not verify the current user.');
-                    return;
-                }
-
-                if (!result.data) {
-                    setStatus('error');
-                    setStatusMessage('Could not verify the current user.');
-                    return;
-                }
-
-                setUser(result.data);
-                setPhase('confirm');
-            } else {
-                const data = await res.json();
-                setStatus('error');
-                setStatusMessage(data.error ?? 'Błędne dane logowania.');
-            }
-        } catch {
-            setStatus('error');
-            setStatusMessage('Błąd połączenia z serwerem.');
-        }
+            setUser(currentUser);
+            setPhase("confirm");
+        });
     };
 
-    const handleApprove = async () => {
-        setStatus('loading');
-        setStatusMessage("");
-
-        try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/qr-approve.php`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ token }),
-            });
-
-            if (res.ok) {
-                setStatus('idle');
-                setPhase('approved');
-            } else {
-                const data = await res.json();
-                setStatus('error');
-                setStatusMessage(data.error ?? 'Nie udało się zatwierdzić logowania.');
-            }
-        } catch {
-            setStatus('error');
-            setStatusMessage('Błąd połączenia z serwerem.');
-        }
+    const approve = () => {
+        setResult(null);
+        startTransition(async () => {
+            const next = await approveQrSessionAction(token);
+            setResult(next);
+            if (next.ok) setPhase("approved");
+        });
     };
 
     return (
-        <div className="min-h-screen w-full bg-background relative overflow-hidden flex items-center justify-center">
-            <div className="absolute inset-0 bg-gradient-to-b from-primary/25 via-surface to-background" />
-            <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-[120vh] h-[60vh] rounded-b-[50%] bg-primary/20 blur-[80px]" />
-
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8 }}
-                className="w-full max-w-sm relative z-10 px-4"
-            >
-                <div className="relative bg-surface/60 backdrop-blur-xl rounded-2xl p-6 md:p-8 border border-white/[0.05] shadow-2xl">
-                    <div className="text-center space-y-1 md:space-y-2 mb-6">
-                        <div className="mx-auto w-11 h-11 md:w-14 md:h-14 rounded-xl bg-primary/20 flex items-center justify-center">
-                            <Tv className="text-primary w-5.5 h-5.5 md:w-7 md:h-7" />
-                        </div>
-                        <h1 className="text-xl md:text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-b from-foreground to-foreground/80">
-                            Logowanie przez QR
-                        </h1>
+        <AuthCardShell title="Potwierdź urządzenie" description="Zatwierdź logowanie na drugim ekranie.">
+            {phase === "checking" && <p role="status" className="py-6 text-center text-sm text-nx-text-2">Sprawdzanie sesji…</p>}
+            {phase === "invalid" && <AuthStatusMessage status="error" message="The QR link is missing or invalid." />}
+            {phase === "login" && (
+                <form action={signIn} className="space-y-4">
+                    <div>
+                        <label htmlFor="qr-email" className="mb-2 block text-sm font-medium text-nx-text">Adres email</label>
+                        <input id="qr-email" name="email" type="email" autoComplete="email" required autoFocus className={authInputClass} />
                     </div>
-
-                    {phase === 'checking' && (
-                        <div className="flex justify-center py-6">
-                            <div className="w-6 h-6 border-2 border-border border-t-primary rounded-full animate-spin" />
-                        </div>
-                    )}
-
-                    {phase === 'invalid' && (
-                        <p className="text-center text-sm text-danger">
-                            Nieprawidłowy link. Wróć na telewizor i odśwież kod QR.
-                        </p>
-                    )}
-
-                    {phase === 'error' && failure && (
-                        <DataErrorState
-                            reason={failure}
-                            compact
-                            onRetry={() => setRetryKey((value) => value + 1)}
-                        />
-                    )}
-
-                    {phase === 'needsLogin' && (
-                        <form onSubmit={handleLogin} className="space-y-4">
-                            <p className="text-center text-xs md:text-sm text-muted mb-2">
-                                Zaloguj się, aby potwierdzić logowanie na telewizorze
-                            </p>
-
-                            <div className="relative flex items-center overflow-hidden rounded-lg">
-                                <Mail className="absolute left-3 w-4 h-4 text-muted" />
-                                <input
-                                    type="email"
-                                    placeholder="Adres email"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    required
-                                    className={cn(
-                                        "w-full bg-surface-light/50 border border-transparent focus:border-primary/40 text-foreground placeholder:text-muted h-11 rounded-lg pl-10 pr-3 text-sm outline-none focus:bg-surface-light transition-all"
-                                    )}
-                                />
-                            </div>
-
-                            <div className="relative flex items-center overflow-hidden rounded-lg">
-                                <Lock className="absolute left-3 w-4 h-4 text-muted" />
-                                <input
-                                    type={showPassword ? "text" : "password"}
-                                    placeholder="Hasło"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    required
-                                    className={cn(
-                                        "w-full bg-surface-light/50 border border-transparent focus:border-primary/40 text-foreground placeholder:text-muted h-11 rounded-lg pl-10 pr-10 text-sm outline-none focus:bg-surface-light transition-all"
-                                    )}
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-3"
-                                >
-                                    {showPassword ? (
-                                        <Eye className="w-4 h-4 text-muted" />
-                                    ) : (
-                                        <EyeClosed className="w-4 h-4 text-muted" />
-                                    )}
-                                </button>
-                            </div>
-
-                            <AuthStatusMessage status={status === 'success' || status === 'error' ? status : null} message={statusMessage} />
-
-                            <button
-                                type="submit"
-                                disabled={status === 'loading'}
-                                className="w-full bg-primary text-background font-bold h-11 rounded-lg flex items-center justify-center shadow-lg shadow-primary/25 disabled:opacity-60"
-                            >
-                                {status === 'loading' ? (
-                                    <div className="w-4 h-4 border-2 border-background/70 border-t-transparent rounded-full animate-spin" />
-                                ) : (
-                                    'Zaloguj się'
-                                )}
-                            </button>
-                        </form>
-                    )}
-
-                    {phase === 'confirm' && user && (
-                        <div className="text-center space-y-5">
-                            <p className="text-sm text-foreground">
-                                Zalogowano jako <span className="text-primary font-medium">{user.username}</span>.
-                                Czy chcesz zalogować tym kontem swój telewizor?
-                            </p>
-
-                            <AuthStatusMessage status={status === 'success' || status === 'error' ? status : null} message={statusMessage} />
-
-                            <button
-                                type="button"
-                                onClick={handleApprove}
-                                disabled={status === 'loading'}
-                                className="w-full bg-primary text-background font-bold h-11 rounded-lg flex items-center justify-center shadow-lg shadow-primary/25 disabled:opacity-60"
-                            >
-                                {status === 'loading' ? (
-                                    <div className="w-4 h-4 border-2 border-background/70 border-t-transparent rounded-full animate-spin" />
-                                ) : (
-                                    'Zatwierdź logowanie'
-                                )}
-                            </button>
-                        </div>
-                    )}
-
-                    {phase === 'approved' && (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            className="text-center space-y-4 py-2"
-                        >
-                            <motion.div
-                                initial={{ scale: 0, rotate: -25 }}
-                                animate={{ scale: 1, rotate: 0 }}
-                                transition={{ type: "spring", stiffness: 400, damping: 15, delay: 0.1 }}
-                                className="mx-auto w-14 h-14 rounded-full bg-emerald-500/15 flex items-center justify-center"
-                            >
-                                <Unlock className="w-6 h-6 text-emerald-400" />
-                            </motion.div>
-                            <p className="text-sm text-foreground">
-                                Gotowe! Twój telewizor loguje się automatycznie. Możesz odłożyć telefon.
-                            </p>
-                        </motion.div>
-                    )}
+                    <PasswordField id="qr-password" name="password" label="Hasło" autoComplete="current-password" />
+                    <AuthStatusMessage status={result ? "error" : null} message={result?.message ?? ""} />
+                    <button type="submit" disabled={pending} className={authPrimaryButtonClass}>{pending ? "Logowanie…" : "Zaloguj się"}</button>
+                </form>
+            )}
+            {phase === "confirm" && user && (
+                <div className="space-y-5">
+                    <div className="flex items-center gap-3 rounded-xl border border-nx-border bg-nx-raised p-4">
+                        <Smartphone aria-hidden="true" className="size-5 text-nx-accent" />
+                        <p className="text-sm text-nx-text">Zaloguj urządzenie jako <strong>{user.username}</strong></p>
+                    </div>
+                    <AuthStatusMessage status={result ? result.ok ? "success" : "error" : null} message={result?.message ?? ""} />
+                    <button type="button" onClick={approve} disabled={pending} className={authPrimaryButtonClass}>{pending ? "Zatwierdzanie…" : "Zatwierdź logowanie"}</button>
                 </div>
-            </motion.div>
-        </div>
+            )}
+            {phase === "approved" && (
+                <div className="grid place-items-center gap-4 py-4 text-center">
+                    <div className="grid size-12 place-items-center rounded-full border border-nx-border bg-nx-raised text-nx-accent"><Check className="size-6" /></div>
+                    <p className="text-sm leading-6 text-nx-text">Gotowe. Drugie urządzenie może kontynuować logowanie.</p>
+                </div>
+            )}
+        </AuthCardShell>
     );
 }

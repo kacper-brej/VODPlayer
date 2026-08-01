@@ -1,138 +1,113 @@
-'use client'
-import React, { useEffect, useRef, useState } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
-import { motion } from 'framer-motion';
-import { ArrowLeft, RefreshCw, Unlock } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/AuthContext';
-import setSessionCookieAction from '@/lib/setSessionCookieAction';
+"use client";
 
-type QrStatus = 'loading' | 'pending' | 'approved' | 'expired' | 'error';
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { QRCodeSVG } from "qrcode.react";
+import { ArrowLeft, CircleCheck, RefreshCw } from "lucide-react";
+import { authSecondaryButtonClass } from "@/components/auth/AuthCardShell";
+import { checkQrSessionAction, createQrSessionAction } from "@/lib/authActions";
 
-export function QrLoginPanel({ onBack }: { onBack: () => void }) {
-    const [token, setToken] = useState<string | null>(null);
-    const [status, setStatus] = useState<QrStatus>('loading');
+type QrStatus = "loading" | "pending" | "approved" | "expired" | "error";
+
+export function QrLoginPanel({ onBack, mode = "login" }: { onBack: () => void; mode?: "login" | "register" }) {
     const router = useRouter();
-    const { refreshUser } = useAuth();
-    const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const [token, setToken] = useState<string | null>(null);
+    const [status, setStatus] = useState<QrStatus>("loading");
+    const [awaitingVerification, setAwaitingVerification] = useState(false);
 
-    const createSession = async () => {
-        setStatus('loading');
-        try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/qr-create.php`, { method: 'POST' });
-            if (!res.ok) throw new Error('create failed');
-            const data = await res.json();
-            setToken(data.token);
-            setStatus('pending');
-        } catch {
-            setStatus('error');
+    const createSession = useCallback(async () => {
+        setStatus("loading");
+        setAwaitingVerification(false);
+        const session = await createQrSessionAction(mode);
+        if (!session) {
+            setStatus("error");
+            return;
         }
-    };
+        setToken(session.token);
+        setStatus("pending");
+    }, [mode]);
 
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        createSession();
-    }, []);
+        const timer = window.setTimeout(() => void createSession(), 0);
+        return () => window.clearTimeout(timer);
+    }, [createSession]);
 
     useEffect(() => {
-        if (!token || status !== 'pending') return;
+        if (!token || status !== "pending") return;
+        let active = true;
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        const startedAt = Date.now();
 
-        pollRef.current = setInterval(async () => {
-            try {
-                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/qr-check.php?token=${token}`, {
-                    credentials: 'include',
-                });
-                const data = await res.json();
-
-                if (data.status === 'approved') {
-                    if (pollRef.current) clearInterval(pollRef.current);
-                    if (data.token) {
-                        await setSessionCookieAction(data.token, false);
-                    }
-                    await refreshUser();
-                    setStatus('approved');
-                    setTimeout(() => {
-                        router.push('/profiles');
-                    }, 700);
-                } else if (data.status === 'expired') {
-                    if (pollRef.current) clearInterval(pollRef.current);
-                    setStatus('expired');
-                }
-            } catch {
+        const poll = async () => {
+            if (!active) return;
+            if (Date.now() - startedAt >= 180_000) {
+                setStatus("expired");
+                return;
             }
-        }, 2000);
-
-        return () => {
-            if (pollRef.current) clearInterval(pollRef.current);
+            if (document.visibilityState === "hidden") {
+                timer = setTimeout(poll, 2000);
+                return;
+            }
+            const next = await checkQrSessionAction(token);
+            if (!active) return;
+            if (next === "approved") {
+                setStatus("approved");
+                router.replace("/profiles");
+                return;
+            }
+            if (next === "expired" || next === "error") {
+                setStatus(next);
+                return;
+            }
+            if (next === "verification") setAwaitingVerification(true);
+            timer = setTimeout(poll, 2000);
         };
-    }, [token, status, router, refreshUser]);
 
-    const qrUrl = token && typeof window !== 'undefined'
-        ? `${window.location.origin}/qr-confirm?token=${token}`
-        : '';
+        timer = setTimeout(poll, 2000);
+        return () => {
+            active = false;
+            if (timer) clearTimeout(timer);
+        };
+    }, [router, status, token]);
+
+    const qrUrl = token && typeof window !== "undefined"
+        ? mode === "register"
+            ? `${window.location.origin}/signup?qrToken=${encodeURIComponent(token)}`
+            : `${window.location.origin}/qr-confirm?token=${encodeURIComponent(token)}`
+        : "";
+
+    const pendingMessage = awaitingVerification
+        ? "Konto utworzone. Potwierdź adres email na telefonie…"
+        : mode === "register"
+            ? "Zeskanuj kod i utwórz konto na telefonie. Kod jest ważny przez 3 minuty."
+            : "Kod jest ważny przez 3 minuty. Oczekiwanie na potwierdzenie…";
 
     return (
-        <div className="flex flex-col items-center gap-5 py-2">
-            <div className="w-64 h-64 md:w-72 md:h-72 rounded-2xl bg-white p-4 flex items-center justify-center shadow-lg shrink-0">
-                {status === 'pending' && qrUrl ? (
-                    <QRCodeSVG value={qrUrl} size={256} level="M" className="w-full h-full" />
-                ) : status === 'approved' ? (
-                    <motion.div
-                        initial={{ scale: 0, rotate: -20 }}
-                        animate={{ scale: 1, rotate: 0 }}
-                        transition={{ type: 'spring', stiffness: 350, damping: 18 }}
-                        className="flex flex-col items-center gap-3 text-center px-4"
-                    >
-                        <div className="w-14 h-14 rounded-full bg-emerald-500/15 flex items-center justify-center">
-                            <Unlock className="w-6 h-6 text-emerald-500" />
-                        </div>
-                        <p className="text-sm font-semibold text-zinc-700">Zalogowano! Przekierowujemy…</p>
-                    </motion.div>
-                ) : status === 'expired' ? (
-                    <div className="text-center px-4 space-y-3">
-                        <p className="text-sm text-zinc-600">Kod wygasł</p>
-                        <button
-                            type="button"
-                            onClick={createSession}
-                            className="inline-flex items-center gap-1 text-primary text-sm font-medium"
-                        >
-                            <RefreshCw className="w-4 h-4" />
-                            Wygeneruj nowy
+        <div className="space-y-5">
+            <div className="mx-auto grid aspect-square w-full max-w-[280px] place-items-center rounded-2xl bg-white p-4 text-center text-zinc-700">
+                {status === "pending" && qrUrl && <QRCodeSVG value={qrUrl} level="M" className="size-full" />}
+                {status === "loading" && <span className="text-sm">Generowanie kodu…</span>}
+                {status === "approved" && (
+                    <div className="grid place-items-center gap-3">
+                        <CircleCheck className="size-9 text-violet-600" />
+                        <span className="text-sm font-semibold">{mode === "register" ? "Konto potwierdzone" : "Urządzenie zatwierdzone"}</span>
+                    </div>
+                )}
+                {(status === "expired" || status === "error") && (
+                    <div className="space-y-4 px-4">
+                        <p className="text-sm">{status === "expired" ? "Kod wygasł." : "Nie udało się wygenerować kodu."}</p>
+                        <button type="button" onClick={createSession} className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg px-3 text-sm font-semibold text-violet-700 focus-visible:outline-2 focus-visible:outline-violet-700">
+                            <RefreshCw className="size-4" />Wygeneruj nowy
                         </button>
                     </div>
-                ) : status === 'error' ? (
-                    <div className="text-center px-4 space-y-3">
-                        <p className="text-sm text-danger">Błąd generowania kodu.</p>
-                        <button
-                            type="button"
-                            onClick={createSession}
-                            className="inline-flex items-center gap-1 text-primary text-sm font-medium"
-                        >
-                            <RefreshCw className="w-4 h-4" />
-                            Spróbuj ponownie
-                        </button>
-                    </div>
-                ) : (
-                    <div className="w-8 h-8 border-2 border-zinc-300 border-t-primary rounded-full animate-spin" />
                 )}
             </div>
-
-            <p className="text-muted text-xs md:text-sm text-center max-w-xs">
-                Zeskanuj kod telefonem, na którym jesteś zalogowany w Nocturnie, aby zalogować to urządzenie.
+            <p className="min-h-10 text-center text-[13px] leading-5 text-nx-text-2" aria-live="polite">
+                {status === "pending" ? pendingMessage : ""}
             </p>
-
-            <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                type="button"
-                onClick={onBack}
-                className="w-full relative"
-            >
-                <div className="relative overflow-hidden bg-surface-light/50 text-foreground font-medium h-10 md:h-12 rounded-lg border border-border hover:border-primary/40 transition-all duration-300 flex items-center justify-center gap-2">
-                    <ArrowLeft className="w-4 h-4 md:w-5 md:h-5 text-muted" />
-                    <span className="text-xs md:text-sm">Wróć do logowania hasłem</span>
-                </div>
-            </motion.button>
+            <button type="button" onClick={onBack} className={authSecondaryButtonClass}>
+                <ArrowLeft className="size-4" />{mode === "register" ? "Wróć do formularza" : "Wróć do hasła"}
+            </button>
         </div>
     );
 }

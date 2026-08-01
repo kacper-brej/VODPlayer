@@ -105,7 +105,7 @@ const Sidebar = () => {
                     <Link
                         href="/"
                         aria-label="Nocturna — strona główna"
-                        className="flex h-10 w-10 items-center justify-center rounded-lg font-display text-2xl text-foreground outline-none transition-colors hover:bg-surface-light focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
+                        className="flex size-11 items-center justify-center rounded-lg font-display text-[28px] text-foreground outline-none transition-colors hover:bg-surface-light focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
                     >
                         N
                     </Link>

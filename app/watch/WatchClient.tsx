@@ -34,6 +34,9 @@ interface WatchClientProps {
     startTime: number;
     nextEpisodeTitle?: string;
     chapters: EpisodeChapter[];
+    autoplayNext: boolean;
+    skipIntroPrompt: boolean;
+    defaultVolume: number;
 }
 
 const WatchClient = ({
@@ -50,6 +53,9 @@ const WatchClient = ({
     startTime,
     nextEpisodeTitle,
     chapters,
+    autoplayNext,
+    skipIntroPrompt,
+    defaultVolume,
 }: WatchClientProps) => {
     const router = useRouter();
     const [playerInstanceKey, setPlayerInstanceKey] = useState(0);
@@ -109,6 +115,7 @@ const WatchClient = ({
 
     return (
         <div className="fixed inset-0 z-[999] bg-[var(--nx-bg)] flex flex-col w-screen h-screen">
+            <h1 className="sr-only">{seriesTitle} — {episodeTitle}</h1>
 
             <div className="flex-1 w-full h-full flex items-center justify-center">
                 <PlayerErrorBoundary
@@ -132,6 +139,9 @@ const WatchClient = ({
                         onProgressUpdate={handleProgressUpdate}
                         startTime={startTime}
                         chapters={chapters}
+                        autoplayNext={autoplayNext}
+                        skipIntroPrompt={skipIntroPrompt}
+                        defaultVolume={defaultVolume}
                     />
                 </PlayerErrorBoundary>
             </div>

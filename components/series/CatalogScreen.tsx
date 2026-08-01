@@ -163,17 +163,17 @@ const CatalogScreen = async ({
 
     if (catalogResult.kind === "error") {
         return (
-            <main className="min-h-screen bg-nx-bg px-5 py-16 sm:px-8 xl:px-10 min-[1440px]:px-12">
-                <DataErrorState reason={catalogResult.reason} />
-            </main>
+            <div className="min-h-screen bg-nx-bg px-5 py-16 sm:px-8 xl:px-10 min-[1440px]:px-12">
+                <DataErrorState reason={catalogResult.reason} headingLevel={1} />
+            </div>
         );
     }
 
     if (mode === "watchlist" && watchlistResult.kind === "error") {
         return (
-            <main className="min-h-screen bg-nx-bg px-5 py-16 sm:px-8 xl:px-10 min-[1440px]:px-12">
-                <DataErrorState reason={watchlistResult.reason} />
-            </main>
+            <div className="min-h-screen bg-nx-bg px-5 py-16 sm:px-8 xl:px-10 min-[1440px]:px-12">
+                <DataErrorState reason={watchlistResult.reason} headingLevel={1} />
+            </div>
         );
     }
 
@@ -228,7 +228,7 @@ const CatalogScreen = async ({
     nextParams.set("page", String(page + 1));
 
     return (
-        <main className="min-h-screen bg-nx-bg px-5 pb-[calc(80px+env(safe-area-inset-bottom))] pt-12 sm:px-8 lg:pb-20 lg:pt-16 xl:px-10 min-[1440px]:px-12">
+        <div className="min-h-screen bg-nx-bg px-5 pb-[calc(80px+env(safe-area-inset-bottom))] pt-12 sm:px-8 lg:pb-20 lg:pt-16 xl:px-10 min-[1440px]:px-12">
             <header className="max-w-4xl">
                 <span className="font-mono text-[10px] tracking-[0.22em] text-nx-text-2 sm:text-[11px]">
                     {copy.kicker} / {source.length} {source.length === 1 ? "TYTUŁ" : "TYTUŁÓW"}
@@ -283,7 +283,6 @@ const CatalogScreen = async ({
                                                 <SeriesCard
                                                     item={{
                                                         ...item,
-                                                        previewVideoUrl: undefined,
                                                     }}
                                                     variant="mosaic"
                                                     featured={featured}
@@ -311,7 +310,7 @@ const CatalogScreen = async ({
                     )}
                 </>
             )}
-        </main>
+        </div>
     );
 };
 

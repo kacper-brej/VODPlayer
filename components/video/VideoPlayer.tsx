@@ -12,6 +12,7 @@ import {
     Poster,
 } from '@vidstack/react';
 import { AlertTriangle, RotateCcw } from 'lucide-react';
+import { MotionConfig, useReducedMotion } from 'framer-motion';
 import type { EpisodeChapter } from '@/lib/contracts';
 import PlayerControls from './PlayerControls';
 import {
@@ -40,6 +41,9 @@ interface VideoPlayerProps {
     onProgressUpdate?: (currentTime: number, duration: number) => void;
     startTime?: number;
     chapters?: EpisodeChapter[];
+    autoplayNext?: boolean;
+    skipIntroPrompt?: boolean;
+    defaultVolume?: number;
 }
 
 const NEXT_EPISODE_TRIGGER_SECONDS = 60;
@@ -71,12 +75,17 @@ export const VideoPlayer = ({
     onProgressUpdate,
     startTime = 0,
     chapters = [],
+    autoplayNext = true,
+    skipIntroPrompt = true,
+    defaultVolume,
 }: VideoPlayerProps) => {
     const playerRef = useRef<MediaPlayerInstance>(null);
+    const prefersReducedMotion = useReducedMotion();
     const lastSavedTime = useRef<number>(0);
     const currentTimeRef = useRef(0);
     const durationRef = useRef(0);
     const hasSeekedToStart = useRef(false);
+    const hasAppliedDefaultVolume = useRef(false);
     const nextEpisodeRef = useRef(onNextEpisode);
     const seekFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -130,10 +139,16 @@ export const VideoPlayer = ({
             playerRef.current.currentTime = startTime;
             hasSeekedToStart.current = true;
         }
+
+        if (!hasAppliedDefaultVolume.current && defaultVolume !== undefined && playerRef.current) {
+            playerRef.current.volume = Math.min(1, Math.max(0, defaultVolume / 100));
+            hasAppliedDefaultVolume.current = true;
+        }
     };
 
     useEffect(() => {
         hasSeekedToStart.current = false;
+        hasAppliedDefaultVolume.current = false;
         currentTimeRef.current = 0;
         durationRef.current = 0;
         lastSavedTime.current = 0;
@@ -177,7 +192,8 @@ export const VideoPlayer = ({
             : introChapter.endSeconds
         : null;
     const showSkipIntro = Boolean(
-        introChapter
+        skipIntroPrompt
+        && introChapter
         && introEndSeconds
         && duration > 0
         && currentTime >= introChapter.startSeconds
@@ -311,18 +327,18 @@ export const VideoPlayer = ({
     });
 
     useEffect(() => {
-        if (!showNextEpisode || autoAdvanceCancelled) return;
+        if (!showNextEpisode || autoAdvanceCancelled || prefersReducedMotion || !autoplayNext) return;
 
         const timeout = setTimeout(() => {
             nextEpisodeRef.current?.();
         }, NEXT_EPISODE_AUTOPLAY_MS);
 
         return () => clearTimeout(timeout);
-    }, [showNextEpisode, autoAdvanceCancelled]);
+    }, [showNextEpisode, autoAdvanceCancelled, prefersReducedMotion, autoplayNext]);
 
     const handleEnded = () => {
         flushProgress();
-        onNextEpisode?.();
+        if (!prefersReducedMotion && autoplayNext) onNextEpisode?.();
     };
 
     const handleRetry = () => {
@@ -331,6 +347,7 @@ export const VideoPlayer = ({
     };
 
     return (
+        <MotionConfig reducedMotion="user">
         <div className="np-stage">
             <MediaPlayer
                 key={`${src}-${mediaInstanceKey}`}
@@ -399,7 +416,7 @@ export const VideoPlayer = ({
                     <NextEpisodePill
                         visible={showNextEpisode && !mediaError}
                         countdownMs={NEXT_EPISODE_AUTOPLAY_MS}
-                        countdownActive={showNextEpisode && !autoAdvanceCancelled}
+                        countdownActive={showNextEpisode && !autoAdvanceCancelled && !prefersReducedMotion && autoplayNext}
                         episodesLeft={episodesLeft}
                         nextEpisodeTitle={nextEpisodeTitle}
                         onNextEpisode={onNextEpisode}
@@ -430,5 +447,6 @@ export const VideoPlayer = ({
                 )}
             </MediaPlayer>
         </div>
+        </MotionConfig>
     );
 };

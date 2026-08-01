@@ -56,7 +56,7 @@ const EpisodeCard = ({
                 {episode.thumbnail && !imageFailed ? (
                     <Image
                         src={episode.thumbnail}
-                        alt=""
+                        alt={episode.title}
                         fill
                         sizes="(max-width: 390px) 116px, (max-width: 1024px) 205px, (max-width: 1280px) 165px, 189px"
                         className={`object-cover transition-opacity ${episode.watched ? "opacity-75" : ""}`}

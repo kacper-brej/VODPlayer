@@ -18,7 +18,7 @@ const Error = ({
         <div className="flex min-h-[70vh] w-full items-center justify-center px-4 py-16">
             <div className="flex w-full max-w-md flex-col items-center rounded-2xl border border-danger/40 bg-surface px-6 py-10 text-center">
                 <TriangleAlert size={28} className="text-danger" aria-hidden="true" />
-                <h1 className="mt-4 font-display text-2xl text-foreground">Nie udało się wczytać strony</h1>
+                <h1 className="mt-4 font-display text-[28px] text-foreground">Nie udało się wczytać strony</h1>
                 <p className="mt-3 text-sm text-muted">
                     Coś poszło nie tak. Spróbuj ponownie — jeśli problem się powtórzy, wróć na stronę główną.
                 </p>

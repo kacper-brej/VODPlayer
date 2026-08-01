@@ -1,481 +1,74 @@
-'use client'
-import React, { useState } from 'react';
-import Link from 'next/link';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Tv, Mail, Lock, User, Eye, EyeClosed, ArrowRight, QrCode, Unlock, Check } from 'lucide-react';
+"use client";
 
-import { cn } from "@/lib/utils"
+import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { QrCode, UserPlus } from "lucide-react";
+import { AuthCardShell, authInputClass, authLinkClass, authPrimaryButtonClass, authSecondaryButtonClass } from "@/components/auth/AuthCardShell";
 import { AuthStatusMessage } from "@/components/auth/AuthStatusMessage";
+import { PasswordField } from "@/components/auth/PasswordField";
 import { QrLoginPanel } from "@/components/auth/QrLoginPanel";
-
-function Input({ className, type, ...props }: React.ComponentProps<"input">) {
-    return (
-        <input
-            type={type}
-            data-slot="input"
-            className={cn(
-                "file:text-foreground placeholder:text-muted selection:bg-primary selection:text-background border-input flex h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
-                "focus-visible:border-primary focus-visible:ring-primary/40 focus-visible:ring-[3px]",
-                "aria-invalid:ring-danger/20 aria-invalid:border-danger",
-                className
-            )}
-            {...props}
-        />
-    )
-}
+import { registerAction, type AuthActionResult } from "@/lib/authActions";
 
 export function SignUpCard() {
-    const [showPassword, setShowPassword] = useState(false);
-    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-    const [username, setUsername] = useState("");
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [confirmPassword, setConfirmPassword] = useState("");
-    const [acceptTerms, setAcceptTerms] = useState(false);
-    const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-    const [statusMessage, setStatusMessage] = useState("");
-    const [focusedInput, setFocusedInput] = useState<string | null>(null);
-    const [registered, setRegistered] = useState(false);
+    const qrToken = useSearchParams().get("qrToken") ?? "";
+    const [result, setResult] = useState<AuthActionResult | null>(null);
     const [qrMode, setQrMode] = useState(false);
+    const [pending, startTransition] = useTransition();
 
-    // TODO: podpiąć docelową logikę rejestracji (middleware / sesja)
-    const handleSubmit = async (event: React.FormEvent) => {
-        event.preventDefault();
-        setStatusMessage("");
+    useEffect(() => {
+        const clearStatus = (event: KeyboardEvent) => {
+            if (event.key === "Escape") setResult(null);
+        };
+        window.addEventListener("keydown", clearStatus);
+        return () => window.removeEventListener("keydown", clearStatus);
+    }, []);
 
-        if (password !== confirmPassword) {
-            setStatus('error');
-            setStatusMessage("Hasła nie są takie same");
-            return;
-        }
-        if (!acceptTerms) {
-            setStatus('error');
-            setStatusMessage("Musisz zaakceptować regulamin");
-            return;
-        }
-        setStatus('loading');
-        try{
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/register.php`, {
-                method: "POST",
-                headers: {'Content-Type': 'application/json'},
-                credentials: 'include',
-                body: JSON.stringify({username, email, password}),
-            });
-            if (res.ok){
-                setStatus('success');
-                setStatusMessage('Konto utworzone!');
-                setTimeout(() => {
-                    setRegistered(true);
-                }, 600);
-                return;
-            }
-
-            let errorMessage = 'Nie udało się utworzyć konta.';
-            try {
-                const data = await res.json();
-                errorMessage = data.error ?? errorMessage;
-            } catch {
-            }
-            setStatus('error');
-            setStatusMessage(errorMessage);
-        }catch(error){
-            console.error(error);
-            setStatus('error');
-            setStatusMessage('Błąd połączenia z serwerem.');
-        }
+    const submit = (formData: FormData) => {
+        setResult(null);
+        startTransition(async () => setResult(await registerAction(formData)));
     };
 
     return (
-        <div className="min-h-screen w-full bg-background relative overflow-hidden flex items-center justify-center">
-            <div className="absolute inset-0 bg-gradient-to-b from-primary/25 via-surface to-background" />
-
-            <div className="absolute inset-0 opacity-[0.03] mix-blend-soft-light"
-                 style={{
-                     backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
-                     backgroundSize: '200px 200px'
-                 }}
-            />
-
-            <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-[120vh] h-[60vh] rounded-b-[50%] bg-primary/20 blur-[80px]" />
-            <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-[100vh] h-[60vh] rounded-b-full bg-primary/20 blur-[60px] opacity-20" />
-            <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-[90vh] h-[90vh] rounded-t-full bg-accent/10 blur-[60px] opacity-35" />
-
-            <div className="absolute left-1/4 top-1/4 w-96 h-96 bg-primary/5 rounded-full blur-[100px] animate-pulse opacity-40" />
-            <div className="absolute right-1/4 bottom-1/4 w-96 h-96 bg-accent/5 rounded-full blur-[100px] animate-pulse delay-1000 opacity-40" />
-
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8 }}
-                className="w-full max-w-sm md:max-w-md lg:max-w-lg relative z-10 px-4"
-            >
-                <div className="relative">
-                    <div className="relative group">
-                        <div
-                            className="absolute -inset-[1px] rounded-2xl opacity-0 group-hover:opacity-60 transition-opacity duration-700"
-                            style={{ boxShadow: "0 0 10px 2px var(--glow-primary)" }}
-                        />
-
-                        <div className="absolute -inset-[0.5px] rounded-2xl bg-gradient-to-r from-primary/10 via-white/5 to-primary/10 opacity-0 group-hover:opacity-70 transition-opacity duration-500" />
-
-                        <div className="relative bg-surface/60 backdrop-blur-xl rounded-2xl p-6 md:p-8 lg:p-10 border border-white/[0.05] shadow-2xl overflow-hidden">
-                            <div className="absolute inset-0 opacity-[0.03]"
-                                 style={{
-                                     backgroundImage: `linear-gradient(135deg, white 0.5px, transparent 0.5px), linear-gradient(45deg, white 0.5px, transparent 0.5px)`,
-                                     backgroundSize: '30px 30px'
-                                 }}
-                            />
-
-                            <div className="text-center space-y-1 md:space-y-2 mb-5 md:mb-7">
-                                <motion.div
-                                    initial={{ scale: 0.5, opacity: 0 }}
-                                    animate={{ scale: 1, opacity: 1 }}
-                                    transition={{ type: "spring", duration: 0.8 }}
-                                    className="mx-auto w-11 h-11 md:w-14 md:h-14 rounded-xl bg-primary/20 flex items-center justify-center relative overflow-hidden"
-                                >
-                                    <Tv className="text-primary w-5.5 h-5.5 md:w-7 md:h-7" />
-                                    <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-50" />
-                                </motion.div>
-
-                                <motion.h1
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: 0.2 }}
-                                    className="text-xl md:text-2xl lg:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-b from-foreground to-foreground/80"
-                                >
-                                    Stwórz konto
-                                </motion.h1>
-
-                                <motion.p
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    transition={{ delay: 0.3 }}
-                                    className="text-muted text-xs md:text-sm"
-                                >
-                                    Dołącz do Nocturna i zacznij oglądać
-                                </motion.p>
-                            </div>
-
-                            {registered ? (
-                                <motion.div
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    className="text-center space-y-4 py-2"
-                                >
-                                    <motion.div
-                                        initial={{ scale: 0, rotate: -25 }}
-                                        animate={{ scale: 1, rotate: 0 }}
-                                        transition={{ type: "spring", stiffness: 400, damping: 15, delay: 0.1 }}
-                                        className="mx-auto w-14 h-14 rounded-full bg-emerald-500/15 flex items-center justify-center"
-                                    >
-                                        <Unlock className="w-6 h-6 text-emerald-400" />
-                                    </motion.div>
-                                    <p className="text-sm text-foreground">
-                                        Konto zostało utworzone. Wysłaliśmy link aktywacyjny na adres <span className="text-primary font-medium">{email}</span> — kliknij go, aby móc się zalogować.
-                                    </p>
-                                    <Link href="/login" className="inline-flex items-center gap-1 text-primary text-sm font-medium hover:text-primary-hover transition-colors">
-                                        Wróć do logowania
-                                    </Link>
-                                </motion.div>
-                            ) : qrMode ? (
-                                <QrLoginPanel onBack={() => setQrMode(false)} />
-                            ) : (
-                            <form onSubmit={handleSubmit} className="space-y-4 md:space-y-5">
-                                <motion.div className="space-y-3 md:space-y-4">
-                                    <motion.div
-                                        className={`relative ${focusedInput === "username" ? 'z-10' : ''}`}
-                                        whileHover={{ scale: 1.01 }}
-                                        transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                                    >
-                                        <div className="absolute -inset-[0.5px] bg-gradient-to-r from-primary/10 via-white/5 to-primary/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300" />
-
-                                        <div className="relative flex items-center overflow-hidden rounded-lg">
-                                            <User className={`absolute left-3 md:left-4 w-4 h-4 md:w-5 md:h-5 transition-all duration-300 ${
-                                                focusedInput === "username" ? 'text-primary' : 'text-muted'
-                                            }`} />
-
-                                            <Input
-                                                type="text"
-                                                placeholder="Nazwa użytkownika"
-                                                value={username}
-                                                onChange={(e) => setUsername(e.target.value)}
-                                                onFocus={() => setFocusedInput("username")}
-                                                onBlur={() => setFocusedInput(null)}
-                                                required
-                                                className="w-full bg-surface-light/50 border-transparent focus:border-primary/40 text-foreground placeholder:text-muted h-10 md:h-12 transition-all duration-300 pl-10 md:pl-12 pr-3 md:text-base focus:bg-surface-light"
-                                            />
-
-                                            {focusedInput === "username" && (
-                                                <motion.div
-                                                    layoutId="input-highlight"
-                                                    className="absolute inset-0 bg-primary/5 -z-10"
-                                                    initial={{ opacity: 0 }}
-                                                    animate={{ opacity: 1 }}
-                                                    exit={{ opacity: 0 }}
-                                                    transition={{ duration: 0.2 }}
-                                                />
-                                            )}
-                                        </div>
-                                    </motion.div>
-
-                                    <motion.div
-                                        className={`relative ${focusedInput === "email" ? 'z-10' : ''}`}
-                                        whileHover={{ scale: 1.01 }}
-                                        transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                                    >
-                                        <div className="absolute -inset-[0.5px] bg-gradient-to-r from-primary/10 via-white/5 to-primary/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300" />
-
-                                        <div className="relative flex items-center overflow-hidden rounded-lg">
-                                            <Mail className={`absolute left-3 md:left-4 w-4 h-4 md:w-5 md:h-5 transition-all duration-300 ${
-                                                focusedInput === "email" ? 'text-primary' : 'text-muted'
-                                            }`} />
-
-                                            <Input
-                                                type="email"
-                                                placeholder="Adres email"
-                                                value={email}
-                                                onChange={(e) => setEmail(e.target.value)}
-                                                onFocus={() => setFocusedInput("email")}
-                                                onBlur={() => setFocusedInput(null)}
-                                                required
-                                                className="w-full bg-surface-light/50 border-transparent focus:border-primary/40 text-foreground placeholder:text-muted h-10 md:h-12 transition-all duration-300 pl-10 md:pl-12 pr-3 md:text-base focus:bg-surface-light"
-                                            />
-
-                                            {focusedInput === "email" && (
-                                                <motion.div
-                                                    layoutId="input-highlight"
-                                                    className="absolute inset-0 bg-primary/5 -z-10"
-                                                    initial={{ opacity: 0 }}
-                                                    animate={{ opacity: 1 }}
-                                                    exit={{ opacity: 0 }}
-                                                    transition={{ duration: 0.2 }}
-                                                />
-                                            )}
-                                        </div>
-                                    </motion.div>
-
-                                    <motion.div
-                                        className={`relative ${focusedInput === "password" ? 'z-10' : ''}`}
-                                        whileHover={{ scale: 1.01 }}
-                                        transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                                    >
-                                        <div className="absolute -inset-[0.5px] bg-gradient-to-r from-primary/10 via-white/5 to-primary/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300" />
-
-                                        <div className="relative flex items-center overflow-hidden rounded-lg">
-                                            <Lock className={`absolute left-3 md:left-4 w-4 h-4 md:w-5 md:h-5 transition-all duration-300 ${
-                                                focusedInput === "password" ? 'text-primary' : 'text-muted'
-                                            }`} />
-
-                                            <Input
-                                                type={showPassword ? "text" : "password"}
-                                                placeholder="Hasło"
-                                                value={password}
-                                                onChange={(e) => setPassword(e.target.value)}
-                                                onFocus={() => setFocusedInput("password")}
-                                                onBlur={() => setFocusedInput(null)}
-                                                required
-                                                minLength={8}
-                                                className="w-full bg-surface-light/50 border-transparent focus:border-primary/40 text-foreground placeholder:text-muted h-10 md:h-12 transition-all duration-300 pl-10 md:pl-12 pr-10 md:pr-12 md:text-base focus:bg-surface-light"
-                                            />
-
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowPassword(!showPassword)}
-                                                className="absolute right-3 md:right-4 cursor-pointer"
-                                            >
-                                                {showPassword ? (
-                                                    <Eye className="w-4 h-4 md:w-5 md:h-5 text-muted hover:text-foreground transition-colors duration-300" />
-                                                ) : (
-                                                    <EyeClosed className="w-4 h-4 md:w-5 md:h-5 text-muted hover:text-foreground transition-colors duration-300" />
-                                                )}
-                                            </button>
-
-                                            {focusedInput === "password" && (
-                                                <motion.div
-                                                    layoutId="input-highlight"
-                                                    className="absolute inset-0 bg-primary/5 -z-10"
-                                                    initial={{ opacity: 0 }}
-                                                    animate={{ opacity: 1 }}
-                                                    exit={{ opacity: 0 }}
-                                                    transition={{ duration: 0.2 }}
-                                                />
-                                            )}
-                                        </div>
-                                    </motion.div>
-
-                                    <motion.div
-                                        className={`relative ${focusedInput === "confirmPassword" ? 'z-10' : ''}`}
-                                        whileHover={{ scale: 1.01 }}
-                                        transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                                    >
-                                        <div className="absolute -inset-[0.5px] bg-gradient-to-r from-primary/10 via-white/5 to-primary/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300" />
-
-                                        <div className="relative flex items-center overflow-hidden rounded-lg">
-                                            <Lock className={`absolute left-3 md:left-4 w-4 h-4 md:w-5 md:h-5 transition-all duration-300 ${
-                                                focusedInput === "confirmPassword" ? 'text-primary' : 'text-muted'
-                                            }`} />
-
-                                            <Input
-                                                type={showConfirmPassword ? "text" : "password"}
-                                                placeholder="Potwierdź hasło"
-                                                value={confirmPassword}
-                                                onChange={(e) => setConfirmPassword(e.target.value)}
-                                                onFocus={() => setFocusedInput("confirmPassword")}
-                                                onBlur={() => setFocusedInput(null)}
-                                                required
-                                                minLength={8}
-                                                className="w-full bg-surface-light/50 border-transparent focus:border-primary/40 text-foreground placeholder:text-muted h-10 md:h-12 transition-all duration-300 pl-10 md:pl-12 pr-10 md:pr-12 md:text-base focus:bg-surface-light"
-                                            />
-
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                                className="absolute right-3 md:right-4 cursor-pointer"
-                                            >
-                                                {showConfirmPassword ? (
-                                                    <Eye className="w-4 h-4 md:w-5 md:h-5 text-muted hover:text-foreground transition-colors duration-300" />
-                                                ) : (
-                                                    <EyeClosed className="w-4 h-4 md:w-5 md:h-5 text-muted hover:text-foreground transition-colors duration-300" />
-                                                )}
-                                            </button>
-
-                                            {focusedInput === "confirmPassword" && (
-                                                <motion.div
-                                                    layoutId="input-highlight"
-                                                    className="absolute inset-0 bg-primary/5 -z-10"
-                                                    initial={{ opacity: 0 }}
-                                                    animate={{ opacity: 1 }}
-                                                    exit={{ opacity: 0 }}
-                                                    transition={{ duration: 0.2 }}
-                                                />
-                                            )}
-                                        </div>
-                                    </motion.div>
-                                </motion.div>
-
-                                <div className="flex items-center pt-1">
-                                    <div className="flex items-center space-x-2">
-                                        <div className="relative">
-                                            <input
-                                                id="accept-terms"
-                                                name="accept-terms"
-                                                type="checkbox"
-                                                checked={acceptTerms}
-                                                onChange={() => setAcceptTerms(!acceptTerms)}
-                                                className="appearance-none h-4 w-4 md:h-5 md:w-5 rounded border border-border bg-surface-light checked:bg-primary checked:border-primary focus:outline-none focus:ring-1 focus:ring-primary/40 transition-all duration-200"
-                                            />
-                                            <AnimatePresence>
-                                                {acceptTerms && (
-                                                    <motion.div
-                                                        initial={{ opacity: 0, scale: 0.4, rotate: -20 }}
-                                                        animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                                                        exit={{ opacity: 0, scale: 0.4 }}
-                                                        transition={{ type: "spring", stiffness: 450, damping: 20 }}
-                                                        className="absolute inset-0 flex items-center justify-center text-background pointer-events-none"
-                                                    >
-                                                        <Check className="w-3 h-3 md:w-3.5 md:h-3.5" strokeWidth={3} />
-                                                    </motion.div>
-                                                )}
-                                            </AnimatePresence>
-                                        </div>
-                                        <label htmlFor="accept-terms" className="text-xs md:text-sm text-muted hover:text-foreground transition-colors duration-200">
-                                            Akceptuję regulamin i politykę prywatności
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <AuthStatusMessage status={status === 'success' || status === 'error' ? status : null} message={statusMessage} />
-
-                                <motion.button
-                                    whileHover={{ scale: 1.02 }}
-                                    whileTap={{ scale: 0.98 }}
-                                    type="submit"
-                                    disabled={status === 'loading' || status === 'success'}
-                                    className="w-full relative group/button mt-1"
-                                >
-                                    <div className="absolute inset-0 bg-primary/30 rounded-lg blur-lg opacity-0 group-hover/button:opacity-70 transition-opacity duration-300" />
-
-                                    <div className="relative overflow-hidden bg-primary text-background font-bold h-10 md:h-12 rounded-lg transition-all duration-300 flex items-center justify-center shadow-lg shadow-primary/25">
-                                        <AnimatePresence mode="wait">
-                                            {status === 'loading' ? (
-                                                <motion.div
-                                                    key="loading"
-                                                    initial={{ opacity: 0 }}
-                                                    animate={{ opacity: 1 }}
-                                                    exit={{ opacity: 0 }}
-                                                    className="flex items-center justify-center"
-                                                >
-                                                    <div className="w-4 h-4 border-2 border-background/70 border-t-transparent rounded-full animate-spin" />
-                                                </motion.div>
-                                            ) : (
-                                                <motion.span
-                                                    key="button-text"
-                                                    initial={{ opacity: 0 }}
-                                                    animate={{ opacity: 1 }}
-                                                    exit={{ opacity: 0 }}
-                                                    className="flex items-center justify-center gap-1 text-sm md:text-base font-medium"
-                                                >
-                                                    Zarejestruj się
-                                                    <ArrowRight className="w-3 h-3 md:w-4 md:h-4 group-hover/button:translate-x-1 transition-transform duration-300" />
-                                                </motion.span>
-                                            )}
-                                        </AnimatePresence>
-                                    </div>
-                                </motion.button>
-
-                                <div className="relative mt-2 mb-5 md:mb-6 flex items-center">
-                                    <div className="flex-grow border-t border-white/5"></div>
-                                    <span className="mx-3 text-xs md:text-sm text-muted">
-                                        lub
-                                    </span>
-                                    <div className="flex-grow border-t border-white/5"></div>
-                                </div>
-
-                                <motion.button
-                                    whileHover={{ scale: 1.02 }}
-                                    whileTap={{ scale: 0.98 }}
-                                    type="button"
-                                    onClick={() => setQrMode(true)}
-                                    className="w-full relative group/qr"
-                                >
-                                    <div className="absolute inset-0 bg-primary/5 rounded-lg blur opacity-0 group-hover/qr:opacity-70 transition-opacity duration-300" />
-
-                                    <div className="relative overflow-hidden bg-surface-light/50 text-foreground font-medium h-10 md:h-12 rounded-lg border border-border hover:border-primary/40 transition-all duration-300 flex items-center justify-center gap-2">
-                                        <QrCode className="w-4 h-4 md:w-5 md:h-5 text-muted group-hover/qr:text-foreground transition-colors duration-300" />
-
-                                        <span className="text-muted group-hover/qr:text-foreground transition-colors text-xs md:text-sm">
-                                            Zarejestruj się przez kod QR
-                                        </span>
-
-                                        <motion.div
-                                            className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/5 to-white/0"
-                                            initial={{ x: '-100%' }}
-                                            whileHover={{ x: '100%' }}
-                                            transition={{ duration: 1, ease: "easeInOut" }}
-                                        />
-                                    </div>
-                                </motion.button>
-
-                                <motion.p
-                                    className="text-center text-xs md:text-sm text-muted mt-4 md:mt-5"
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    transition={{ delay: 0.5 }}
-                                >
-                                    Masz już konto?{' '}
-                                    <Link href="/login" className="relative inline-block group/signin">
-                                        <span className="relative z-10 text-primary group-hover/signin:text-primary-hover transition-colors duration-300 font-medium">
-                                            Zaloguj się
-                                        </span>
-                                        <span className="absolute bottom-0 left-0 w-0 h-[1px] bg-primary group-hover/signin:w-full transition-all duration-300" />
-                                    </Link>
-                                </motion.p>
-                            </form>
-                            )}
-                        </div>
-                    </div>
+        <AuthCardShell
+            title={qrMode ? "Rejestracja przez QR" : qrToken ? "Dokończ rejestrację" : "Utwórz konto"}
+            description={qrMode ? "Zeskanuj kod i dokończ zakładanie konta na telefonie." : qrToken ? "Po potwierdzeniu emaila pierwsze urządzenie zaloguje się automatycznie." : "Jedno konto, osobne profile i wspólna biblioteka Nocturny."}
+        >
+            {qrMode ? (
+                <QrLoginPanel mode="register" onBack={() => setQrMode(false)} />
+            ) : result?.ok ? (
+                <div className="space-y-5">
+                    <AuthStatusMessage status="success" message={result.message} />
+                    {qrToken && <p className="text-sm leading-6 text-nx-text-2">Potwierdź adres email. Po potwierdzeniu wróć do pierwszego urządzenia.</p>}
+                    <Link href="/login" className={authPrimaryButtonClass}>Przejdź do logowania</Link>
                 </div>
-            </motion.div>
-        </div>
+            ) : (
+                <form action={submit} className="space-y-4">
+                    {qrToken && <input type="hidden" name="qrToken" value={qrToken} />}
+                    <div>
+                        <label htmlFor="signup-name" className="mb-2 block text-sm font-medium text-nx-text">Nazwa użytkownika</label>
+                        <input id="signup-name" name="username" autoComplete="username" required autoFocus maxLength={50} className={authInputClass} />
+                    </div>
+                    <div>
+                        <label htmlFor="signup-email" className="mb-2 block text-sm font-medium text-nx-text">Adres email</label>
+                        <input id="signup-email" name="email" type="email" autoComplete="email" required className={authInputClass} />
+                    </div>
+                    <PasswordField id="signup-password" name="password" label="Hasło" autoComplete="new-password" minLength={8} />
+                    <PasswordField id="signup-confirm-password" name="confirmPassword" label="Powtórz hasło" autoComplete="new-password" minLength={8} />
+                    <p className="text-xs leading-5 text-nx-text-2">Hasło musi mieć co najmniej 8 znaków.</p>
+                    <AuthStatusMessage status={result ? "error" : null} message={result?.message ?? ""} />
+                    <button type="submit" disabled={pending} className={authPrimaryButtonClass}>
+                        <UserPlus className="size-4" />
+                        {pending ? "Tworzenie konta…" : "Załóż konto"}
+                    </button>
+                    {!qrToken && (
+                        <button type="button" onClick={() => setQrMode(true)} className={authSecondaryButtonClass}>
+                            <QrCode className="size-4" />Zarejestruj się kodem QR
+                        </button>
+                    )}
+                    <p className="text-center text-sm text-nx-text-2">Masz już konto? <Link href="/login" className={authLinkClass}>Zaloguj się</Link></p>
+                </form>
+            )}
+        </AuthCardShell>
     );
 }

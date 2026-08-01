@@ -157,7 +157,7 @@ const ContentRow = ({
                     </span>
                     <h2
                         id={titleId}
-                        className="mt-1 text-xl font-semibold leading-[1.08] text-nx-text sm:font-display sm:text-2xl lg:text-[28px] min-[1440px]:text-[30px]"
+                        className="mt-1 text-xl font-semibold leading-[1.08] text-nx-text sm:font-display sm:text-[28px] min-[1440px]:text-[30px]"
                     >
                         {title}
                     </h2>
