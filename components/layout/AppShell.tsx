@@ -49,6 +49,21 @@ const SessionExpiredBanner = ({ onSignIn }: { onSignIn: () => void }) => (
     </div>
 );
 
+const AttributionFooter = () => (
+    <p className="px-4 py-3 text-center text-xs text-muted sm:px-8">
+        Metadane i grafika częściowo dostarczane przez{" "}
+        <a
+            href="https://www.themoviedb.org/"
+            target="_blank"
+            rel="noreferrer"
+            className="underline decoration-dotted underline-offset-2 hover:text-foreground"
+        >
+            TMDB
+        </a>
+        . Ten produkt korzysta z TMDB API, ale nie jest wspierany ani certyfikowany przez TMDB.
+    </p>
+);
+
 const OfflineBanner = () => (
     <div
         role="status"
@@ -154,6 +169,7 @@ const AppShell = ({ children, searchIndexPromise }: AppShellProps) => {
                     >
                         {mainContent}
                     </main>
+                    <AttributionFooter />
                     {!isOnline && <OfflineBanner />}
                 </div>
             </div>

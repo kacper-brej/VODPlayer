@@ -3,6 +3,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { X, Play, CheckCircle2, FileVideo, ArrowUpRight } from "lucide-react";
 import Image from "next/image";
+import { imageLoader } from "@/lib/imageDelivery";
 import getSeriesDetailsAction, { SeriesDetails } from "@/lib/getSeriesDetailsAction";
 import { DataErrorState, DataState } from "@/components/data/DataState";
 import type { DataErrorReason } from "@/lib/dataResult";
@@ -171,13 +172,16 @@ const SeriesModal = () => {
                 ) : (
                     <div className="text-foreground pb-8 w-full">
                         <div className="w-full h-62.5 md:h-100 shrink-0 bg-surface-light relative">
-                            <Image
-                                src={details.bannerImage}
-                                alt={details.title}
-                                fill
-                                className="object-cover"
-                                sizes="(max-width: 768px) 100vw, 896px"
-                            />
+                            {details.bannerImage && (
+                                <Image
+                                    src={details.bannerImage}
+                                    alt={details.title}
+                                    fill
+                                    className="object-cover"
+                                    sizes="(max-width: 768px) 100vw, 896px"
+                                    loader={imageLoader(details.bannerImage, "hero")}
+                                />
+                            )}
                             <div className="absolute inset-0 bg-linear-to-t from-surface via-surface/40 to-transparent" />
                         </div>
 
@@ -210,13 +214,20 @@ const SeriesModal = () => {
                                         className="group flex w-full cursor-pointer items-center gap-4 rounded-lg border border-border bg-surface-light/50 p-3 text-left transition-[background-color,border-color] hover:border-border-hover hover:bg-surface-light focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary md:p-4"
                                     >
                                         <span className={`relative h-20 w-32 shrink-0 overflow-hidden rounded-md bg-background transition-opacity md:h-24 md:w-40 ${episode.watched ? "opacity-75 ring-2 ring-nx-text-2/40" : ""}`}>
-                                            <Image
-                                                src={episode.thumbnail}
-                                                alt={episode.title}
-                                                fill
-                                                className="object-cover transition-transform duration-300 group-hover:scale-[1.03] motion-reduce:transition-none"
-                                                sizes="(max-width: 768px) 128px, 160px"
-                                            />
+                                            {episode.thumbnail ? (
+                                                <Image
+                                                    src={episode.thumbnail}
+                                                    alt={episode.title}
+                                                    fill
+                                                    className="object-cover transition-transform duration-300 group-hover:scale-[1.03] motion-reduce:transition-none"
+                                                    sizes="(max-width: 768px) 128px, 160px"
+                                                    loader={imageLoader(episode.thumbnail, "episode")}
+                                                />
+                                            ) : (
+                                                <span className="absolute inset-0 grid place-items-center font-mono text-nx-text-2">
+                                                    {String(episode.number).padStart(2, "0")}
+                                                </span>
+                                            )}
 
                                             <div className="absolute inset-0 bg-background/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                                                     <span className={`flex size-11 items-center justify-center rounded-full border-2 ${episode.watched ? "border-nx-text-2/70 bg-nx-text-2/10 text-nx-text-2" : "border-foreground/60 bg-background/30 text-foreground"}`}>

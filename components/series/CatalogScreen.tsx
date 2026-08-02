@@ -9,6 +9,7 @@ import { getResumeMap } from "@/lib/continueWatching";
 import { getWatchlist } from "@/lib/watchlist";
 import { toContentCard } from "@/lib/contentCards";
 import type { ResumePoint } from "@/lib/contracts";
+import { prepareSearchEntries, searchEntries } from "@/lib/search";
 
 export type CatalogMode = "all" | "genres" | "collections" | "watchlist";
 
@@ -21,6 +22,7 @@ interface CatalogScreenProps {
 }
 
 const PAGE_SIZE = 24;
+const CATALOG_SORTS = new Set(["newest", "title", "year", "score"]);
 const spanPattern = [8, 4, 4, 4, 4, 6, 6, 3, 3, 3, 3] as const;
 
 const firstValue = (value: string | string[] | undefined) =>
@@ -178,7 +180,7 @@ const CatalogScreen = async ({
     }
 
     const query = firstValue(params.q).trim();
-    const sort = ["newest", "title", "year", "score"].includes(firstValue(params.sort))
+    const sort = CATALOG_SORTS.has(firstValue(params.sort))
         ? firstValue(params.sort)
         : "featured";
     const genre = firstValue(params.genre);
@@ -205,17 +207,21 @@ const CatalogScreen = async ({
             .sort((a, b) => (order.get(a.key) ?? Number.MAX_SAFE_INTEGER) - (order.get(b.key) ?? Number.MAX_SAFE_INTEGER));
     }
 
-    const normalizedQuery = query.toLocaleLowerCase("pl");
-    const filtered = source.filter((series) => {
-        const matchesQuery = !normalizedQuery || [
-            series.title,
-            series.baseTitle,
-            series.key,
-            series.synopsis,
-        ].some((value) => value?.toLocaleLowerCase("pl").includes(normalizedQuery));
-        const matchesGenre = !genre || series.genres.some((item) => item.slug === genre);
-        return matchesQuery && matchesGenre;
-    });
+    const genreFiltered = source.filter((series) =>
+        !genre || series.genres.some((item) => item.slug === genre)
+    );
+    const preparedSearch = prepareSearchEntries(genreFiltered.map((series) => ({
+        key: series.key,
+        title: series.baseTitle ?? series.title,
+        altTitles: [series.title, ...series.altTitles],
+        inWatchlist: listedKeys.has(series.key),
+        hasProgress: resumeMap.has(series.key),
+        series,
+    })));
+    const searchResults = query ? searchEntries(preparedSearch, query) : [];
+    const filtered = query ? searchResults.map((result) => result.entry.series) : genreFiltered;
+    const matchedBy = new Map(searchResults.map((result) => [result.entry.key, result]));
+    const onlyFuzzyResults = searchResults.length > 0 && searchResults.every((result) => result.fuzzy);
     const sorted = sortCatalog(filtered, sort);
     const visible = sorted.slice(0, page * PAGE_SIZE);
     const hasMore = visible.length < sorted.length;
@@ -255,6 +261,11 @@ const CatalogScreen = async ({
                     </div>
 
                     <div className="mt-10 sm:mt-12">
+                        {onlyFuzzyResults && (
+                            <div className="mb-6 border-l-2 border-nx-accent bg-nx-panel px-4 py-3 text-sm text-nx-text">
+                                Czy chodziło Ci o jeden z tych tytułów?
+                            </div>
+                        )}
                         {sorted.length === 0 ? (
                             <EmptyCatalog mode={mode} filtered={filtersActive} basePath={basePath} />
                         ) : (
@@ -262,6 +273,7 @@ const CatalogScreen = async ({
                                 {visible.map((series, index) => {
                                     const span = spanPattern[index % spanPattern.length];
                                     const featured = span >= 6;
+                                    const match = matchedBy.get(series.key);
                                     const item = toContentCard(series, {
                                         resume: resumeMap.get(series.key),
                                         inWatchlist: listedKeys.has(series.key),
@@ -280,6 +292,11 @@ const CatalogScreen = async ({
                                                     </span>
                                                     <span className="h-px flex-1 bg-nx-border" />
                                                 </div>
+                                                {match?.matchedKind === "alternative" && (
+                                                    <p className="mb-2 line-clamp-1 text-xs text-nx-text-2">
+                                                        {match.matchedTitle} → {match.entry.title}
+                                                    </p>
+                                                )}
                                                 <SeriesCard
                                                     item={{
                                                         ...item,

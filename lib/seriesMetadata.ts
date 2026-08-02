@@ -1,17 +1,10 @@
-import { updateTag } from "next/cache";
+import { revalidateTag } from "next/cache";
 import { CATALOG_TAG, VOD_ORIGIN, VOD_SERVICE_KEY } from "@/lib/vodConfig";
-import { fetchJikanResult } from "@/lib/jikanClient";
-import { validateJikanAnimeListResponse, type JikanAnime } from "@/lib/contracts";
-import {
-    dataEmpty,
-    dataFailure,
-    dataSuccess,
-    type DataResult,
-} from "@/lib/dataResult";
+import type { ProviderArtwork, ProviderId, ProviderSeries } from "@/lib/metadata/types";
 
-export interface JikanSeriesMetadata {
-    metadataProvider: "jikan";
-    externalId: number;
+export interface DescriptiveMetadata {
+    metadataProvider?: "jikan";
+    externalId?: number;
     coverImage: string | null;
     backdropImage: string | null;
     synopsis: string | null;
@@ -22,51 +15,28 @@ export interface JikanSeriesMetadata {
     studio: string | null;
 }
 
-const mapAgeRating = (classification: string | null): string | null => {
-    if (!classification) return null;
-    if (classification.startsWith("G")) return "7+";
-    if (classification.startsWith("PG-13")) return "12+";
-    if (classification.startsWith("PG")) return "7+";
-    if (classification.startsWith("R - 17")) return "16+";
-    if (classification.startsWith("R+")) return "18+";
-    return null;
+export const toLegacyMetadata = (
+    providerId: ProviderId,
+    externalId: string,
+    series: ProviderSeries,
+    artwork: ProviderArtwork[],
+): DescriptiveMetadata => {
+    const isJikan = providerId === "jikan";
+
+    return {
+        ...(isJikan ? { metadataProvider: "jikan" as const, externalId: Number(externalId) } : {}),
+        coverImage: isJikan ? artwork.find((entry) => entry.kind === "poster")?.url ?? null : null,
+        backdropImage: isJikan ? artwork.find((entry) => entry.kind === "backdrop")?.url ?? null : null,
+        synopsis: series.synopsis,
+        rating: series.score !== null ? String(series.score) : null,
+        ageRating: series.ageRating,
+        year: series.year,
+        genres: series.genres,
+        studio: series.studio,
+    };
 };
 
-export const mapJikanSeriesMetadata = (anime: JikanAnime): JikanSeriesMetadata => ({
-    metadataProvider: "jikan",
-    externalId: anime.mal_id,
-    coverImage: anime.images.webp.large_image_url,
-    backdropImage: anime.trailer?.images?.maximum_image_url ?? null,
-    synopsis: anime.synopsis ?? null,
-    rating: anime.score ? String(anime.score) : null,
-    ageRating: mapAgeRating(anime.rating),
-    year: anime.year ?? null,
-    genres: (anime.genres ?? []).map((genre) => genre.name.trim()).filter((name) => name !== ""),
-    studio: anime.studios?.[0]?.name.trim() || null,
-});
-
-export const lookupJikanMetadata = async (
-    title: string,
-): Promise<DataResult<JikanSeriesMetadata | null>> => {
-    const response = await fetchJikanResult(
-        `/anime?q=${encodeURIComponent(title)}&limit=1`,
-        undefined,
-        (value) => validateJikanAnimeListResponse(value).ok,
-    );
-    if (response.kind === "error") return response;
-
-    const result = validateJikanAnimeListResponse(response.data);
-    if (!result.ok) return dataFailure("invalid_response");
-
-    const anime = result.data.data[0];
-    if (!anime) return dataEmpty(null);
-
-    if (anime.rating?.startsWith("Rx")) return dataEmpty(null);
-
-    return dataSuccess(mapJikanSeriesMetadata(anime));
-};
-
-export const persistSeriesMetadata = async (title: string, entry: JikanSeriesMetadata): Promise<boolean> => {
+export const persistSeriesMetadata = async (title: string, entry: DescriptiveMetadata): Promise<boolean> => {
     try {
         const res = await fetch(`${VOD_ORIGIN}/cache-covers.php`, {
             method: "POST",
@@ -80,7 +50,10 @@ export const persistSeriesMetadata = async (title: string, entry: JikanSeriesMet
             }),
         });
 
-        return res.ok;
+        if (!res.ok) return false;
+
+        const payload: unknown = await res.json().catch(() => null);
+        return Boolean(payload) && typeof payload === "object" && (payload as { success?: unknown }).success === true;
     } catch (error) {
         console.error("metadata persist failed", error);
         return false;
@@ -88,5 +61,5 @@ export const persistSeriesMetadata = async (title: string, entry: JikanSeriesMet
 };
 
 export const invalidateCatalogCache = () => {
-    updateTag(CATALOG_TAG);
+    revalidateTag(CATALOG_TAG, "max");
 };

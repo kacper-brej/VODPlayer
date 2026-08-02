@@ -19,21 +19,24 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import getUploadTokenAction from "@/lib/getUploadTokenAction";
 import {
-    loadJikanSelectionAction,
+    loadMetadataSelectionAction,
     refreshUploadCatalogAction,
     saveEpisodeTitleAction,
     saveIntroChapterAction,
     saveSeriesGroupingAction,
     saveSeriesMetadataAction,
-    searchJikanAction,
+    searchMetadataAction,
 } from "@/lib/uploadWorkflowActions";
 import type {
-    JikanSearchOption,
-    JikanSelection,
+    MetadataProviderId,
+    MetadataSearchOption,
+    MetadataSelection,
     UploadChunkResponse,
     UploadWorkflowSetup,
 } from "@/lib/uploadWorkflowTypes";
+import { imageLoader } from "@/lib/imageDelivery";
 import { cn } from "@/lib/utils";
+import MetadataReviewPanel from "@/components/upload/MetadataReviewPanel";
 
 const CHUNK_SIZE = 5 * 1024 * 1024;
 const MAX_EPISODE_NUMBER = 9999;
@@ -147,8 +150,8 @@ const UploadWorkflow = ({ initialSetup }: { initialSetup: UploadWorkflowSetup })
     const [selectedSeriesKey, setSelectedSeriesKey] = useState("");
     const [folder, setFolder] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
-    const [searchResults, setSearchResults] = useState<JikanSearchOption[]>([]);
-    const [selection, setSelection] = useState<JikanSelection | null>(null);
+    const [searchResults, setSearchResults] = useState<MetadataSearchOption[]>([]);
+    const [selection, setSelection] = useState<MetadataSelection | null>(null);
     const [isSearching, setIsSearching] = useState(false);
     const [isLoadingSelection, setIsLoadingSelection] = useState(false);
     const [queue, setQueue] = useState<QueueItem[]>([]);
@@ -229,10 +232,10 @@ const UploadWorkflow = ({ initialSetup }: { initialSetup: UploadWorkflowSetup })
         rejectedTimeoutRef.current = setTimeout(() => setRejectedMessage(null), 3500);
     };
 
-    const loadSelection = async (malId: number, setDefaultFolder: boolean) => {
+    const loadSelection = async (providerId: MetadataProviderId, externalId: string, setDefaultFolder: boolean) => {
         setIsLoadingSelection(true);
         clearOperationState();
-        const response = await loadJikanSelectionAction(malId);
+        const response = await loadMetadataSelectionAction(providerId, externalId);
         setIsLoadingSelection(false);
 
         if (response.kind === "error") {
@@ -255,7 +258,7 @@ const UploadWorkflow = ({ initialSetup }: { initialSetup: UploadWorkflowSetup })
         const series = initialSetup.series.find((item) => item.key === key);
 
         if (series?.metadataProvider === "jikan" && series.externalId) {
-            await loadSelection(series.externalId, false);
+            await loadSelection("jikan", String(series.externalId), false);
         }
     };
 
@@ -263,7 +266,7 @@ const UploadWorkflow = ({ initialSetup }: { initialSetup: UploadWorkflowSetup })
         event.preventDefault();
         setIsSearching(true);
         clearOperationState();
-        const response = await searchJikanAction(searchQuery);
+        const response = await searchMetadataAction(searchQuery);
         setIsSearching(false);
 
         if (response.kind === "error") {
@@ -330,7 +333,7 @@ const UploadWorkflow = ({ initialSetup }: { initialSetup: UploadWorkflowSetup })
 
         if (step === 2) {
             if (mode === "new" && !selection) {
-                showError("Select one Jikan result before continuing.");
+                showError("Select one search result before continuing.");
                 return false;
             }
             if (mode === "new" && (folder.trim() === "" || folder.length > 255)) {
@@ -492,7 +495,7 @@ const UploadWorkflow = ({ initialSetup }: { initialSetup: UploadWorkflowSetup })
                 const episodeKey = current.episodeKey ?? episodeFileName(current.episodeNumber);
 
                 if (mode === "new" && selection && !metadataReady) {
-                    const metadata = await saveSeriesMetadataAction(seriesKey, selection.malId);
+                    const metadata = await saveSeriesMetadataAction(seriesKey, selection.providerId, selection.externalId);
                     if (metadata.kind === "error") throw new Error(dataErrorMessage(metadata.reason));
                     metadataReady = true;
                     setSeriesMetadataSaved(true);
@@ -589,6 +592,7 @@ const UploadWorkflow = ({ initialSetup }: { initialSetup: UploadWorkflowSetup })
             <div className="pointer-events-none absolute left-1/2 top-0 h-[42vh] w-[100vh] -translate-x-1/2 rounded-b-full bg-primary/15 blur-[100px]" />
 
             <div className="relative mx-auto w-full max-w-5xl">
+                <MetadataReviewPanel initialItems={initialSetup.metadataReview} />
                 <header className="mb-8 flex items-start gap-4">
                     <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-primary/12 text-primary">
                         <UploadCloud size={26} />
@@ -664,7 +668,7 @@ const UploadWorkflow = ({ initialSetup }: { initialSetup: UploadWorkflowSetup })
                                             >
                                                 <span className="text-base font-semibold">{option === "new" ? "Nowy serial" : "Nowe odcinki istniejącego serialu"}</span>
                                                 <span className="mt-2 block text-sm text-muted">
-                                                    {option === "new" ? "Wybierzesz wynik Jikan i utworzysz nowy folder." : "Wskażesz serial z katalogu bez ręcznego wpisywania klucza."}
+                                                    {option === "new" ? "Wybierzesz dopasowany wynik i utworzysz nowy folder." : "Wskażesz serial z katalogu bez ręcznego wpisywania klucza."}
                                                 </span>
                                             </button>
                                         ))}
@@ -700,7 +704,7 @@ const UploadWorkflow = ({ initialSetup }: { initialSetup: UploadWorkflowSetup })
                                                 <div className="relative flex-1">
                                                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
                                                     <Input
-                                                        aria-label="Nazwa anime w Jikan"
+                                                        aria-label="Nazwa anime"
                                                         value={searchQuery}
                                                         onChange={(event) => setSearchQuery(event.target.value)}
                                                         minLength={2}
@@ -722,19 +726,19 @@ const UploadWorkflow = ({ initialSetup }: { initialSetup: UploadWorkflowSetup })
                                             <div className="mt-5 grid gap-3 sm:grid-cols-2">
                                                 {searchResults.map((item) => (
                                                     <button
-                                                        key={item.malId}
+                                                        key={`${item.providerId}-${item.externalId}`}
                                                         type="button"
                                                         disabled={isLoadingSelection}
-                                                        onClick={() => void loadSelection(item.malId, true)}
+                                                        onClick={() => void loadSelection(item.providerId, item.externalId, true)}
                                                         className="flex min-h-28 gap-4 rounded-xl border border-border bg-surface-light/40 p-3 text-left transition-colors hover:border-primary/60 disabled:opacity-50"
                                                     >
                                                         <span className="relative h-24 w-16 shrink-0 overflow-hidden rounded-lg bg-background">
-                                                            {item.coverImage ? <Image src={item.coverImage} alt="" fill sizes="64px" className="object-cover" /> : <ImageOff className="absolute inset-0 m-auto text-muted" />}
+                                                            {item.coverImage ? <Image src={item.coverImage} alt="" fill sizes="64px" loader={imageLoader(item.coverImage, "poster")} className="object-cover" /> : <ImageOff className="absolute inset-0 m-auto text-muted" />}
                                                         </span>
                                                         <span className="min-w-0 py-1">
                                                             <span className="line-clamp-2 font-semibold">{item.title}</span>
                                                             <span className="mt-2 block font-mono text-xs text-muted">{item.year ?? "—"} · {item.type ?? "Nieznany typ"}</span>
-                                                            <span className="mt-2 block text-xs text-primary">MAL #{item.malId}</span>
+                                                            <span className="mt-2 block text-xs text-primary">{item.providerId === "jikan" ? `MAL #${item.externalId}` : `AniList #${item.externalId}`}</span>
                                                         </span>
                                                     </button>
                                                 ))}
@@ -752,17 +756,17 @@ const UploadWorkflow = ({ initialSetup }: { initialSetup: UploadWorkflowSetup })
                                         <div className="mt-6 space-y-6">
                                             <div className="grid overflow-hidden rounded-2xl border border-border bg-surface-light/35 md:grid-cols-[180px_1fr]">
                                                 <div className="relative aspect-2/3 bg-background md:aspect-auto">
-                                                    {selection.coverImage ? <Image src={selection.coverImage} alt={`Okładka ${selection.title}`} fill sizes="180px" className="object-cover" /> : <ImageOff className="absolute inset-0 m-auto text-muted" />}
+                                                    {selection.coverImage ? <Image src={selection.coverImage} alt={`Okładka ${selection.title}`} fill sizes="180px" loader={imageLoader(selection.coverImage, "poster")} className="object-cover" /> : <ImageOff className="absolute inset-0 m-auto text-muted" />}
                                                 </div>
                                                 <div className="p-5 md:p-6">
                                                     <div className="flex flex-wrap items-start justify-between gap-3">
                                                         <div>
-                                                            <p className="font-mono text-xs text-primary">Jikan · MAL #{selection.malId}</p>
+                                                            <p className="font-mono text-xs text-primary">{selection.providerId === "jikan" ? `Jikan · MAL #${selection.externalId}` : `AniList #${selection.externalId}`}</p>
                                                             <h3 className="mt-2 font-display text-2xl">{selection.title}</h3>
                                                         </div>
                                                         {mode === "new" && <button type="button" disabled={targetLocked} onClick={() => setSelection(null)} className="rounded-lg border border-border px-3 py-2 text-sm hover:bg-surface-light disabled:cursor-not-allowed disabled:opacity-50">Zmień wybór</button>}
                                                     </div>
-                                                    <p className="mt-4 line-clamp-4 text-sm leading-6 text-muted">{selection.synopsis || "Brak opisu w Jikan."}</p>
+                                                    <p className="mt-4 line-clamp-4 text-sm leading-6 text-muted">{selection.synopsis || "Brak opisu."}</p>
                                                     <dl className="mt-5 grid grid-cols-2 gap-3 text-sm lg:grid-cols-4">
                                                         <div><dt className="text-muted">Rok</dt><dd className="mt-1">{selection.year ?? "—"}</dd></div>
                                                         <div><dt className="text-muted">Ocena</dt><dd className="mt-1">{selection.rating ?? "—"}</dd></div>
@@ -776,13 +780,13 @@ const UploadWorkflow = ({ initialSetup }: { initialSetup: UploadWorkflowSetup })
                                                 <div>
                                                     <p className="mb-2 text-sm font-medium">Okładka pionowa</p>
                                                     <div className="relative aspect-video overflow-hidden rounded-xl border border-border bg-background">
-                                                        {selection.coverImage ? <Image src={selection.coverImage} alt="Podgląd okładki" fill sizes="(max-width: 768px) 100vw, 50vw" className="object-contain" /> : <ImageOff className="absolute inset-0 m-auto text-muted" />}
+                                                        {selection.coverImage ? <Image src={selection.coverImage} alt="Podgląd okładki" fill sizes="(max-width: 768px) 100vw, 50vw" loader={imageLoader(selection.coverImage, "poster")} className="object-contain" /> : <ImageOff className="absolute inset-0 m-auto text-muted" />}
                                                     </div>
                                                 </div>
                                                 <div>
                                                     <p className="mb-2 text-sm font-medium">Kadr poziomy</p>
                                                     <div className="relative aspect-video overflow-hidden rounded-xl border border-border bg-background">
-                                                        {selection.backdropImage ? <Image src={selection.backdropImage} alt="Podgląd kadru poziomego" fill sizes="(max-width: 768px) 100vw, 50vw" className="object-cover" /> : <div className="absolute inset-0 grid place-items-center text-sm text-muted"><ImageOff className="mb-2" />Brak kadru w Jikan</div>}
+                                                        {selection.backdropImage ? <Image src={selection.backdropImage} alt="Podgląd kadru poziomego" fill sizes="(max-width: 768px) 100vw, 50vw" loader={imageLoader(selection.backdropImage, "catalog")} className="object-cover" /> : <div className="absolute inset-0 grid place-items-center text-sm text-muted"><ImageOff className="mb-2" />Brak kadru</div>}
                                                     </div>
                                                 </div>
                                             </div>
@@ -831,7 +835,7 @@ const UploadWorkflow = ({ initialSetup }: { initialSetup: UploadWorkflowSetup })
                                     {mode === "existing" && !selection && !isLoadingSelection && (
                                         <div className="mt-6 rounded-xl border border-border bg-surface-light/35 p-5">
                                             <p className="font-medium">{selectedSeries?.title}</p>
-                                            <p className="mt-2 text-sm text-muted">Ten serial nie ma zapisanego identyfikatora Jikan. Tytuły odcinków możesz wpisać ręcznie w następnym kroku.</p>
+                                            <p className="mt-2 text-sm text-muted">Ten serial nie ma zapisanego identyfikatora metadanych. Tytuły odcinków możesz wpisać ręcznie w następnym kroku.</p>
                                         </div>
                                     )}
                                 </div>
@@ -841,7 +845,7 @@ const UploadWorkflow = ({ initialSetup }: { initialSetup: UploadWorkflowSetup })
                                 <div>
                                     <p className="font-mono text-xs uppercase tracking-[0.16em] text-primary">Krok 3</p>
                                     <h2 className="mt-2 font-display text-2xl">Pliki i tytuły odcinków</h2>
-                                    <p className="mt-2 text-sm text-muted">Numer pochodzi początkowo z nazwy pliku, ale możesz go poprawić. Tytuł pochodzi wyłącznie z Jikan albo z tego pola.</p>
+                                    <p className="mt-2 text-sm text-muted">Numer pochodzi początkowo z nazwy pliku, ale możesz go poprawić. Tytuł pochodzi wyłącznie z wybranego dopasowania albo z tego pola.</p>
 
                                     <div
                                         onDragEnter={(event) => {
@@ -972,7 +976,7 @@ const UploadWorkflow = ({ initialSetup }: { initialSetup: UploadWorkflowSetup })
 
                                     <dl className="mt-6 grid gap-3 rounded-xl border border-border bg-surface-light/35 p-5 sm:grid-cols-2">
                                         <div><dt className="text-xs text-muted">Cel</dt><dd className="mt-1 font-medium">{mode === "existing" ? selectedSeriesKey : folder}</dd></div>
-                                        <div><dt className="text-xs text-muted">Metadane</dt><dd className="mt-1 font-medium">{selection ? `${selection.title} · MAL #${selection.malId}` : "Tytuły ręczne"}</dd></div>
+                                        <div><dt className="text-xs text-muted">Metadane</dt><dd className="mt-1 font-medium">{selection ? `${selection.title} · ${selection.providerId === "jikan" ? `MAL #${selection.externalId}` : `AniList #${selection.externalId}`}` : "Tytuły ręczne"}</dd></div>
                                         <div><dt className="text-xs text-muted">Pliki</dt><dd className="mt-1 font-medium">{queue.length}</dd></div>
                                         <div><dt className="text-xs text-muted">Czołówka</dt><dd className="mt-1 font-medium">{hasIntro && startSeconds !== null && endSeconds !== null ? `${formatClock(startSeconds)}–${formatClock(endSeconds)}` : "Fallback 00:00–01:30"}</dd></div>
                                     </dl>

@@ -19,7 +19,8 @@ export const addRecentSearch = (query: string): string[] => {
     const trimmed = query.trim();
     if (!trimmed || typeof window === "undefined") return getRecentSearches();
 
-    const next = [trimmed, ...getRecentSearches().filter((item) => item.toLowerCase() !== trimmed.toLowerCase())].slice(
+    const normalized = normalizeSearchText(trimmed);
+    const next = [trimmed, ...getRecentSearches().filter((item) => normalizeSearchText(item) !== normalized)].slice(
         0,
         MAX_RECENT_SEARCHES,
     );
@@ -32,3 +33,4 @@ export const clearRecentSearches = () => {
     if (typeof window === "undefined") return;
     window.localStorage.removeItem(RECENT_SEARCHES_KEY);
 };
+import { normalizeSearchText } from "@/lib/search";

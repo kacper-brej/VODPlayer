@@ -6,6 +6,7 @@ import {
     type CatalogSeriesPayload,
 } from "@/lib/contracts";
 import { signedEpisodeUrl } from "@/lib/videoAccess";
+import { resolveArtwork } from "@/lib/imageDelivery";
 import {
     dataEmpty,
     dataFailure,
@@ -22,7 +23,7 @@ export type CatalogEpisode = CatalogEpisodePayload & { url: string };
 export type CatalogSeries = Omit<CatalogSeriesPayload, "coverImage" | "rating" | "episodes"> & {
     coverImage: string;
     rating: string;
-    bannerImage: string;
+    bannerImage: string | null;
     sourceCoverImage: string | null;
     sourceRating: string | null;
     episodes: CatalogEpisode[];
@@ -48,18 +49,30 @@ const loadCatalog = async (): Promise<DataResult<CatalogSeries[]>> => {
             return dataFailure("invalid_response");
         }
 
-        const series: CatalogSeries[] = result.data.series.map((entry) => ({
-            ...entry,
-            sourceCoverImage: entry.coverImage,
-            sourceRating: entry.rating,
-            coverImage: entry.coverImage || FALLBACK_COVER,
-            rating: entry.rating || "Local",
-            bannerImage: entry.backdropImage || entry.coverImage || FALLBACK_COVER,
-            episodes: entry.episodes.map((episode) => ({
-                ...episode,
-                url: signedEpisodeUrl(entry.key, episode.key),
-            })),
-        }));
+        const series: CatalogSeries[] = result.data.series.map((entry) => {
+            const resolvedCoverImage = entry.posterImage || entry.coverImage;
+            const artwork = resolveArtwork({
+                poster: resolvedCoverImage,
+                backdrop: entry.backdropImage,
+                logo: entry.logoImage,
+            });
+
+            return {
+                ...entry,
+                sourceCoverImage: artwork.poster,
+                sourceRating: entry.rating,
+                coverImage: artwork.poster || FALLBACK_COVER,
+                posterImage: artwork.poster,
+                backdropImage: artwork.backdrop,
+                logoImage: artwork.logo,
+                rating: entry.rating || "Local",
+                bannerImage: artwork.backdrop,
+                episodes: entry.episodes.map((episode) => ({
+                    ...episode,
+                    url: signedEpisodeUrl(entry.key, episode.key),
+                })),
+            };
+        });
 
         return series.length === 0
             ? dataEmpty(series)

@@ -12,13 +12,8 @@ import { DataErrorState } from "@/components/data/DataState";
 import type { DataResult } from "@/lib/dataResult";
 import revalidateCatalogAction from "@/lib/revalidateCatalogAction";
 import { useModalFocus } from "@/lib/useModalFocus";
-
-export interface SearchIndexEntry {
-    key: string;
-    title: string;
-    year: number | null;
-    episodeCount: number;
-}
+import { searchEntries, type SearchRange } from "@/lib/search";
+import type { SearchIndexEntry } from "@/lib/searchIndex";
 
 interface CommandPaletteProps {
     searchIndex: DataResult<SearchIndexEntry[]>;
@@ -38,14 +33,38 @@ interface PaletteItem {
     icon: LucideIcon;
     shortcut?: string;
     action: PaletteAction;
+    match?: {
+        title: string;
+        kind: "title" | "alternative";
+        ranges: SearchRange[];
+    };
 }
 
 interface PaletteSection {
     title: string;
     items: PaletteItem[];
+    moreCount?: number;
 }
 
 const DEBOUNCE_MS = 120;
+
+const HighlightedText = ({ text, ranges }: { text: string; ranges: SearchRange[] }) => {
+    const nodes: React.ReactNode[] = [];
+    let cursor = 0;
+
+    ranges.forEach((range, index) => {
+        if (range.start > cursor) nodes.push(text.slice(cursor, range.start));
+        nodes.push(
+            <strong key={`${range.start}-${range.end}-${index}`} className="font-semibold text-nx-text underline decoration-nx-accent/60 underline-offset-2">
+                {text.slice(range.start, range.end)}
+            </strong>,
+        );
+        cursor = range.end;
+    });
+
+    if (cursor < text.length) nodes.push(text.slice(cursor));
+    return <>{nodes}</>;
+};
 
 const CommandPalette = ({ searchIndex }: CommandPaletteProps) => {
     const router = useRouter();
@@ -118,14 +137,16 @@ const CommandPalette = ({ searchIndex }: CommandPaletteProps) => {
 
     const trimmedQuery = debouncedQuery.trim();
 
-    const resultItems: PaletteItem[] = useMemo(() => {
+    const searchResults = useMemo(() => {
         if (!trimmedQuery || searchIndex.kind === "error") return [];
+        return searchEntries(searchIndex.data, trimmedQuery);
+    }, [trimmedQuery, searchIndex]);
 
-        const needle = trimmedQuery.toLowerCase();
-        return searchIndex.data
-            .filter((entry) => entry.title.toLowerCase().includes(needle))
+    const resultItems: PaletteItem[] = useMemo(() => {
+        return searchResults
             .slice(0, 8)
-            .map((entry) => {
+            .map((result) => {
+                const entry = result.entry;
                 const hintParts = [entry.year ? String(entry.year) : null, `${entry.episodeCount} odc.`].filter(
                     (part): part is string => Boolean(part),
                 );
@@ -136,9 +157,16 @@ const CommandPalette = ({ searchIndex }: CommandPaletteProps) => {
                     hint: hintParts.length ? hintParts.join(" · ") : null,
                     icon: Search,
                     action: { kind: "select-result", href: seriesPath(entry.key), title: entry.title } as const,
+                    match: {
+                        title: result.matchedTitle,
+                        kind: result.matchedKind,
+                        ranges: result.ranges,
+                    },
                 };
             });
-    }, [trimmedQuery, searchIndex]);
+    }, [searchResults]);
+
+    const onlyFuzzyResults = searchResults.length > 0 && searchResults.every((result) => result.fuzzy);
 
     const quickJumpItems: PaletteItem[] = useMemo(
         () =>
@@ -184,12 +212,16 @@ const CommandPalette = ({ searchIndex }: CommandPaletteProps) => {
 
     const sections: PaletteSection[] = useMemo(
         () => [
-            ...(trimmedQuery ? [{ title: "Wyniki", items: resultItems }] : []),
+            ...(trimmedQuery ? [{
+                title: onlyFuzzyResults ? "Czy chodziło Ci o…" : "Wyniki",
+                items: resultItems,
+                moreCount: Math.max(0, searchResults.length - resultItems.length),
+            }] : []),
             { title: "Szybkie przejście", items: quickJumpItems },
             { title: "Akcje", items: actionItems },
             ...(recentItems.length ? [{ title: "Ostatnie wyszukiwania", items: recentItems }] : []),
         ],
-        [trimmedQuery, resultItems, quickJumpItems, actionItems, recentItems],
+        [trimmedQuery, onlyFuzzyResults, searchResults.length, resultItems, quickJumpItems, actionItems, recentItems],
     );
 
     const flatItems = useMemo(() => sections.flatMap((section) => section.items), [sections]);
@@ -226,7 +258,7 @@ const CommandPalette = ({ searchIndex }: CommandPaletteProps) => {
         }
     };
 
-    const showNoResults = trimmedQuery.length > 0 && searchIndex.kind !== "error" && resultItems.length === 0;
+    const showNoResults = trimmedQuery.length > 0 && searchIndex.kind !== "error" && searchResults.length === 0;
     const showIndexError = trimmedQuery.length > 0 && searchIndex.kind === "error";
 
     const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -289,6 +321,7 @@ const CommandPalette = ({ searchIndex }: CommandPaletteProps) => {
                                 aria-expanded="true"
                                 aria-controls={listboxId}
                                 aria-activedescendant={activeItemId}
+                                aria-autocomplete="list"
                                 autoComplete="off"
                                 placeholder="Szukaj tytułów, przejdź lub uruchom akcję…"
                                 value={query}
@@ -300,6 +333,14 @@ const CommandPalette = ({ searchIndex }: CommandPaletteProps) => {
                                 className="h-14 w-full bg-transparent text-[15px] text-foreground outline-none placeholder:text-muted/70"
                             />
                         </div>
+
+                        <p className="sr-only" aria-live="polite" aria-atomic="true">
+                            {trimmedQuery
+                                ? searchResults.length === 0
+                                    ? "Brak wyników"
+                                    : `${searchResults.length} ${onlyFuzzyResults ? "sugestii" : "wyników"}`
+                                : ""}
+                        </p>
 
                         <div id={listboxId} role="listbox" aria-label="Wyniki palety poleceń" className="flex-1 overflow-y-auto py-2">
                             {showIndexError && (
@@ -346,13 +387,30 @@ const CommandPalette = ({ searchIndex }: CommandPaletteProps) => {
                                                         }}
                                                         onMouseEnter={() => setActiveIndex(index)}
                                                         onClick={() => runAction(item.action)}
-                                                        className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 ${
+                                                        className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 ${
                                                             isActive ? "bg-surface-light" : ""
                                                         }`}
                                                         style={isActive ? { boxShadow: "inset 2px 0 0 0 var(--primary)" } : undefined}
                                                     >
                                                         <Icon size={16} className="shrink-0 text-muted" aria-hidden="true" />
-                                                        <span className="flex-1 truncate text-sm text-foreground">{item.label}</span>
+                                                        <span className="min-w-0 flex-1 text-sm text-foreground">
+                                                            {item.match?.kind === "alternative" ? (
+                                                                <>
+                                                                    <span className="block truncate">
+                                                                        <HighlightedText text={item.match.title} ranges={item.match.ranges} />
+                                                                        <span aria-hidden="true"> → </span>
+                                                                        <span>{item.label}</span>
+                                                                    </span>
+                                                                    <span className="block text-[11px] text-nx-text-2">Alternatywny tytuł</span>
+                                                                </>
+                                                            ) : item.match ? (
+                                                                <span className="block truncate">
+                                                                    <HighlightedText text={item.match.title} ranges={item.match.ranges} />
+                                                                </span>
+                                                            ) : (
+                                                                <span className="block truncate">{item.label}</span>
+                                                            )}
+                                                        </span>
                                                         {item.hint && (
                                                             <span className="shrink-0 font-mono text-[10.5px] text-muted">{item.hint}</span>
                                                         )}
@@ -365,6 +423,11 @@ const CommandPalette = ({ searchIndex }: CommandPaletteProps) => {
                                                 );
                                             })}
                                         </ul>
+                                        {Boolean(section.moreCount) && (
+                                            <p className="px-3 pb-1 pt-2 font-mono text-[10px] tracking-[0.12em] text-nx-text-2">
+                                                +{section.moreCount} kolejnych wyników
+                                            </p>
+                                        )}
                                     </div>
                                 );
                             })}

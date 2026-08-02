@@ -1,3 +1,5 @@
+import type { ProviderArtwork, ProviderSeries, SeriesCandidate } from "@/lib/metadata/types";
+
 export type ContractResult<T> =
     | { ok: true; data: T }
     | { ok: false; error: string };
@@ -27,8 +29,10 @@ export interface CatalogSeriesPayload {
     baseTitle: string | null;
     seasonNumber: number | null;
     coverImage: string | null;
+    posterImage: string | null;
     backdropImage: string | null;
     backdropSource: "jikan" | "manual" | null;
+    logoImage: string | null;
     synopsis: string | null;
     rating: string | null;
     ageRating: string | null;
@@ -39,12 +43,17 @@ export interface CatalogSeriesPayload {
     safeBottom: number | null;
     dominantColor: string | null;
     placeholder: string | null;
+    posterDominantColor: string | null;
+    posterPlaceholder: string | null;
+    backdropDominantColor: string | null;
+    backdropPlaceholder: string | null;
     studio: string | null;
     audioLanguages: string[];
     subtitleLanguages: string[];
     metadataProvider: string | null;
     externalId: number | null;
     genres: CatalogGenre[];
+    altTitles: string[];
     hasMetadata: boolean;
     episodeCount: number;
     episodes: CatalogEpisodePayload[];
@@ -360,8 +369,10 @@ const isCatalogSeries = (value: unknown): value is CatalogSeriesPayload =>
     && isOptionalNullableString(value.baseTitle)
     && isOptionalNullableNumber(value.seasonNumber)
     && isNullableString(value.coverImage)
+    && isOptionalNullableString(value.posterImage)
     && isOptionalNullableString(value.backdropImage)
     && isOptionalBackdropSource(value.backdropSource)
+    && isOptionalNullableString(value.logoImage)
     && isNullableString(value.synopsis)
     && isNullableString(value.rating)
     && isOptionalNullableString(value.ageRating)
@@ -372,12 +383,17 @@ const isCatalogSeries = (value: unknown): value is CatalogSeriesPayload =>
     && isOptionalNullableNumber(value.safeBottom)
     && isOptionalNullableString(value.dominantColor)
     && isOptionalNullableString(value.placeholder)
+    && isOptionalNullableString(value.posterDominantColor)
+    && isOptionalNullableString(value.posterPlaceholder)
+    && isOptionalNullableString(value.backdropDominantColor)
+    && isOptionalNullableString(value.backdropPlaceholder)
     && isOptionalNullableString(value.studio)
     && isOptionalStringArray(value.audioLanguages)
     && isOptionalStringArray(value.subtitleLanguages)
     && isOptionalNullableString(value.metadataProvider)
     && isOptionalNullableNumber(value.externalId)
     && isOptionalGenreArray(value.genres)
+    && isOptionalStringArray(value.altTitles)
     && isBoolean(value.hasMetadata)
     && isNumber(value.episodeCount)
     && Array.isArray(value.episodes)
@@ -641,8 +657,10 @@ const normalizeCatalogSeries = (series: CatalogSeriesPayload): CatalogSeriesPayl
     groupId: series.groupId ?? null,
     baseTitle: series.baseTitle ?? null,
     seasonNumber: series.seasonNumber ?? null,
+    posterImage: series.posterImage ?? null,
     backdropImage: series.backdropImage ?? null,
     backdropSource: series.backdropSource ?? null,
+    logoImage: series.logoImage ?? null,
     ageRating: series.ageRating ?? null,
     focalX: series.focalX ?? null,
     focalY: series.focalY ?? null,
@@ -650,12 +668,17 @@ const normalizeCatalogSeries = (series: CatalogSeriesPayload): CatalogSeriesPayl
     safeBottom: series.safeBottom ?? null,
     dominantColor: series.dominantColor ?? null,
     placeholder: series.placeholder ?? null,
+    posterDominantColor: series.posterDominantColor ?? null,
+    posterPlaceholder: series.posterPlaceholder ?? null,
+    backdropDominantColor: series.backdropDominantColor ?? null,
+    backdropPlaceholder: series.backdropPlaceholder ?? null,
     studio: series.studio ?? null,
     audioLanguages: series.audioLanguages ?? [],
     subtitleLanguages: series.subtitleLanguages ?? [],
     metadataProvider: series.metadataProvider ?? null,
     externalId: series.externalId ?? null,
     genres: series.genres ?? [],
+    altTitles: series.altTitles ?? [],
     episodes: series.episodes.map((episode) => ({
         ...episode,
         title: episode.title ?? null,
@@ -832,3 +855,441 @@ export const validateJikanEpisodesResponse = (value: unknown): ContractResult<Ji
     isJikanEpisodesResponse(value)
         ? valid(value)
         : invalid("Jikan episodes");
+
+const isProviderId = (value: unknown): value is "anilist" | "tmdb" | "jikan" =>
+    value === "anilist" || value === "tmdb" || value === "jikan";
+
+const isSeriesCandidate = (value: unknown): value is SeriesCandidate =>
+    isObject(value)
+    && isProviderId(value.providerId)
+    && isString(value.externalId)
+    && isString(value.title)
+    && Array.isArray(value.altTitles)
+    && value.altTitles.every(isString)
+    && isNullableNumber(value.year)
+    && isNullableString(value.format)
+    && isNullableString(value.coverImage);
+
+export const validateSeriesCandidateList = (value: unknown): ContractResult<SeriesCandidate[]> =>
+    Array.isArray(value) && value.every(isSeriesCandidate)
+        ? valid(value)
+        : invalid("series candidate list");
+
+const isProviderSeriesTitles = (value: unknown): value is ProviderSeries["titles"] =>
+    isObject(value)
+    && isString(value.primary)
+    && isNullableString(value.romaji)
+    && isNullableString(value.english)
+    && isNullableString(value.native);
+
+const isProviderSeries = (value: unknown): value is ProviderSeries =>
+    isObject(value)
+    && isProviderId(value.providerId)
+    && isString(value.externalId)
+    && isNullableNumber(value.malId)
+    && isProviderSeriesTitles(value.titles)
+    && Array.isArray(value.synonyms)
+    && value.synonyms.every(isString)
+    && isNullableString(value.synopsis)
+    && isNullableNumber(value.score)
+    && isNullableString(value.ageRating)
+    && isNullableNumber(value.year)
+    && Array.isArray(value.genres)
+    && value.genres.every(isString)
+    && isNullableString(value.studio);
+
+export const validateProviderSeries = (value: unknown): ContractResult<ProviderSeries> =>
+    isProviderSeries(value)
+        ? valid(value)
+        : invalid("provider series");
+
+const isProviderArtworkKind = (value: unknown): value is "poster" | "backdrop" | "logo" =>
+    value === "poster" || value === "backdrop" || value === "logo";
+
+const isProviderArtwork = (value: unknown): value is ProviderArtwork =>
+    isObject(value)
+    && isProviderArtworkKind(value.kind)
+    && isString(value.url)
+    && isNullableNumber(value.width)
+    && isNullableNumber(value.height)
+    && isNullableString(value.language);
+
+export const validateProviderArtworkList = (value: unknown): ContractResult<ProviderArtwork[]> =>
+    Array.isArray(value) && value.every(isProviderArtwork)
+        ? valid(value)
+        : invalid("provider artwork list");
+
+export interface SeriesExternalIdResponse {
+    success: boolean;
+    seriesKey: string;
+    provider: string;
+    externalId: string;
+}
+
+export interface SeriesArtworkSyncResponse {
+    success: boolean;
+    seriesKey: string;
+    count: number;
+}
+
+export interface SeriesTitlesSyncResponse {
+    success: boolean;
+    seriesKey: string;
+    count: number;
+}
+
+const isSeriesExternalIdResponse = (value: unknown): value is SeriesExternalIdResponse =>
+    isObject(value)
+    && isBoolean(value.success)
+    && isString(value.seriesKey)
+    && isString(value.provider)
+    && isString(value.externalId);
+
+const isSeriesArtworkSyncResponse = (value: unknown): value is SeriesArtworkSyncResponse =>
+    isObject(value)
+    && isBoolean(value.success)
+    && isString(value.seriesKey)
+    && isNumber(value.count);
+
+const isSeriesTitlesSyncResponse = (value: unknown): value is SeriesTitlesSyncResponse =>
+    isObject(value)
+    && isBoolean(value.success)
+    && isString(value.seriesKey)
+    && isNumber(value.count);
+
+export const validateSeriesExternalIdResponse = (value: unknown): ContractResult<SeriesExternalIdResponse> =>
+    isSeriesExternalIdResponse(value)
+        ? valid(value)
+        : invalid("series external id response");
+
+export const validateSeriesArtworkSyncResponse = (value: unknown): ContractResult<SeriesArtworkSyncResponse> =>
+    isSeriesArtworkSyncResponse(value)
+        ? valid(value)
+        : invalid("series artwork sync response");
+
+export const validateSeriesTitlesSyncResponse = (value: unknown): ContractResult<SeriesTitlesSyncResponse> =>
+    isSeriesTitlesSyncResponse(value)
+        ? valid(value)
+        : invalid("series titles sync response");
+
+export interface SeriesMetadataLookupResponse {
+    seriesKey: string;
+    externalIds: Record<string, string>;
+    titles: { title: string; kind: string }[];
+}
+
+const isSeriesMetadataLookupResponse = (value: unknown): value is SeriesMetadataLookupResponse =>
+    isObject(value)
+    && isString(value.seriesKey)
+    && isObject(value.externalIds)
+    && Object.values(value.externalIds).every(isString)
+    && Array.isArray(value.titles)
+    && value.titles.every((entry) => isObject(entry) && isString(entry.title) && isString(entry.kind));
+
+export const validateSeriesMetadataLookupResponse = (value: unknown): ContractResult<SeriesMetadataLookupResponse> =>
+    isSeriesMetadataLookupResponse(value)
+        ? valid(value)
+        : invalid("series metadata lookup response");
+
+export interface AniListTitle {
+    romaji: string | null;
+    english: string | null;
+    native: string | null;
+}
+
+export interface AniListStudios {
+    nodes: { name: string }[];
+}
+
+export interface AniListCoverImage {
+    extraLarge: string | null;
+    large: string | null;
+    color: string | null;
+}
+
+export interface AniListMedia {
+    id: number;
+    idMal: number | null;
+    title: AniListTitle;
+    synonyms: string[];
+    description: string | null;
+    seasonYear: number | null;
+    format: string | null;
+    episodes: number | null;
+    averageScore: number | null;
+    genres: string[];
+    studios: AniListStudios | null;
+    coverImage: AniListCoverImage | null;
+    bannerImage: string | null;
+    isAdult: boolean;
+}
+
+export interface AniListError {
+    message: string;
+}
+
+export interface AniListSearchResponse {
+    data: { Page: { media: AniListMedia[] } } | null;
+    errors?: AniListError[];
+}
+
+export interface AniListMediaResponse {
+    data: { Media: AniListMedia } | null;
+    errors?: AniListError[];
+}
+
+const isAniListTitle = (value: unknown): value is AniListTitle =>
+    isObject(value)
+    && isNullableString(value.romaji)
+    && isNullableString(value.english)
+    && isNullableString(value.native);
+
+const isAniListStudios = (value: unknown): value is AniListStudios =>
+    isObject(value)
+    && Array.isArray(value.nodes)
+    && value.nodes.every((node) => isObject(node) && isString(node.name));
+
+const isAniListCoverImage = (value: unknown): value is AniListCoverImage =>
+    isObject(value)
+    && isNullableString(value.extraLarge)
+    && isNullableString(value.large)
+    && isNullableString(value.color);
+
+const isAniListMedia = (value: unknown): value is AniListMedia =>
+    isObject(value)
+    && isNumber(value.id)
+    && isNullableNumber(value.idMal)
+    && isAniListTitle(value.title)
+    && Array.isArray(value.synonyms)
+    && value.synonyms.every(isString)
+    && isNullableString(value.description)
+    && isNullableNumber(value.seasonYear)
+    && isNullableString(value.format)
+    && isNullableNumber(value.episodes)
+    && isNullableNumber(value.averageScore)
+    && Array.isArray(value.genres)
+    && value.genres.every(isString)
+    && (value.studios === null || isAniListStudios(value.studios))
+    && (value.coverImage === null || isAniListCoverImage(value.coverImage))
+    && isNullableString(value.bannerImage)
+    && isBoolean(value.isAdult);
+
+const isAniListErrorArray = (value: unknown): value is AniListError[] =>
+    Array.isArray(value) && value.every((entry) => isObject(entry) && isString(entry.message));
+
+const isAniListSearchResponse = (value: unknown): value is AniListSearchResponse =>
+    isObject(value)
+    && (value.errors === undefined || isAniListErrorArray(value.errors))
+    && !(Array.isArray(value.errors) && value.errors.length > 0)
+    && value.data !== null
+    && isObject(value.data)
+    && isObject(value.data.Page)
+    && Array.isArray(value.data.Page.media)
+    && value.data.Page.media.every(isAniListMedia);
+
+const isAniListMediaResponse = (value: unknown): value is AniListMediaResponse =>
+    isObject(value)
+    && (value.errors === undefined || isAniListErrorArray(value.errors))
+    && !(Array.isArray(value.errors) && value.errors.length > 0)
+    && value.data !== null
+    && isObject(value.data)
+    && isAniListMedia(value.data.Media);
+
+export const validateAniListSearchResponse = (value: unknown): ContractResult<AniListSearchResponse> =>
+    isAniListSearchResponse(value)
+        ? valid(value)
+        : invalid("AniList search response");
+
+export const validateAniListMediaResponse = (value: unknown): ContractResult<AniListMediaResponse> =>
+    isAniListMediaResponse(value)
+        ? valid(value)
+        : invalid("AniList media response");
+
+export interface TmdbConfigurationResponse {
+    images: {
+        secure_base_url: string;
+        backdrop_sizes: string[];
+        poster_sizes: string[];
+        logo_sizes: string[];
+    };
+}
+
+export interface TmdbGenre {
+    id: number;
+    name: string;
+}
+
+export interface TmdbProductionCompany {
+    name: string;
+}
+
+export interface TmdbContentRating {
+    iso_3166_1: string;
+    rating: string;
+}
+
+export interface TmdbSeasonSummary {
+    season_number: number;
+    name: string;
+}
+
+export interface TmdbTvDetails {
+    id: number;
+    name: string;
+    original_name: string;
+    overview: string | null;
+    first_air_date: string | null;
+    genres: TmdbGenre[];
+    production_companies: TmdbProductionCompany[];
+    vote_average: number | null;
+    content_ratings: { results: TmdbContentRating[] } | null;
+    seasons: TmdbSeasonSummary[];
+}
+
+export interface TmdbImage {
+    file_path: string;
+    width: number;
+    height: number;
+    iso_639_1: string | null;
+    vote_average: number;
+}
+
+export interface TmdbImagesResponse {
+    id: number;
+    backdrops: TmdbImage[];
+    posters: TmdbImage[];
+    logos: TmdbImage[];
+}
+
+export interface TmdbTvSearchResult {
+    id: number;
+    name: string;
+    original_name: string;
+    first_air_date: string | null;
+    overview: string | null;
+}
+
+export interface TmdbTvSearchResponse {
+    results: TmdbTvSearchResult[];
+}
+
+const isTmdbConfigurationResponse = (value: unknown): value is TmdbConfigurationResponse =>
+    isObject(value)
+    && isObject(value.images)
+    && isString(value.images.secure_base_url)
+    && Array.isArray(value.images.backdrop_sizes)
+    && value.images.backdrop_sizes.every(isString)
+    && Array.isArray(value.images.poster_sizes)
+    && value.images.poster_sizes.every(isString)
+    && Array.isArray(value.images.logo_sizes)
+    && value.images.logo_sizes.every(isString);
+
+const isTmdbGenre = (value: unknown): value is TmdbGenre =>
+    isObject(value) && isNumber(value.id) && isString(value.name);
+
+const isTmdbProductionCompany = (value: unknown): value is TmdbProductionCompany =>
+    isObject(value) && isString(value.name);
+
+const isTmdbContentRating = (value: unknown): value is TmdbContentRating =>
+    isObject(value) && isString(value.iso_3166_1) && isString(value.rating);
+
+const isTmdbContentRatings = (value: unknown): value is { results: TmdbContentRating[] } =>
+    isObject(value) && Array.isArray(value.results) && value.results.every(isTmdbContentRating);
+
+const isTmdbSeasonSummary = (value: unknown): value is TmdbSeasonSummary =>
+    isObject(value) && isNumber(value.season_number) && isString(value.name);
+
+const isTmdbTvDetails = (value: unknown): value is TmdbTvDetails =>
+    isObject(value)
+    && isNumber(value.id)
+    && isString(value.name)
+    && isString(value.original_name)
+    && isNullableString(value.overview)
+    && isNullableString(value.first_air_date)
+    && Array.isArray(value.genres)
+    && value.genres.every(isTmdbGenre)
+    && Array.isArray(value.production_companies)
+    && value.production_companies.every(isTmdbProductionCompany)
+    && isNullableNumber(value.vote_average)
+    && (value.content_ratings === undefined || value.content_ratings === null || isTmdbContentRatings(value.content_ratings))
+    && Array.isArray(value.seasons)
+    && value.seasons.every(isTmdbSeasonSummary);
+
+const isTmdbImage = (value: unknown): value is TmdbImage =>
+    isObject(value)
+    && isString(value.file_path)
+    && isNumber(value.width)
+    && isNumber(value.height)
+    && isNullableString(value.iso_639_1)
+    && isNumber(value.vote_average);
+
+const isTmdbImagesResponse = (value: unknown): value is TmdbImagesResponse =>
+    isObject(value)
+    && isNumber(value.id)
+    && Array.isArray(value.backdrops)
+    && value.backdrops.every(isTmdbImage)
+    && Array.isArray(value.posters)
+    && value.posters.every(isTmdbImage)
+    && Array.isArray(value.logos)
+    && value.logos.every(isTmdbImage);
+
+const isTmdbTvSearchResult = (value: unknown): value is TmdbTvSearchResult =>
+    isObject(value)
+    && isNumber(value.id)
+    && isString(value.name)
+    && isString(value.original_name)
+    && isNullableString(value.first_air_date)
+    && isNullableString(value.overview);
+
+const isTmdbTvSearchResponse = (value: unknown): value is TmdbTvSearchResponse =>
+    isObject(value)
+    && Array.isArray(value.results)
+    && value.results.every(isTmdbTvSearchResult);
+
+export const validateTmdbConfigurationResponse = (value: unknown): ContractResult<TmdbConfigurationResponse> =>
+    isTmdbConfigurationResponse(value)
+        ? valid(value)
+        : invalid("TMDB configuration response");
+
+export const validateTmdbTvDetails = (value: unknown): ContractResult<TmdbTvDetails> =>
+    isTmdbTvDetails(value)
+        ? valid(value)
+        : invalid("TMDB tv details");
+
+export const validateTmdbImagesResponse = (value: unknown): ContractResult<TmdbImagesResponse> =>
+    isTmdbImagesResponse(value)
+        ? valid(value)
+        : invalid("TMDB images response");
+
+export const validateTmdbTvSearchResponse = (value: unknown): ContractResult<TmdbTvSearchResponse> =>
+    isTmdbTvSearchResponse(value)
+        ? valid(value)
+        : invalid("TMDB tv search response");
+
+export interface TmdbSeasonEpisode {
+    episode_number: number;
+    name: string | null;
+    overview: string | null;
+    still_path: string | null;
+}
+
+export interface TmdbSeasonResponse {
+    episodes: TmdbSeasonEpisode[];
+}
+
+const isTmdbSeasonEpisode = (value: unknown): value is TmdbSeasonEpisode =>
+    isObject(value)
+    && isNumber(value.episode_number)
+    && isNullableString(value.name)
+    && isNullableString(value.overview)
+    && isNullableString(value.still_path);
+
+const isTmdbSeasonResponse = (value: unknown): value is TmdbSeasonResponse =>
+    isObject(value)
+    && Array.isArray(value.episodes)
+    && value.episodes.every(isTmdbSeasonEpisode);
+
+export const validateTmdbSeasonResponse = (value: unknown): ContractResult<TmdbSeasonResponse> =>
+    isTmdbSeasonResponse(value)
+        ? valid(value)
+        : invalid("TMDB season response");

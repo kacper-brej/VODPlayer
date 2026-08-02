@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { imageLoader } from "@/lib/imageDelivery";
 import Link from "next/link";
 import { Play, X } from "lucide-react";
 import { useMemo, useRef, useState, type KeyboardEvent } from "react";
@@ -109,6 +110,7 @@ const EpisodeList = ({ seasons, initialSeason, authRequired }: EpisodeListProps)
                                         alt={resumeEpisode.title}
                                         fill
                                         sizes="(max-width: 1024px) 100vw, 40vw"
+                                        loader={imageLoader(resumeEpisode.thumbnail, "episode")}
                                         className={`object-cover ${resumeEpisode.watched ? "opacity-75" : ""}`}
                                     />
                                 ) : (

@@ -19,21 +19,54 @@ export interface UploadSeriesGroupOption {
     baseTitle: string;
 }
 
-export interface JikanSearchOption {
-    malId: number;
+export type MetadataProviderId = "anilist" | "tmdb" | "jikan";
+
+export interface MetadataSearchOption {
+    providerId: MetadataProviderId;
+    externalId: string;
     title: string;
+    altTitles: string[];
     year: number | null;
     type: string | null;
     coverImage: string | null;
 }
 
-export interface JikanEpisodeOption {
+export type MetadataReviewReason = "no-match" | "partial-match" | "missing-tmdb" | "uncertain-season";
+export type MetadataArtworkKind = "poster" | "backdrop" | "logo";
+
+export interface MetadataArtworkOption {
+    id: number;
+    kind: MetadataArtworkKind;
+    url: string;
+    width: number | null;
+    height: number | null;
+    provider: string;
+    language: string | null;
+    isPrimary: boolean;
+    matchSource: "auto" | "manual";
+}
+
+export interface MetadataReviewItem {
+    seriesKey: string;
+    title: string;
+    groupId: number | null;
+    seasonNumber: number | null;
+    state: "pending" | "skipped" | "ready";
+    reason: MetadataReviewReason | null;
+    externalIds: Record<string, string>;
+    externalIdSources: Record<string, "auto" | "manual">;
+    artwork: MetadataArtworkOption[];
+}
+
+export interface MetadataEpisodeOption {
     number: number;
     title: string | null;
 }
 
-export interface JikanSelection {
-    malId: number;
+export interface MetadataSelection {
+    providerId: MetadataProviderId;
+    externalId: string;
+    malId: number | null;
     title: string;
     coverImage: string | null;
     backdropImage: string | null;
@@ -43,7 +76,7 @@ export interface JikanSelection {
     year: number | null;
     genres: string[];
     studio: string | null;
-    episodes: JikanEpisodeOption[];
+    episodes: MetadataEpisodeOption[];
 }
 
 export interface UploadChunkResponse {
@@ -59,6 +92,7 @@ export interface UploadChunkResponse {
 export interface UploadWorkflowSetup {
     series: UploadSeriesOption[];
     groups: UploadSeriesGroupOption[];
+    metadataReview: MetadataReviewItem[];
     unauthorized: boolean;
     unavailable: boolean;
 }

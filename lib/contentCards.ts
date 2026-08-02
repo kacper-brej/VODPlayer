@@ -44,7 +44,7 @@ export const toContentCard = (
     return {
         seriesKey: series.key,
         title: series.baseTitle ?? series.title ?? series.key,
-        poster: series.sourceCoverImage,
+        poster: series.coverImage,
         backdrop: series.backdropImage,
         focal: {
             x: series.focalX ?? 0.5,
@@ -52,6 +52,10 @@ export const toContentCard = (
         },
         dominantColor: series.dominantColor,
         placeholder: series.placeholder,
+        posterDominantColor: series.posterDominantColor,
+        posterPlaceholder: series.posterPlaceholder,
+        backdropDominantColor: series.backdropDominantColor,
+        backdropPlaceholder: series.backdropPlaceholder,
         year: series.year,
         score: series.sourceRating,
         ageRating: series.ageRating,

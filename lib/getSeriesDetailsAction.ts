@@ -1,9 +1,11 @@
 "use server";
-import { FALLBACK_COVER, resolveCatalogSeries } from "@/lib/catalog";
+import { resolveCatalogSeries } from "@/lib/catalog";
 import { getSeriesProgressAction } from "@/lib/getProgressAction";
 import { progressPercent, isWatched } from "@/lib/watchProgress";
-import { fetchJikanResult } from "@/lib/jikanClient";
-import { lookupJikanMetadata, persistSeriesMetadata, invalidateCatalogCache } from "@/lib/seriesMetadata";
+import { fetchJikanRaw } from "@/lib/metadata/providers/jikan";
+import { resolveSeriesIdentity } from "@/lib/metadata/registry";
+import { persistSeriesIdentity } from "@/lib/metadata/persistIdentity";
+import { invalidateCatalogCache } from "@/lib/seriesMetadata";
 import {
     validateJikanAnimeResponse,
     validateJikanEpisodesResponse,
@@ -20,7 +22,7 @@ export interface SeriesDetailsEpisode {
     number: number;
     title: string;
     url: string | null;
-    thumbnail: string;
+    thumbnail: string | null;
     positionSeconds: number;
     percent: number;
     watched: boolean;
@@ -31,7 +33,7 @@ export interface SeriesDetails {
     seriesKey: string | null;
     title: string;
     synopsis: string;
-    bannerImage: string;
+    bannerImage: string | null;
     year: number | null;
     rating: string | null;
     isLocal: boolean;
@@ -54,22 +56,24 @@ const localDetails = async (id: number): Promise<DataResult<SeriesDetails | null
     const { episodes: progress, resume } = progressResult.data;
 
     let synopsis = series.synopsis;
-    let bannerImage = series.bannerImage || series.coverImage;
+    let bannerImage = series.bannerImage;
     let year = series.year;
     let rating = series.rating;
 
     if (!series.hasMetadata || !synopsis) {
-        const metadataResult = await lookupJikanMetadata(series.title);
-        if (metadataResult.kind === "error") return metadataResult;
+        const identityResult = await resolveSeriesIdentity(series.title);
+        if (identityResult.kind === "error") return identityResult;
 
-        if (metadataResult.data) {
-            const metadata = metadataResult.data;
-            synopsis = metadata.synopsis ?? synopsis;
-            bannerImage = metadata.backdropImage ?? metadata.coverImage ?? bannerImage;
-            year = metadata.year ?? year;
-            rating = metadata.rating ?? rating;
+        if (identityResult.data.kind === "matched") {
+            const { providerId, externalId, series: providerSeries, artwork } = identityResult.data;
 
-            const saved = await persistSeriesMetadata(series.title, metadata);
+            synopsis = providerSeries.synopsis ?? synopsis;
+            bannerImage = artwork.find((entry) => entry.kind === "backdrop")?.url
+                ?? bannerImage;
+            year = providerSeries.year ?? year;
+            rating = providerSeries.score !== null ? String(providerSeries.score) : rating;
+
+            const saved = await persistSeriesIdentity(series.key, providerId, externalId, providerSeries, artwork, "auto");
             if (saved) invalidateCatalogCache();
         }
     }
@@ -79,7 +83,7 @@ const localDetails = async (id: number): Promise<DataResult<SeriesDetails | null
         seriesKey: series.key,
         title: series.title,
         synopsis: synopsis || "Ten serial jest streamowany z Twojej prywatnej biblioteki.",
-        bannerImage: bannerImage || FALLBACK_COVER,
+        bannerImage,
         year,
         rating,
         isLocal: true,
@@ -93,7 +97,7 @@ const localDetails = async (id: number): Promise<DataResult<SeriesDetails | null
                 number: episode.number,
                 title: `Odcinek ${episode.number}`,
                 url: episode.url,
-                thumbnail: bannerImage || FALLBACK_COVER,
+                thumbnail: episode.thumbnail,
                 positionSeconds,
                 percent: progressPercent(positionSeconds, entry?.durationSeconds),
                 watched: entry?.completed ?? isWatched(positionSeconds, entry?.durationSeconds),
@@ -103,7 +107,7 @@ const localDetails = async (id: number): Promise<DataResult<SeriesDetails | null
 };
 
 const remoteDetails = async (id: number): Promise<DataResult<SeriesDetails | null>> => {
-    const detailsResponse = await fetchJikanResult(
+    const detailsResponse = await fetchJikanRaw(
         `/anime/${id}`,
         undefined,
         (value) => validateJikanAnimeResponse(value).ok,
@@ -114,11 +118,10 @@ const remoteDetails = async (id: number): Promise<DataResult<SeriesDetails | nul
     if (!detailsResult.ok) return dataFailure("invalid_response");
 
     const details = detailsResult.data.data;
-    const poster = details.images.webp.large_image_url || details.images.jpg.image_url || FALLBACK_COVER;
     const episodes: SeriesDetailsEpisode[] = [];
 
     for (let page = 1; page <= MAX_JIKAN_EPISODE_PAGES; page++) {
-        const episodeResponse = await fetchJikanResult(
+        const episodeResponse = await fetchJikanRaw(
             `/anime/${id}/episodes?page=${page}`,
             undefined,
             (value) => validateJikanEpisodesResponse(value).ok,
@@ -135,7 +138,7 @@ const remoteDetails = async (id: number): Promise<DataResult<SeriesDetails | nul
                 number: offset + index + 1,
                 title: episode.title || `Odcinek ${episode.mal_id}`,
                 url: null,
-                thumbnail: poster,
+                thumbnail: null,
                 positionSeconds: 0,
                 percent: 0,
                 watched: false,
@@ -150,7 +153,7 @@ const remoteDetails = async (id: number): Promise<DataResult<SeriesDetails | nul
         seriesKey: null,
         title: details.title_english || details.title,
         synopsis: details.synopsis || "Brak opisu.",
-        bannerImage: poster,
+        bannerImage: null,
         year: details.year ?? null,
         rating: details.score ? String(details.score) : null,
         isLocal: false,

@@ -4,6 +4,7 @@ import Image from "next/image";
 import { Check, Play } from "lucide-react";
 import { useState, type KeyboardEvent, type Ref } from "react";
 import { formatEpisodeNumber } from "@/lib/seriesPage";
+import { ARTWORK_SIZES, imageLoader } from "@/lib/imageDelivery";
 
 export interface EpisodeCardData {
     id: string;
@@ -58,8 +59,9 @@ const EpisodeCard = ({
                         src={episode.thumbnail}
                         alt={episode.title}
                         fill
-                        sizes="(max-width: 390px) 116px, (max-width: 1024px) 205px, (max-width: 1280px) 165px, 189px"
-                        className={`object-cover transition-opacity ${episode.watched ? "opacity-75" : ""}`}
+                        sizes={ARTWORK_SIZES.episode}
+                        loader={imageLoader(episode.thumbnail, "episode")}
+                        className={`object-cover transition-opacity motion-reduce:transition-none ${episode.watched ? "opacity-75" : ""}`}
                         onError={() => setImageFailed(true)}
                     />
                 ) : (

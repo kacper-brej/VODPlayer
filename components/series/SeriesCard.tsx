@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
 import { Check, Info, Plus } from "lucide-react";
 import toggleWatchlistAction from "@/lib/toggleWatchlistAction";
+import { blurProps, imageLoader, safeArtworkColor } from "@/lib/imageDelivery";
 
 export type ContentCardVariant = "landscape" | "poster" | "row" | "mosaic";
 
@@ -16,6 +17,10 @@ export interface CardInput {
     focal?: { x: number; y: number };
     dominantColor?: string | null;
     placeholder?: string | null;
+    posterDominantColor?: string | null;
+    posterPlaceholder?: string | null;
+    backdropDominantColor?: string | null;
+    backdropPlaceholder?: string | null;
     year?: number | null;
     score?: string | null;
     ageRating?: string | null;
@@ -73,11 +78,11 @@ const SeriesCard = ({
         };
     }, []);
 
-    const preferredArtwork = variant === "poster"
-        ? item.poster ?? item.backdrop
-        : item.backdrop ?? item.poster;
+    const preferredArtwork = variant === "poster" ? item.poster : item.backdrop;
     const artwork = preferredArtwork === failedArtwork ? null : preferredArtwork;
-    const usesPosterFallback = variant !== "poster" && artwork === item.poster && !item.backdrop;
+    const artworkRole = variant === "poster" ? "poster" : "catalog";
+    const artworkPlaceholder = variant === "poster" ? item.posterPlaceholder : item.backdropPlaceholder;
+    const artworkColor = variant === "poster" ? item.posterDominantColor : item.backdropDominantColor;
     const hasKnownDuration = typeof item.durationSeconds === "number" && item.durationSeconds > 0;
     const hasPosition = typeof item.positionSeconds === "number" && item.positionSeconds > 0;
     const completed = Boolean(item.completed);
@@ -96,9 +101,7 @@ const SeriesCard = ({
     const remainingMinutes = hasPosition && hasKnownDuration
         ? Math.max(0, Math.ceil((item.durationSeconds! - item.positionSeconds!) / 60))
         : null;
-    const safeDominantColor = item.dominantColor && /^#[0-9a-f]{6}$/i.test(item.dominantColor)
-        ? item.dominantColor
-        : null;
+    const safeDominantColor = safeArtworkColor(artworkColor ?? item.dominantColor);
     const artworkStyle: CSSProperties | undefined = safeDominantColor
         ? { background: `color-mix(in srgb, ${safeDominantColor} 8%, var(--nx-panel))` }
         : undefined;
@@ -169,8 +172,10 @@ const SeriesCard = ({
                     fill
                     preload={imagePreload}
                     sizes={sizes}
+                    loader={imageLoader(artwork, artworkRole)}
+                    {...blurProps(artworkPlaceholder ?? item.placeholder)}
                     onError={() => setFailedArtwork(artwork)}
-                    className={`${usesPosterFallback ? "object-contain" : "object-cover"} ${completed ? "opacity-75" : ""}`}
+                    className={`object-cover transition-opacity duration-300 motion-reduce:transition-none ${completed ? "opacity-75" : ""}`}
                     style={{ objectPosition }}
                 />
             ) : (

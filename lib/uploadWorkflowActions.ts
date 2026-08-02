@@ -2,12 +2,7 @@
 
 import { updateTag } from "next/cache";
 import { getCatalog } from "@/lib/catalog";
-import {
-    validateCatalogResponse,
-    validateJikanAnimeListResponse,
-    validateJikanAnimeResponse,
-    validateJikanEpisodesResponse,
-} from "@/lib/contracts";
+import { validateCatalogResponse } from "@/lib/contracts";
 import {
     dataEmpty,
     dataFailure,
@@ -15,12 +10,15 @@ import {
     failureFromStatus,
     type DataResult,
 } from "@/lib/dataResult";
-import { fetchJikanResult } from "@/lib/jikanClient";
-import { mapJikanSeriesMetadata, persistSeriesMetadata } from "@/lib/seriesMetadata";
+import { getProvider, searchIdentityCandidates } from "@/lib/metadata/registry";
+import type { ProviderId } from "@/lib/metadata/types";
+import { persistSeriesIdentity } from "@/lib/metadata/persistIdentity";
 import type {
-    JikanEpisodeOption,
-    JikanSearchOption,
-    JikanSelection,
+    MetadataEpisodeOption,
+    MetadataReviewItem,
+    MetadataReviewReason,
+    MetadataSearchOption,
+    MetadataSelection,
     UploadSeriesGroupOption,
     UploadWorkflowSetup,
 } from "@/lib/uploadWorkflowTypes";
@@ -32,7 +30,6 @@ import {
 } from "@/lib/vodConfig";
 
 const MAX_SEARCH_LENGTH = 100;
-const MAX_EPISODE_PAGES = 500;
 
 const authenticatedHeaders = async (): Promise<DataResult<Record<string, string>>> => {
     const headers = await sessionHeaders();
@@ -95,18 +92,90 @@ const readGroups = async (headers: Record<string, string>): Promise<DataResult<U
     }
 };
 
-const readAnime = async (malId: number) => {
-    const path = `/anime/${malId}`;
-    const response = await fetchJikanResult(
-        path,
-        undefined,
-        (value) => validateJikanAnimeResponse(value).ok,
-    );
+const readMetadataReview = async (
+    headers: Record<string, string>,
+    titles: Map<string, string>,
+): Promise<DataResult<MetadataReviewItem[]>> => {
+    try {
+        const response = await fetch(`${VOD_ORIGIN}/series-metadata.php?review=1`, {
+            headers,
+            cache: "no-store",
+        });
+        if (!response.ok) return failureFromStatus(response.status);
 
-    if (response.kind === "error") return response;
+        const payload: unknown = await response.json();
+        if (typeof payload !== "object" || payload === null || !Array.isArray((payload as { items?: unknown }).items)) {
+            return dataFailure("invalid_response");
+        }
 
-    const result = validateJikanAnimeResponse(response.data);
-    return result.ok ? dataSuccess(result.data.data) : dataFailure("invalid_response");
+        const items: MetadataReviewItem[] = [];
+        for (const value of (payload as { items: unknown[] }).items) {
+            if (typeof value !== "object" || value === null) return dataFailure("invalid_response");
+            const item = value as Record<string, unknown>;
+            if (
+                typeof item.seriesKey !== "string"
+                || (item.groupId !== null && typeof item.groupId !== "number")
+                || (item.seasonNumber !== null && typeof item.seasonNumber !== "number")
+                || typeof item.externalIds !== "object" || item.externalIds === null
+                || typeof item.externalIdSources !== "object" || item.externalIdSources === null
+                || !Array.isArray(item.artwork)
+            ) return dataFailure("invalid_response");
+
+            const externalIds = item.externalIds as Record<string, string>;
+            const savedReason = typeof item.reviewReason === "string" ? item.reviewReason as MetadataReviewReason : null;
+            const skipped = item.reviewState === "skipped";
+            const hasIdentity = Object.keys(externalIds).length > 0;
+            const reason: MetadataReviewReason | null = skipped
+                ? savedReason
+                : !hasIdentity
+                    ? savedReason === "partial-match" ? "partial-match" : "no-match"
+                    : !externalIds.tmdb
+                        ? "missing-tmdb"
+                        : savedReason === "uncertain-season" || (item.groupId !== null && item.seasonNumber === null)
+                            ? "uncertain-season"
+                            : null;
+
+            const artwork = item.artwork.flatMap((entry) => {
+                if (typeof entry !== "object" || entry === null) return [];
+                const image = entry as Record<string, unknown>;
+                if (
+                    typeof image.id !== "number"
+                    || !["poster", "backdrop", "logo"].includes(String(image.kind))
+                    || typeof image.url !== "string"
+                    || typeof image.provider !== "string"
+                    || typeof image.isPrimary !== "boolean"
+                    || !["auto", "manual"].includes(String(image.matchSource))
+                ) return [];
+                return [{
+                    id: image.id,
+                    kind: image.kind as "poster" | "backdrop" | "logo",
+                    url: image.url,
+                    width: typeof image.width === "number" ? image.width : null,
+                    height: typeof image.height === "number" ? image.height : null,
+                    provider: image.provider,
+                    language: typeof image.language === "string" ? image.language : null,
+                    isPrimary: image.isPrimary,
+                    matchSource: image.matchSource as "auto" | "manual",
+                }];
+            });
+
+            items.push({
+                seriesKey: item.seriesKey,
+                title: titles.get(item.seriesKey) ?? item.seriesKey,
+                groupId: item.groupId as number | null,
+                seasonNumber: item.seasonNumber as number | null,
+                state: skipped ? "skipped" : reason ? "pending" : "ready",
+                reason,
+                externalIds,
+                externalIdSources: item.externalIdSources as Record<string, "auto" | "manual">,
+                artwork,
+            });
+        }
+
+        return dataSuccess(items);
+    } catch {
+        return dataFailure("network");
+    }
 };
 
 const refreshCatalog = async (): Promise<boolean> => {
@@ -137,12 +206,18 @@ export const getUploadWorkflowSetup = async (): Promise<UploadWorkflowSetup> => 
         return {
             series: [],
             groups: [],
+            metadataReview: [],
             unauthorized: auth.reason === "unauthorized" || auth.reason === "forbidden",
             unavailable: auth.reason !== "unauthorized" && auth.reason !== "forbidden",
         };
     }
 
-    const [catalog, groups] = await Promise.all([getCatalog(), readGroups(auth.data)]);
+    const catalog = await getCatalog();
+    const titles = new Map(catalog.kind === "error" ? [] : catalog.data.map((entry) => [entry.key, entry.title]));
+    const [groups, metadataReview] = await Promise.all([
+        readGroups(auth.data),
+        readMetadataReview(auth.data, titles),
+    ]);
 
     return {
         series: catalog.kind === "error"
@@ -161,12 +236,13 @@ export const getUploadWorkflowSetup = async (): Promise<UploadWorkflowSetup> => 
                 })),
             })),
         groups: groups.kind === "error" ? [] : groups.data,
+        metadataReview: metadataReview.kind === "error" ? [] : metadataReview.data,
         unauthorized: false,
-        unavailable: catalog.kind === "error" || groups.kind === "error",
+        unavailable: catalog.kind === "error" || groups.kind === "error" || metadataReview.kind === "error",
     };
 };
 
-export const searchJikanAction = async (query: string): Promise<DataResult<JikanSearchOption[]>> => {
+export const searchMetadataAction = async (query: string): Promise<DataResult<MetadataSearchOption[]>> => {
     const auth = await authenticatedHeaders();
     if (auth.kind === "error") return auth;
 
@@ -175,105 +251,101 @@ export const searchJikanAction = async (query: string): Promise<DataResult<Jikan
         return dataEmpty([]);
     }
 
-    const path = `/anime?q=${encodeURIComponent(normalized)}&limit=8&sfw=true`;
-    const response = await fetchJikanResult(
-        path,
-        undefined,
-        (value) => validateJikanAnimeListResponse(value).ok,
-    );
+    const result = await searchIdentityCandidates(normalized);
+    if (result.kind === "error") return result;
 
-    if (response.kind === "error") return response;
-
-    const result = validateJikanAnimeListResponse(response.data);
-    if (!result.ok) return dataFailure("invalid_response");
-
-    const items = result.data.data
-        .filter((anime) => !anime.rating?.startsWith("Rx"))
-        .map((anime) => ({
-            malId: anime.mal_id,
-            title: anime.title_english?.trim() || anime.title,
-            year: anime.year,
-            type: anime.type,
-            coverImage: anime.images.webp.large_image_url || anime.images.jpg.image_url || null,
-        }));
+    const items: MetadataSearchOption[] = result.data.map((candidate) => ({
+        providerId: candidate.providerId,
+        externalId: candidate.externalId,
+        title: candidate.title,
+        altTitles: candidate.altTitles,
+        year: candidate.year,
+        type: candidate.format,
+        coverImage: candidate.coverImage,
+    }));
 
     return items.length === 0 ? dataEmpty(items) : dataSuccess(items);
 };
 
-export const loadJikanSelectionAction = async (malId: number): Promise<DataResult<JikanSelection>> => {
+export const loadMetadataSelectionAction = async (
+    providerId: ProviderId,
+    externalId: string,
+): Promise<DataResult<MetadataSelection>> => {
     const auth = await authenticatedHeaders();
     if (auth.kind === "error") return auth;
 
-    if (!Number.isSafeInteger(malId) || malId < 1) return dataFailure("invalid_response");
+    const normalizedExternalId = providerId === "tmdb" && /^\d+$/.test(externalId.trim())
+        ? `tv:${externalId.trim()}`
+        : externalId.trim();
+    if (normalizedExternalId === "") return dataFailure("invalid_response");
 
-    const animeResult = await readAnime(malId);
-    if (animeResult.kind === "error") return animeResult;
+    const provider = getProvider(providerId);
+    if (!provider || !provider.getArtwork) return dataFailure("server");
 
-    const episodes: JikanEpisodeOption[] = [];
-    const seenNumbers = new Set<number>();
-    let page = 1;
-    let hasNext = true;
+    const [seriesResult, artworkResult] = await Promise.all([
+        provider.getSeries(normalizedExternalId),
+        provider.getArtwork(normalizedExternalId),
+    ]);
 
-    while (hasNext && page <= MAX_EPISODE_PAGES) {
-        const path = `/anime/${malId}/episodes?page=${page}`;
-        const response = await fetchJikanResult(
-            path,
-            undefined,
-            (value) => validateJikanEpisodesResponse(value).ok,
-        );
+    if (seriesResult.kind === "error") return seriesResult;
+    if (artworkResult.kind === "error") return artworkResult;
 
-        if (response.kind === "error") return response;
+    const episodesResult = provider.getEpisodes ? await provider.getEpisodes(normalizedExternalId) : null;
+    if (episodesResult && episodesResult.kind === "error") return episodesResult;
 
-        const result = validateJikanEpisodesResponse(response.data);
-        if (!result.ok) return dataFailure("invalid_response");
-
-        for (const episode of result.data.data) {
-            if (!seenNumbers.has(episode.mal_id)) {
-                seenNumbers.add(episode.mal_id);
-                episodes.push({ number: episode.mal_id, title: episode.title?.trim() || null });
-            }
-        }
-
-        hasNext = result.data.pagination.has_next_page;
-        page += 1;
-    }
-
-    if (hasNext) return dataFailure("server");
-
-    const anime = animeResult.data;
-    const metadata = mapJikanSeriesMetadata(anime);
+    const series = seriesResult.data;
+    const poster = artworkResult.data.find((entry) => entry.kind === "poster")?.url ?? null;
+    const backdrop = artworkResult.data.find((entry) => entry.kind === "backdrop")?.url ?? null;
+    const episodes: MetadataEpisodeOption[] = (episodesResult?.data ?? []).map((episode) => ({
+        number: episode.number,
+        title: episode.title,
+    }));
 
     return dataSuccess({
-        malId: anime.mal_id,
-        title: anime.title_english?.trim() || anime.title,
-        coverImage: metadata.coverImage,
-        backdropImage: metadata.backdropImage,
-        synopsis: metadata.synopsis,
-        rating: metadata.rating,
-        ageRating: metadata.ageRating,
-        year: metadata.year,
-        genres: metadata.genres,
-        studio: metadata.studio,
+        providerId,
+        externalId: normalizedExternalId,
+        malId: series.malId,
+        title: series.titles.english?.trim() || series.titles.primary,
+        coverImage: poster,
+        backdropImage: backdrop,
+        synopsis: series.synopsis,
+        rating: series.score !== null ? String(series.score) : null,
+        ageRating: series.ageRating,
+        year: series.year,
+        genres: series.genres,
+        studio: series.studio,
         episodes,
     });
 };
 
 export const saveSeriesMetadataAction = async (
     seriesKey: string,
-    malId: number,
+    providerId: ProviderId,
+    externalId: string,
 ): Promise<DataResult<{ success: true }>> => {
     const auth = await authenticatedHeaders();
     if (auth.kind === "error") return auth;
 
     const key = seriesKey.trim();
-    if (key === "" || key.length > 255 || !Number.isSafeInteger(malId) || malId < 1) {
+    if (key === "" || key.length > 255 || externalId.trim() === "") {
         return dataFailure("invalid_response");
     }
 
-    const anime = await readAnime(malId);
-    if (anime.kind === "error") return anime;
+    const normalizedExternalId = providerId === "tmdb" && /^\d+$/.test(externalId.trim())
+        ? `tv:${externalId.trim()}`
+        : externalId.trim();
+    const provider = getProvider(providerId);
+    if (!provider || !provider.getArtwork) return dataFailure("server");
 
-    const saved = await persistSeriesMetadata(key, mapJikanSeriesMetadata(anime.data));
+    const [seriesResult, artworkResult] = await Promise.all([
+        provider.getSeries(normalizedExternalId),
+        provider.getArtwork(normalizedExternalId),
+    ]);
+
+    if (seriesResult.kind === "error") return seriesResult;
+    if (artworkResult.kind === "error") return artworkResult;
+
+    const saved = await persistSeriesIdentity(key, providerId, normalizedExternalId, seriesResult.data, artworkResult.data, "manual");
     return saved ? dataSuccess({ success: true }) : dataFailure("server");
 };
 
@@ -394,9 +466,6 @@ export const saveSeriesGroupingAction = async (
         }
     }
 
-    if ((resolvedGroupId === null) !== (seasonNumber === null)) return dataFailure("invalid_response");
-    if (!(await refreshCatalog())) return dataFailure("server");
-
     try {
         const response = await fetch(`${VOD_ORIGIN}/series-groups.php`, {
             method: "PATCH",
@@ -405,7 +474,8 @@ export const saveSeriesGroupingAction = async (
             body: JSON.stringify({ seriesKey, groupId: resolvedGroupId, seasonNumber }),
         });
 
-        return response.ok ? dataSuccess({ success: true }) : failureFromStatus(response.status);
+        if (!response.ok) return failureFromStatus(response.status);
+        return (await refreshCatalog()) ? dataSuccess({ success: true }) : dataFailure("server");
     } catch {
         return dataFailure("network");
     }

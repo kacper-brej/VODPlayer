@@ -21,9 +21,20 @@ interface SeriesPageProps {
     searchParams: Promise<{ season?: string | string[] }>;
 }
 
+// Next.js 16 no longer decodes [id] before it reaches the page component
+// (unlike route handlers, which still do) — multi-word series keys like
+// "Akame ga Kill" arrive as "Akame%20ga%20Kill" and never match the catalog.
+const decodeSeriesId = (id: string): string => {
+    try {
+        return decodeURIComponent(id);
+    } catch {
+        return id;
+    }
+};
+
 export const generateMetadata = async ({ params }: Pick<SeriesPageProps, "params">): Promise<Metadata> => {
     const { id } = await params;
-    const result = await resolveCatalogSeries(id);
+    const result = await resolveCatalogSeries(decodeSeriesId(id));
 
     if (result.kind === "error" || !result.data) {
         return { title: "Serial niedostępny | Nocturna" };
@@ -36,7 +47,8 @@ export const generateMetadata = async ({ params }: Pick<SeriesPageProps, "params
 };
 
 const SeriesPage = async ({ params, searchParams }: SeriesPageProps) => {
-    const [{ id }, query, catalogResult] = await Promise.all([params, searchParams, getCatalog()]);
+    const [{ id: rawId }, query, catalogResult] = await Promise.all([params, searchParams, getCatalog()]);
+    const id = decodeSeriesId(rawId);
 
     if (catalogResult.kind === "error") {
         return (
@@ -107,7 +119,7 @@ const SeriesPage = async ({ params, searchParams }: SeriesPageProps) => {
                 episodeNumber: episode.number,
                 title: episode.title ?? `Odcinek ${formatEpisodeNumber(episode.number)}`,
                 fileName: episode.key,
-                thumbnail: episode.thumbnail ?? season.coverImage,
+                thumbnail: episode.thumbnail,
                 percent,
                 remainingTime: formatRemainingTime(entry),
                 watched,
@@ -149,8 +161,9 @@ const SeriesPage = async ({ params, searchParams }: SeriesPageProps) => {
                 <SeriesHero
                     seriesId={activeSeason?.seriesId ?? series.id}
                     title={displayTitle}
-                    coverImage={series.sourceCoverImage}
                     backdropImage={series.backdropImage}
+                    logoImage={series.logoImage}
+                    placeholder={series.backdropPlaceholder ?? series.placeholder}
                     synopsis={series.synopsis}
                     year={series.year}
                     rating={series.sourceRating}
@@ -159,13 +172,15 @@ const SeriesPage = async ({ params, searchParams }: SeriesPageProps) => {
                     resumeEpisodeKey={resumeEpisodeKey}
                     resumeEpisodeNumber={resumeEpisodeNumber}
                     firstEpisodeKey={activeSeason?.episodes[0]?.key ?? null}
-                    dominantColor={series.dominantColor}
+                    dominantColor={series.backdropDominantColor ?? series.dominantColor}
                     focalX={series.focalX}
                     focalY={series.focalY}
+                    safeLeft={series.safeLeft}
+                    safeBottom={series.safeBottom}
                 />
 
-                <div className={`relative z-20 mx-auto grid w-full max-w-[1440px] grid-cols-4 gap-x-4 px-5 sm:px-8 lg:grid-cols-12 lg:gap-x-5 lg:px-10 xl:-mt-[calc(58vh-96px)] xl:min-h-[calc(58vh-96px)] xl:px-11 2xl:-mt-[calc(62vh-96px)] 2xl:min-h-[calc(62vh-96px)] 2xl:px-12 ${series.synopsis ? "mt-8 mb-16" : "mt-0 mb-10"}`}>
-                    <div className="col-span-4 lg:col-span-12 xl:col-span-4 xl:col-start-9">
+                <div className={`pointer-events-none relative z-20 mx-auto grid w-full max-w-[1440px] grid-cols-4 gap-x-4 px-5 sm:px-8 lg:grid-cols-12 lg:gap-x-5 lg:px-10 xl:-mt-[calc(58vh-96px)] xl:min-h-[calc(58vh-96px)] xl:px-11 2xl:-mt-[calc(62vh-96px)] 2xl:min-h-[calc(62vh-96px)] 2xl:px-12 ${series.synopsis ? "mt-8 mb-16" : "mt-0 mb-10"}`}>
+                    <div className="pointer-events-auto col-span-4 lg:col-span-12 xl:col-span-4 xl:col-start-9">
                         <SeriesMetadata
                             year={series.year}
                             rating={series.sourceRating}
