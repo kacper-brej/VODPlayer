@@ -85,6 +85,15 @@ body {
   font-family: var(--font-ui);
 }
 
+@media (hover: hover) and (pointer: fine) {
+  a[href],
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="link"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+}
+
 @media (pointer: coarse) {
   input,
   select,
@@ -149,14 +158,19 @@ body {
 
 .nx-content-card {
   box-shadow: 0 2px 4px rgba(0, 0, 0, .45), 0 18px 38px -14px rgba(0, 0, 0, .80);
-  transition: transform 280ms cubic-bezier(.2, .8, .25, 1), box-shadow 280ms cubic-bezier(.2, .8, .25, 1);
+  transition: border-color 220ms ease, background-color 220ms ease, box-shadow 280ms cubic-bezier(.2, .8, .25, 1);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .nx-content-card:hover {
     background: var(--nx-raised);
+    border-color: color-mix(in srgb, var(--nx-accent) 32%, var(--nx-border));
     box-shadow: 0 4px 8px rgba(0, 0, 0, .50), 0 34px 70px -20px rgba(0, 0, 0, .90);
-    transform: translateY(-5px) scale(1.03);
+  }
+
+  .nx-content-card:hover .nx-card-artwork,
+  .nx-content-card:focus-visible .nx-card-artwork {
+    transform: scale(1.025);
   }
 }
 

@@ -4,6 +4,7 @@ type AuthContextType = {
     error: DataErrorReason | null,
     loading: boolean,
     refreshUser: () => Promise<void>,
+    setAuthenticatedUser: (user: AuthUser) => void,
     logout: () => Promise<void>,
 };
 import { useState, useEffect, useContext, createContext, useCallback, type ReactNode } from "react";
@@ -23,6 +24,7 @@ const AuthContext = createContext<AuthContextType>({
     error: null,
     loading: true,
     refreshUser: async () => {},
+    setAuthenticatedUser: () => {},
     logout: async () => {},
 });
 
@@ -49,6 +51,11 @@ export const AuthProvider = ({children}: {children: ReactNode}) => {
         }
 
         setUser(result.data);
+        setError(null);
+    }, []);
+
+    const setAuthenticatedUser = useCallback((nextUser: AuthUser) => {
+        setUser(nextUser);
         setError(null);
     }, []);
 
@@ -91,7 +98,7 @@ export const AuthProvider = ({children}: {children: ReactNode}) => {
     }, []);
 
     return (
-        <AuthContext.Provider value={{user, error, loading, refreshUser, logout}}>
+        <AuthContext.Provider value={{user, error, loading, refreshUser, setAuthenticatedUser, logout}}>
             {children}
         </AuthContext.Provider>
     )

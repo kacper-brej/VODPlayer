@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
-import { Check, Info, Plus } from "lucide-react";
+import { Check, Clock3, Info, Plus, Star } from "lucide-react";
 import toggleWatchlistAction from "@/lib/toggleWatchlistAction";
 import { blurProps, imageLoader, safeArtworkColor } from "@/lib/imageDelivery";
 
@@ -41,6 +41,7 @@ export interface SeriesCardProps {
     item: CardInput;
     variant?: ContentCardVariant;
     featured?: boolean;
+    catalog?: boolean;
     imagePreload?: boolean;
     sizes?: string;
     tabIndex?: number;
@@ -54,6 +55,7 @@ const SeriesCard = ({
     item,
     variant = "landscape",
     featured = false,
+    catalog = false,
     imagePreload = false,
     sizes = "(max-width: 639px) 82vw, (max-width: 1023px) 44vw, (max-width: 1439px) 30vw, 22vw",
     tabIndex = -1,
@@ -78,11 +80,14 @@ const SeriesCard = ({
         };
     }, []);
 
-    const preferredArtwork = variant === "poster" ? item.poster : item.backdrop;
+    const preferredArtwork = variant === "poster"
+        ? item.poster ?? item.backdrop
+        : item.backdrop ?? item.poster;
     const artwork = preferredArtwork === failedArtwork ? null : preferredArtwork;
-    const artworkRole = variant === "poster" ? "poster" : "catalog";
-    const artworkPlaceholder = variant === "poster" ? item.posterPlaceholder : item.backdropPlaceholder;
-    const artworkColor = variant === "poster" ? item.posterDominantColor : item.backdropDominantColor;
+    const usingPoster = Boolean(preferredArtwork && item.poster && preferredArtwork === item.poster);
+    const artworkRole = usingPoster ? "poster" : "catalog";
+    const artworkPlaceholder = usingPoster ? item.posterPlaceholder : item.backdropPlaceholder;
+    const artworkColor = usingPoster ? item.posterDominantColor : item.backdropDominantColor;
     const hasKnownDuration = typeof item.durationSeconds === "number" && item.durationSeconds > 0;
     const hasPosition = typeof item.positionSeconds === "number" && item.positionSeconds > 0;
     const completed = Boolean(item.completed);
@@ -159,7 +164,7 @@ const SeriesCard = ({
                     ? "aspect-2/3 rounded-t-2xl"
                     : variant === "row"
                         ? "my-auto ml-3 aspect-video w-[116px] shrink-0 rounded-[10px] sm:w-[132px]"
-                        : variant === "mosaic"
+                        : variant === "mosaic" || variant === "landscape"
                             ? "aspect-video"
                             : "aspect-video rounded-t-2xl"
             }`}
@@ -175,7 +180,7 @@ const SeriesCard = ({
                     loader={imageLoader(artwork, artworkRole)}
                     {...blurProps(artworkPlaceholder ?? item.placeholder)}
                     onError={() => setFailedArtwork(artwork)}
-                    className={`object-cover transition-opacity duration-300 motion-reduce:transition-none ${completed ? "opacity-75" : ""}`}
+                    className={`nx-card-artwork object-cover transition-[transform,opacity] duration-500 ease-out motion-reduce:transition-none ${completed ? "opacity-75" : ""}`}
                     style={{ objectPosition }}
                 />
             ) : (
@@ -207,7 +212,7 @@ const SeriesCard = ({
             </span>
 
             {(progress !== null || completed) && (
-                <span className="absolute inset-x-0 bottom-0 h-0.5 bg-nx-border">
+                <span className="absolute inset-x-0 bottom-0 z-20 h-0.5 bg-nx-border">
                     <span
                         className={`block h-full ${completed ? "bg-nx-text-2" : "bg-nx-accent"}`}
                         style={{ width: `${completed ? 100 : progress}%` }}
@@ -232,6 +237,26 @@ const SeriesCard = ({
             )}
             {metadata.length > 0 && (
                 <span className="line-clamp-1">{metadata.join(" · ")}</span>
+            )}
+        </span>
+    );
+    const landscapeMetadataLine = (
+        <span className="mt-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] leading-4 tracking-[0.04em] text-nx-text-2">
+            {item.episodeNumber !== undefined && (
+                <span>Odc. {formatEpisode(item.episodeNumber)}</span>
+            )}
+            {item.year && <span>{item.year}</span>}
+            {item.score && (
+                <span className="inline-flex items-center gap-1">
+                    <Star size={11} fill="currentColor" className="text-nx-accent" aria-hidden="true" />
+                    {item.score}
+                </span>
+            )}
+            {remainingMinutes !== null && (
+                <span className="inline-flex items-center gap-1">
+                    <Clock3 size={11} aria-hidden="true" />
+                    {remainingMinutes} min
+                </span>
             )}
         </span>
     );
@@ -298,6 +323,13 @@ const SeriesCard = ({
                 </span>
             )}
         </span>
+    ) : variant === "landscape" ? (
+        <span className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col justify-end bg-[linear-gradient(0deg,color-mix(in_srgb,var(--nx-bg)_96%,transparent)_0%,color-mix(in_srgb,var(--nx-bg)_72%,transparent)_48%,transparent_100%)] px-4 pb-4 pt-16 sm:px-5 sm:pb-5">
+            <span className="line-clamp-2 text-[17px] font-semibold leading-[1.25] text-nx-text sm:text-lg" title={item.title}>
+                {item.title}
+            </span>
+            {landscapeMetadataLine}
+        </span>
     ) : (
         <span className="flex min-w-0 flex-col gap-2 px-1 pb-1 pt-3">
             {metadataLine}
@@ -311,6 +343,7 @@ const SeriesCard = ({
         <article
             ref={containerRef}
             data-content-card
+            data-catalog-card={catalog ? "true" : undefined}
             role="link"
             tabIndex={tabIndex}
             aria-label={`${item.title}${progressDescription}`}
@@ -321,12 +354,10 @@ const SeriesCard = ({
                 event.preventDefault();
                 openInfo();
             }}
-            className={`nx-content-card group/card relative w-full scroll-mx-6 cursor-pointer rounded-2xl border border-nx-border bg-nx-panel text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent ${
+            className={`nx-content-card group/card relative w-full scroll-mx-6 cursor-pointer overflow-hidden rounded-2xl border border-nx-border bg-nx-panel text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent ${
                 variant === "row"
-                    ? "flex min-h-22 overflow-hidden"
-                    : variant === "mosaic"
-                        ? "overflow-hidden"
-                        : "overflow-visible"
+                    ? "flex h-full min-h-22"
+                    : ""
             }`}
         >
             {media}

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
 import CatalogFilterBar from "@/components/series/CatalogFilterBar";
 import CatalogGrid from "@/components/series/CatalogGrid";
 import SeriesCard from "@/components/series/SeriesCard";
@@ -23,7 +24,12 @@ interface CatalogScreenProps {
 
 const PAGE_SIZE = 24;
 const CATALOG_SORTS = new Set(["newest", "title", "year", "score"]);
-const spanPattern = [8, 4, 4, 4, 4, 6, 6, 3, 3, 3, 3] as const;
+const spanPatterns: Record<CatalogMode, readonly number[]> = {
+    all: [6, 6, 4, 4, 4, 6, 6, 3, 3, 3, 3],
+    genres: [4, 4, 4, 4, 4, 4],
+    collections: [6, 6, 4, 4, 4],
+    watchlist: [4, 4, 4, 4, 4, 4],
+};
 
 const firstValue = (value: string | string[] | undefined) =>
     Array.isArray(value) ? value[0] ?? "" : value ?? "";
@@ -122,6 +128,61 @@ const EmptyCatalog = ({
                 {mode === "watchlist" ? "Przejdź do katalogu" : "Wyślij plik"}
             </Link>
         </div>
+    );
+};
+
+const GenreDirectory = ({
+    catalog,
+    genres,
+    basePath,
+}: {
+    catalog: CatalogSeries[];
+    genres: ReturnType<typeof getCatalogGenres>;
+    basePath: string;
+}) => {
+    if (genres.length === 0) return null;
+
+    return (
+        <section aria-labelledby="genre-directory-title" className="mt-10 border-y border-nx-border py-8 sm:mt-12 sm:py-10">
+            <div className="mb-6 flex items-end gap-4">
+                <div>
+                    <span className="font-mono text-[10px] tracking-[0.2em] text-nx-text-2">INDEKS NASTROJÓW</span>
+                    <h2 id="genre-directory-title" className="mt-1 text-xl font-semibold text-nx-text sm:font-display sm:text-[28px]">
+                        Wybierz swój klimat
+                    </h2>
+                </div>
+                <span className="mb-2 h-px flex-1 bg-nx-border" />
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {genres.map((item, index) => {
+                    const count = catalog.filter((series) =>
+                        series.genres.some((genre) => genre.slug === item.slug)
+                    ).length;
+
+                    return (
+                        <Link
+                            key={item.slug}
+                            href={`${basePath}?genre=${encodeURIComponent(item.slug)}`}
+                            className="group relative flex min-h-28 items-end overflow-hidden rounded-2xl border border-nx-border bg-nx-panel p-5 outline-none transition-[border-color,background-color,transform] hover:-translate-y-0.5 hover:border-nx-accent/50 hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent"
+                        >
+                            <span aria-hidden="true" className="absolute -right-1 -top-5 font-display text-[92px] leading-none text-transparent opacity-45 [-webkit-text-stroke:1px_color-mix(in_srgb,var(--nx-accent)_42%,transparent)]">
+                                {String(index + 1).padStart(2, "0")}
+                            </span>
+                            <span className="relative flex w-full items-end justify-between gap-4">
+                                <span>
+                                    <span className="block text-lg font-semibold text-nx-text">{item.name}</span>
+                                    <span className="mt-1 block font-mono text-[10px] tracking-[0.14em] text-nx-text-2">
+                                        {count} {count === 1 ? "TYTUŁ" : "TYTUŁÓW"}
+                                    </span>
+                                </span>
+                                <ArrowUpRight size={20} className="shrink-0 text-nx-text-2 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-nx-accent" aria-hidden="true" />
+                            </span>
+                        </Link>
+                    );
+                })}
+            </div>
+        </section>
     );
 };
 
@@ -244,6 +305,10 @@ const CatalogScreen = async ({
                 </h1>
             </header>
 
+            {mode === "genres" && (
+                <GenreDirectory catalog={collapsed} genres={genres} basePath={basePath} />
+            )}
+
             {catalogResult.kind === "empty" || source.length === 0 ? (
                 <div className="mt-10">
                     <EmptyCatalog mode={mode} filtered={false} basePath={basePath} />
@@ -257,6 +322,7 @@ const CatalogScreen = async ({
                             sort={sort}
                             genre={genre}
                             genres={genres}
+                            showGenres={mode !== "genres"}
                         />
                     </div>
 
@@ -271,7 +337,8 @@ const CatalogScreen = async ({
                         ) : (
                             <CatalogGrid>
                                 {visible.map((series, index) => {
-                                    const span = spanPattern[index % spanPattern.length];
+                                    const pattern = spanPatterns[mode];
+                                    const span = pattern[index % pattern.length];
                                     const featured = span >= 6;
                                     const match = matchedBy.get(series.key);
                                     const item = toContentCard(series, {
@@ -286,7 +353,7 @@ const CatalogScreen = async ({
                                             className={`min-w-0 ${spanClass(span)}`}
                                         >
                                             <div role="gridcell">
-                                                <div className="mb-2 flex items-center gap-3">
+                                                <div className="relative z-20 mb-4 flex items-center gap-3">
                                                     <span className="font-mono text-[10px] tracking-[0.18em] text-nx-text-2">
                                                         {String(index + 1).padStart(2, "0")}
                                                     </span>
@@ -306,6 +373,7 @@ const CatalogScreen = async ({
                                                     imagePreload={index === 0}
                                                     sizes={imageSizes(span)}
                                                     tabIndex={0}
+                                                    catalog
                                                 />
                                             </div>
                                         </div>

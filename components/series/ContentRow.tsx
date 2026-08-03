@@ -11,6 +11,7 @@ interface ContentRowProps {
     variant: ContentRowVariant;
     itemCount: number;
     children: ReactNode;
+    onMosaicMove?: (direction: -1 | 1) => void;
 }
 
 const horizontalItemClass: Record<Exclude<ContentRowVariant, "mosaic">, string> = {
@@ -25,13 +26,14 @@ const ContentRow = ({
     variant,
     itemCount,
     children,
+    onMosaicMove,
 }: ContentRowProps) => {
     const titleId = useId();
     const rowRef = useRef<HTMLDivElement | null>(null);
     const cardStepRef = useRef(0);
     const pageStepRef = useRef(0);
     const [canMoveLeft, setCanMoveLeft] = useState(false);
-    const [canMoveRight, setCanMoveRight] = useState(itemCount > 1);
+    const [canMoveRight, setCanMoveRight] = useState(false);
     const items = Children.toArray(children);
     const isMosaic = variant === "mosaic";
 
@@ -45,7 +47,15 @@ const ContentRow = ({
         if (!row || isMosaic) return;
 
         const maxScroll = Math.max(0, row.scrollWidth - row.clientWidth);
-        setCanMoveLeft(row.scrollLeft > 2);
+        const startOffset = Number.parseFloat(getComputedStyle(row).paddingLeft) || 0;
+
+        if (maxScroll <= 2) {
+            setCanMoveLeft(false);
+            setCanMoveRight(false);
+            return;
+        }
+
+        setCanMoveLeft(row.scrollLeft > startOffset + 2);
         setCanMoveRight(row.scrollLeft < maxScroll - 2);
     }, [isMosaic]);
 
@@ -116,12 +126,7 @@ const ContentRow = ({
 
     const move = (direction: -1 | 1) => {
         if (isMosaic) {
-            const rowCards = cards();
-            const currentIndex = rowCards.findIndex((card) => card === document.activeElement);
-            const nextIndex = currentIndex < 0
-                ? direction > 0 ? 0 : rowCards.length - 1
-                : (currentIndex + direction + rowCards.length) % rowCards.length;
-            focusCard(nextIndex);
+            onMosaicMove?.(direction);
             return;
         }
 
@@ -131,11 +136,12 @@ const ContentRow = ({
 
         if (!row || !cardStep || !pageStep) return;
 
-        const currentIndex = Math.round(row.scrollLeft / cardStep);
+        const startOffset = Number.parseFloat(getComputedStyle(row).paddingLeft) || 0;
+        const currentIndex = Math.round((row.scrollLeft - startOffset) / cardStep);
         const cardsPerPage = Math.max(1, Math.round(pageStep / cardStep));
         const targetIndex = Math.max(0, currentIndex + direction * cardsPerPage);
         const maxScroll = Math.max(0, row.scrollWidth - row.clientWidth);
-        const target = Math.min(maxScroll, targetIndex * cardStep);
+        const target = Math.min(maxScroll, startOffset + targetIndex * cardStep);
 
         row.scrollTo({
             left: target,
@@ -171,8 +177,9 @@ const ContentRow = ({
                             type="button"
                             onClick={() => move(-1)}
                             disabled={!isMosaic && !canMoveLeft}
+                            aria-disabled={!isMosaic && !canMoveLeft}
                             aria-label={`Przewiń sekcję ${title} w lewo`}
-                            className="flex size-11 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text-2 opacity-0 outline-none transition-[opacity,color,background-color] duration-140 hover:bg-nx-raised hover:text-nx-text focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent disabled:pointer-events-none disabled:opacity-25 group-hover/section:opacity-100"
+                            className="flex size-11 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text-2 opacity-0 outline-none transition-[opacity,color,background-color,border-color] duration-140 hover:bg-nx-raised hover:text-nx-text focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent disabled:cursor-not-allowed disabled:border-transparent disabled:bg-transparent disabled:text-nx-text-2/25 group-hover/section:opacity-100"
                         >
                             <ChevronLeft size={19} />
                         </button>
@@ -180,8 +187,9 @@ const ContentRow = ({
                             type="button"
                             onClick={() => move(1)}
                             disabled={!isMosaic && !canMoveRight}
+                            aria-disabled={!isMosaic && !canMoveRight}
                             aria-label={`Przewiń sekcję ${title} w prawo`}
-                            className="flex size-11 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text-2 opacity-0 outline-none transition-[opacity,color,background-color] duration-140 hover:bg-nx-raised hover:text-nx-text focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent disabled:pointer-events-none disabled:opacity-25 group-hover/section:opacity-100"
+                            className="flex size-11 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text-2 opacity-0 outline-none transition-[opacity,color,background-color,border-color] duration-140 hover:bg-nx-raised hover:text-nx-text focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent disabled:cursor-not-allowed disabled:border-transparent disabled:bg-transparent disabled:text-nx-text-2/25 group-hover/section:opacity-100"
                         >
                             <ChevronRight size={19} />
                         </button>
@@ -201,8 +209,8 @@ const ContentRow = ({
                 onScroll={updateNavigation}
                 className={
                     isMosaic
-                        ? "grid grid-cols-1 gap-4 lg:grid-cols-12 lg:grid-rows-3 lg:gap-5 xl:gap-6"
-                        : "scrollbar-hide flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain py-3 scroll-smooth motion-reduce:scroll-auto lg:gap-5 xl:gap-6"
+                        ? "grid grid-cols-1 gap-4 lg:grid-cols-12 lg:grid-rows-3 lg:gap-4"
+                        : "scrollbar-hide -mx-2 flex w-[calc(100%+1rem)] snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain px-2 py-4 scroll-smooth motion-reduce:scroll-auto lg:gap-5 xl:gap-6"
                 }
             >
                 {items.map((child, index) => {
@@ -215,7 +223,7 @@ const ContentRow = ({
                             <div
                                 key={index}
                                 data-row-item
-                                className={`nx-section-item ${mosaicClass}`}
+                                className={`nx-section-item ${index === 0 ? "" : "h-full"} ${mosaicClass}`}
                                 style={{ animationDelay: `${Math.min(index * 60, 300)}ms` }}
                             >
                                 {child}

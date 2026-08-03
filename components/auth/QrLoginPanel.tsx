@@ -6,11 +6,13 @@ import { QRCodeSVG } from "qrcode.react";
 import { ArrowLeft, CircleCheck, RefreshCw } from "lucide-react";
 import { authSecondaryButtonClass } from "@/components/auth/AuthCardShell";
 import { checkQrSessionAction, createQrSessionAction } from "@/lib/authActions";
+import { useAuth } from "@/lib/AuthContext";
 
 type QrStatus = "loading" | "pending" | "approved" | "expired" | "error";
 
 export function QrLoginPanel({ onBack, mode = "login" }: { onBack: () => void; mode?: "login" | "register" }) {
     const router = useRouter();
+    const { setAuthenticatedUser } = useAuth();
     const [token, setToken] = useState<string | null>(null);
     const [status, setStatus] = useState<QrStatus>("loading");
     const [awaitingVerification, setAwaitingVerification] = useState(false);
@@ -50,16 +52,17 @@ export function QrLoginPanel({ onBack, mode = "login" }: { onBack: () => void; m
             }
             const next = await checkQrSessionAction(token);
             if (!active) return;
-            if (next === "approved") {
+            if (next.status === "approved") {
+                setAuthenticatedUser(next.user);
                 setStatus("approved");
                 router.replace("/profiles");
                 return;
             }
-            if (next === "expired" || next === "error") {
-                setStatus(next);
+            if (next.status === "expired" || next.status === "error") {
+                setStatus(next.status);
                 return;
             }
-            if (next === "verification") setAwaitingVerification(true);
+            if (next.status === "verification") setAwaitingVerification(true);
             timer = setTimeout(poll, 2000);
         };
 
@@ -68,7 +71,7 @@ export function QrLoginPanel({ onBack, mode = "login" }: { onBack: () => void; m
             active = false;
             if (timer) clearTimeout(timer);
         };
-    }, [router, status, token]);
+    }, [router, status, token, setAuthenticatedUser]);
 
     const qrUrl = token && typeof window !== "undefined"
         ? mode === "register"

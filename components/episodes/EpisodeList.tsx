@@ -101,7 +101,7 @@ const EpisodeList = ({ seasons, initialSeason, authRequired }: EpisodeListProps)
                         <button
                             type="button"
                             onClick={() => play(resumeEpisode)}
-                            className="group overflow-hidden rounded-2xl border border-nx-border bg-nx-panel text-left transition-colors hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent lg:col-span-6 xl:col-span-4"
+                            className="group self-start overflow-hidden rounded-2xl border border-nx-border bg-nx-panel text-left shadow-[0_18px_44px_-24px_rgba(0,0,0,.9)] transition-[border-color,background-color,transform] hover:-translate-y-1 hover:border-nx-accent/35 hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent lg:col-span-6 xl:col-span-4"
                         >
                             <span className="relative block aspect-video overflow-hidden bg-nx-panel">
                                 {resumeEpisode.thumbnail ? (

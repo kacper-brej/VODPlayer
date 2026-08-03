@@ -70,14 +70,14 @@ const ProfileMenu = () => {
     const initials = user ? initialsFrom(user.username) : "";
 
     return (
-        <div ref={containerRef} className="relative">
+        <div ref={containerRef} className="relative z-[80]">
             <button
                 ref={triggerRef}
                 type="button"
                 onClick={() => setIsOpen((open) => !open)}
                 aria-haspopup="menu"
                 aria-expanded={isOpen}
-                className="relative flex size-11 items-center justify-center rounded-full border border-border bg-surface-light text-foreground outline-none hover:border-primary/50 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
+                className="relative flex size-11 cursor-pointer items-center justify-center rounded-full border border-border bg-surface-light text-foreground outline-none hover:border-primary/50 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
             >
                 {initials ? (
                     <span className="font-mono text-[11px] text-foreground">{initials}</span>
@@ -99,14 +99,14 @@ const ProfileMenu = () => {
                 <div
                     role="menu"
                     aria-label="Menu profilu"
-            className="absolute bottom-0 left-full z-50 ml-3 flex min-w-44 flex-col gap-0.5 rounded-xl border border-border bg-surface p-1.5 shadow-[0_4px_8px_rgba(0,0,0,0.5),0_34px_70px_-20px_rgba(0,0,0,0.9)]"
-                    style={{ backgroundColor: "rgba(12,10,17,0.86)", boxShadow: "inset 0 1px 0 rgba(243,240,234,0.09)" }}
+                    className="absolute bottom-0 left-full z-[90] ml-3 flex min-w-48 flex-col gap-0.5 rounded-xl border border-border bg-surface p-1.5 shadow-[0_16px_50px_rgba(0,0,0,.72)]"
+                    style={{ backgroundColor: "rgba(12,10,17,0.96)", backdropFilter: "blur(22px)" }}
                 >
                     <Link
                         role="menuitem"
                         href="/settings"
                         onClick={() => setIsOpen(false)}
-                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-foreground outline-none transition-colors hover:bg-surface-light focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
+                        className="flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-foreground outline-none transition-colors hover:bg-surface-light focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
                     >
                         <Settings size={16} aria-hidden="true" />
                         Ustawienia
@@ -115,7 +115,7 @@ const ProfileMenu = () => {
                         role="menuitem"
                         type="button"
                         onClick={handleLogout}
-                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-danger outline-none transition-colors hover:bg-surface-light focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
+                        className="flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-danger outline-none transition-colors hover:bg-surface-light focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
                     >
                         <LogOut size={16} aria-hidden="true" />
                         Wyloguj

@@ -10,6 +10,7 @@ export type AuthActionResult = {
     ok: boolean;
     message: string;
     code?: "invalid" | "unconfirmed" | "expired" | "rate_limited" | "network" | "server";
+    user?: AuthUser;
 };
 
 const endpoint = (path: string) => `${AUTH_ORIGIN}/${path}`;
@@ -61,8 +62,10 @@ export const loginAction = async (formData: FormData): Promise<AuthActionResult>
             return { ok: false, code: "server", message: "The server returned an invalid response." };
         }
 
-        await setSessionCookieAction(payload.token, rememberMe);
-        return { ok: true, message: "Signed in successfully." };
+        const user = await setSessionCookieAction(payload.token, rememberMe);
+        if (!user) return { ok: false, code: "server", message: "The server returned an invalid response." };
+
+        return { ok: true, message: "Signed in successfully.", user };
     } catch {
         return { ok: false, code: "network", message: "Could not connect to the server." };
     }
@@ -203,19 +206,24 @@ export const createQrSessionAction = async (purpose: "login" | "register" = "log
     }
 };
 
-export const checkQrSessionAction = async (token: string): Promise<"pending" | "verification" | "approved" | "expired" | "error"> => {
+export type QrCheckResult =
+    | { status: "approved"; user: AuthUser }
+    | { status: "pending" | "verification" | "expired" | "error" };
+
+export const checkQrSessionAction = async (token: string): Promise<QrCheckResult> => {
     try {
         const response = await fetch(`${endpoint("qr-check.php")}?token=${encodeURIComponent(token)}`, { cache: "no-store" });
         const payload: unknown = await response.json();
-        if (!response.ok || !payload || typeof payload !== "object" || !("status" in payload)) return "error";
+        if (!response.ok || !payload || typeof payload !== "object" || !("status" in payload)) return { status: "error" };
         if (payload.status === "approved" && "token" in payload && typeof payload.token === "string") {
-            await setSessionCookieAction(payload.token, false);
-            return "approved";
+            const user = await setSessionCookieAction(payload.token, false);
+            if (!user) return { status: "error" };
+            return { status: "approved", user };
         }
-        if (payload.status === "verification") return "verification";
-        return payload.status === "expired" ? "expired" : "pending";
+        if (payload.status === "verification") return { status: "verification" };
+        return { status: payload.status === "expired" ? "expired" : "pending" };
     } catch {
-        return "error";
+        return { status: "error" };
     }
 };
 

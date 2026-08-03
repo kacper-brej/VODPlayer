@@ -154,13 +154,11 @@ const AppShell = ({ children, searchIndexPromise }: AppShellProps) => {
 
             <div className="relative z-10 flex w-full">
                 <Sidebar />
-                <div className="flex-1 flex flex-col min-h-dvh min-w-0 overflow-x-hidden">
-                    <header className="sticky top-0 z-40 w-full shrink-0 pt-4 sm:pt-8 px-4 sm:pl-16 sm:pr-8 flex justify-start items-center">
-                        <div
-                            aria-hidden="true"
-                            className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-28 bg-gradient-to-b from-background via-background/70 to-transparent"
-                        />
-                        <SearchBar />
+                <div className="flex min-h-dvh min-w-0 flex-1 flex-col overflow-x-hidden">
+                    <header className="sticky top-0 z-40 flex h-[76px] w-full shrink-0 items-center justify-center border-b border-nx-border/70 bg-[color-mix(in_srgb,var(--nx-bg)_88%,transparent)] px-5 backdrop-blur-xl sm:px-8">
+                        <div className="flex w-full max-w-[1440px] justify-center">
+                            <SearchBar />
+                        </div>
                     </header>
                     <main
                         id="main-content"

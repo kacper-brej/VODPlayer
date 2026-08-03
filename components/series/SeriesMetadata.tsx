@@ -1,4 +1,5 @@
 import type { CatalogGenre } from "@/lib/contracts";
+import { Star } from "lucide-react";
 
 interface SeriesMetadataProps {
     year: number | null;
@@ -69,7 +70,10 @@ const SeriesMetadata = ({
                         className={`flex flex-col gap-1 py-3 sm:flex-row sm:justify-between sm:gap-5 xl:flex-row ${index < rows.length - 1 ? "border-b border-nx-border" : ""}`}
                     >
                         <dt className="text-[12.5px] leading-[1.45] text-nx-text-2">{row.label}</dt>
-                        <dd className={`${row.numeric ? "font-mono tabular-nums" : ""} text-[13.5px] leading-[1.45] text-nx-text sm:text-right`}>
+                        <dd className={`${row.numeric ? "font-mono tabular-nums" : ""} inline-flex items-center gap-1.5 text-[13.5px] leading-[1.45] text-nx-text sm:justify-end sm:text-right`}>
+                            {row.label === "Ocena" && (
+                                <Star size={13} fill="currentColor" className="text-nx-accent" aria-hidden="true" />
+                            )}
                             {row.value}
                         </dd>
                     </div>

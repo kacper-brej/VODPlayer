@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import ContentRow, { type ContentRowVariant } from "@/components/series/ContentRow";
 import SeriesCard, { type CardInput, type ContentCardVariant } from "@/components/series/SeriesCard";
 
@@ -41,9 +44,14 @@ const ContentRowSection = ({
     variant,
     items,
 }: ContentRowSectionProps) => {
+    const [mosaicLead, setMosaicLead] = useState(0);
+
     if (items.length === 0) return null;
 
     const firstNewIndex = items.findIndex((item) => item.isNew);
+    const displayedItems = variant === "mosaic"
+        ? items.map((_, offset) => items[(mosaicLead + offset) % items.length])
+        : items;
 
     return (
         <ContentRow
@@ -51,9 +59,15 @@ const ContentRowSection = ({
             kicker={kicker}
             variant={variant}
             itemCount={items.length}
+            onMosaicMove={variant === "mosaic"
+                ? (direction) => setMosaicLead((current) =>
+                    (current + direction + items.length) % items.length
+                )
+                : undefined}
         >
-            {items.map((item, index) => {
-                const showNew = index === firstNewIndex;
+            {displayedItems.map((item, index) => {
+                const originalIndex = items.indexOf(item);
+                const showNew = originalIndex === firstNewIndex;
 
                 return (
                     <SeriesCard

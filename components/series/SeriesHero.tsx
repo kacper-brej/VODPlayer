@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Play } from "lucide-react";
+import { Play, Star } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { watchPath } from "@/lib/routes";
@@ -58,7 +58,7 @@ const SeriesHero = ({
     const safeColor = safeArtworkColor(dominantColor);
     const copyWidth = Math.min(0.9, Math.max(0.35, safeLeft ?? 0.52));
     const copyBottom = Math.min(0.7, Math.max(0.3, safeBottom ?? 0.42));
-    const metadata = [year, rating, ageRating, episodeCount > 0 ? `${episodeCount} odc.` : null].filter(Boolean);
+    const hasMetadata = Boolean(year || rating || ageRating || episodeCount > 0);
 
     const play = () => {
         if (!activeEpisodeKey) {
@@ -134,9 +134,17 @@ const SeriesHero = ({
                         )}
                     </h1>
 
-                    {metadata.length > 0 && (
+                    {hasMetadata && (
                         <p className="mt-4 flex flex-wrap gap-x-4 gap-y-2 font-mono text-[10px] tracking-[0.16em] text-nx-text-2 lg:text-[10.5px] xl:text-[11px]">
-                            {metadata.map((item) => <span key={String(item)}>{item}</span>)}
+                            {year && <span>{year}</span>}
+                            {rating && (
+                                <span className="inline-flex items-center gap-1.5" aria-label={`Ocena ${rating}`}>
+                                    <Star size={13} fill="currentColor" className="text-nx-accent" aria-hidden="true" />
+                                    {rating}
+                                </span>
+                            )}
+                            {ageRating && <span>{ageRating}</span>}
+                            {episodeCount > 0 && <span>{episodeCount} odc.</span>}
                         </p>
                     )}
 

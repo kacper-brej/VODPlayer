@@ -100,7 +100,7 @@ const NavRailItems = ({ orientation, layoutId }: NavRailItemsProps) => {
 const Sidebar = () => {
     return (
         <>
-            <aside className="sticky top-0 hidden h-dvh w-20 shrink-0 flex-col items-center justify-between border-r border-border bg-surface py-4 lg:flex xl:w-[92px]">
+            <aside className="sticky top-0 z-[70] hidden h-dvh w-20 shrink-0 flex-col items-center justify-between border-r border-border bg-surface py-4 lg:flex xl:w-[92px]">
                 <div className="flex w-full flex-col items-center gap-6">
                     <Link
                         href="/"
@@ -119,7 +119,7 @@ const Sidebar = () => {
                     <button
                         type="button"
                         onClick={openCommandPalette}
-                        className="flex flex-col items-center gap-1 rounded-lg px-2 py-2 text-muted outline-none transition-colors hover:bg-surface-light hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
+                        className="flex cursor-pointer flex-col items-center gap-1 rounded-lg px-2 py-2 text-muted outline-none transition-colors hover:bg-surface-light hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
                     >
                         <Command size={18} strokeWidth={2} aria-hidden="true" />
                         <span className="font-mono text-[9px] tracking-[0.14em] uppercase">Ctrl K</span>

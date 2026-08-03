@@ -41,7 +41,7 @@ const ContentRowSkeleton = ({
             </header>
 
             {variant === "mosaic" ? (
-                <div aria-hidden="true" className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:grid-rows-3 lg:gap-5 xl:gap-6">
+                <div aria-hidden="true" className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:grid-rows-3 lg:gap-4">
                     <div className="aspect-video rounded-2xl bg-nx-panel skeleton-pulse lg:col-span-7 lg:row-span-3" />
                     {Array.from({ length: 3 }).map((_, index) => (
                         <div
@@ -55,8 +55,12 @@ const ContentRowSkeleton = ({
                     {Array.from({ length: itemCount }).map((_, index) => (
                         <div key={index} className={`shrink-0 ${widthClass[variant]}`}>
                             <div className={`${variant === "ranking" ? "aspect-2/3" : "aspect-video"} rounded-2xl bg-nx-panel skeleton-pulse`} />
-                            <div className="mt-3 h-3 w-2/5 rounded-full bg-nx-panel skeleton-pulse" />
-                            <div className="mt-2 h-5 w-4/5 rounded-full bg-nx-panel skeleton-pulse" />
+                            {variant === "ranking" && (
+                                <>
+                                    <div className="mt-3 h-3 w-2/5 rounded-full bg-nx-panel skeleton-pulse" />
+                                    <div className="mt-2 h-5 w-4/5 rounded-full bg-nx-panel skeleton-pulse" />
+                                </>
+                            )}
                         </div>
                     ))}
                 </div>

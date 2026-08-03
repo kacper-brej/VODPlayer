@@ -119,7 +119,7 @@ const SeriesPage = async ({ params, searchParams }: SeriesPageProps) => {
                 episodeNumber: episode.number,
                 title: episode.title ?? `Odcinek ${formatEpisodeNumber(episode.number)}`,
                 fileName: episode.key,
-                thumbnail: episode.thumbnail,
+                thumbnail: episode.thumbnail ?? series.backdropImage ?? series.sourceCoverImage,
                 percent,
                 remainingTime: formatRemainingTime(entry),
                 watched,

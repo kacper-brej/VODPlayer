@@ -9,10 +9,12 @@ import { AuthStatusMessage } from "@/components/auth/AuthStatusMessage";
 import { PasswordField } from "@/components/auth/PasswordField";
 import { QrLoginPanel } from "@/components/auth/QrLoginPanel";
 import { loginAction, resendVerificationAction, type AuthActionResult } from "@/lib/authActions";
+import { useAuth } from "@/lib/AuthContext";
 
 export function SignInCard() {
     const router = useRouter();
     const searchParams = useSearchParams();
+    const { setAuthenticatedUser } = useAuth();
     const [qrMode, setQrMode] = useState(false);
     const [result, setResult] = useState<AuthActionResult | null>(null);
     const [lastEmail, setLastEmail] = useState("");
@@ -32,7 +34,10 @@ export function SignInCard() {
         startTransition(async () => {
             const next = await loginAction(formData);
             setResult(next);
-            if (next.ok) router.replace("/profiles");
+            if (next.ok && next.user) {
+                setAuthenticatedUser(next.user);
+                router.replace("/profiles");
+            }
         });
     };
 

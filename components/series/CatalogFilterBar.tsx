@@ -23,6 +23,7 @@ interface CatalogFilterBarProps {
     sort: string;
     genre: string;
     genres: CatalogGenre[];
+    showGenres?: boolean;
 }
 
 const FilterTabs = ({ label, options }: FilterTabsProps) => {
@@ -77,6 +78,7 @@ const CatalogFilterBar = ({
     sort,
     genre,
     genres,
+    showGenres = true,
 }: CatalogFilterBarProps) => {
     const hrefFor = (next: { sort?: string; genre?: string; query?: string }) => {
         const params = new URLSearchParams();
@@ -148,7 +150,7 @@ const CatalogFilterBar = ({
 
             <div className="flex flex-col gap-2">
                 <FilterTabs label="Sortowanie katalogu" options={sortOptions} />
-                {genres.length > 0 && (
+                {showGenres && genres.length > 0 && (
                     <FilterTabs label="Filtrowanie według gatunku" options={genreOptions} />
                 )}
             </div>
