@@ -36,10 +36,16 @@ export const fetchCurrentUser = async (): Promise<DataResult<AuthUser | null>> =
     }
 };
 
-export const AuthProvider = ({children}: {children: ReactNode}) => {
-    const [user, setUser] = useState<AuthUser | null>(null);
+interface AuthProviderProps {
+    children: ReactNode;
+    initialUser?: AuthUser | null;
+}
+
+export const AuthProvider = ({children, initialUser}: AuthProviderProps) => {
+    const hasInitialUser = initialUser !== undefined;
+    const [user, setUser] = useState<AuthUser | null>(initialUser ?? null);
     const [error, setError] = useState<DataErrorReason | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(!hasInitialUser);
 
     const refreshUser = useCallback(async () => {
         const result = await fetchCurrentUser();
@@ -76,6 +82,8 @@ export const AuthProvider = ({children}: {children: ReactNode}) => {
     }, []);
 
     useEffect(() => {
+        if (hasInitialUser) return;
+
         let active = true;
 
         fetchCurrentUser().then((result) => {
@@ -95,7 +103,7 @@ export const AuthProvider = ({children}: {children: ReactNode}) => {
         return () => {
             active = false;
         };
-    }, []);
+    }, [hasInitialUser]);
 
     return (
         <AuthContext.Provider value={{user, error, loading, refreshUser, setAuthenticatedUser, logout}}>

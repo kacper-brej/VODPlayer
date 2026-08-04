@@ -55,6 +55,7 @@ const FilterTabs = ({ label, options }: FilterTabsProps) => {
                         refs.current[index] = node;
                     }}
                     href={option.href}
+                    prefetch={false}
                     role="tab"
                     aria-selected={option.active}
                     tabIndex={option.active ? 0 : -1}
@@ -140,6 +141,7 @@ const CatalogFilterBar = ({
                 {query && (
                     <Link
                         href={hrefFor({ query: "" })}
+                        prefetch={false}
                         aria-label="Wyczyść wyszukiwanie"
                         className="flex size-11 shrink-0 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text-2 outline-none transition-colors duration-140 hover:bg-nx-raised hover:text-nx-text focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent"
                     >

@@ -1,26 +1,25 @@
 import type { Metadata } from "next";
-import { Bodoni_Moda, Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
-import AppShell from "@/components/layout/AppShell";
-import {AuthProvider} from "@/lib/AuthContext";
-import { getSearchIndex } from "@/lib/searchIndex";
 
-const geistSans = Geist({
+const geistSans = localFont({
+  src: "./fonts/Geist-Variable.woff2",
   variable: "--font-geist-sans",
-  subsets: ["latin", "latin-ext"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
+const geistMono = localFont({
+  src: "./fonts/GeistMono-Variable.woff2",
   variable: "--font-geist-mono",
-  subsets: ["latin", "latin-ext"],
+  display: "swap",
 });
 
-const bodoniModa = Bodoni_Moda({
+const bodoniModa = localFont({
+  src: "./fonts/BodoniModa-Variable.woff2",
   variable: "--font-bodoni-moda",
-  subsets: ["latin", "latin-ext"],
-  weight: "variable",
-  style: ["normal"],
-  axes: ["opsz"],
+  weight: "400 900",
+  style: "normal",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -29,24 +28,18 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({
-  children,
-}: Readonly<{
+                                     children,
+                                   }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const searchIndexPromise = getSearchIndex();
-
   return (
-    <html
-      lang="pl"
-      className={`${geistSans.variable} ${geistMono.variable} ${bodoniModa.variable} h-full`}
-    >
+      <html
+          lang="pl"
+          className={`${geistSans.variable} ${geistMono.variable} ${bodoniModa.variable} h-full`}
+      >
       <body className="font-ui bg-background text-foreground antialiased selection:bg-primary/30">
-      <AuthProvider>
-        <AppShell searchIndexPromise={searchIndexPromise}>
-          {children}
-        </AppShell>
-      </AuthProvider>
+      {children}
       </body>
-    </html>
+      </html>
   );
 }

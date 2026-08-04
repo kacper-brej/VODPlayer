@@ -6,11 +6,15 @@ import type { DataResult } from "@/lib/dataResult";
 
 interface CommandPaletteResolverProps {
     searchIndexPromise: Promise<DataResult<SearchIndexEntry[]>>;
+    initiallyOpen?: boolean;
 }
 
-const CommandPaletteResolver = ({ searchIndexPromise }: CommandPaletteResolverProps) => {
+const CommandPaletteResolver = ({
+    searchIndexPromise,
+    initiallyOpen = false,
+}: CommandPaletteResolverProps) => {
     const searchIndex = use(searchIndexPromise);
-    return <CommandPalette searchIndex={searchIndex} />;
+    return <CommandPalette searchIndex={searchIndex} initiallyOpen={initiallyOpen} />;
 };
 
 export default CommandPaletteResolver;

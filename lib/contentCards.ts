@@ -57,6 +57,8 @@ export const toContentCard = (
         backdropDominantColor: series.backdropDominantColor,
         backdropPlaceholder: series.backdropPlaceholder,
         year: series.year,
+        seasonNumber: series.seasonNumber,
+        genres: series.genres.map((genre) => genre.name),
         score: series.sourceRating,
         ageRating: series.ageRating,
         description: series.synopsis,

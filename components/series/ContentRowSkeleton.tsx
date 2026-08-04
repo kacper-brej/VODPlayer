@@ -41,14 +41,22 @@ const ContentRowSkeleton = ({
             </header>
 
             {variant === "mosaic" ? (
-                <div aria-hidden="true" className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:grid-rows-3 lg:gap-4">
-                    <div className="aspect-video rounded-2xl bg-nx-panel skeleton-pulse lg:col-span-7 lg:row-span-3" />
-                    {Array.from({ length: 3 }).map((_, index) => (
-                        <div
-                            key={index}
-                            className={`min-h-22 rounded-2xl bg-nx-panel skeleton-pulse lg:col-span-5 ${index === 2 ? "lg:max-xl:hidden" : ""}`}
-                        />
-                    ))}
+                <div aria-hidden="true" className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-stretch lg:gap-5">
+                    <div className="aspect-video rounded-2xl bg-nx-panel skeleton-pulse lg:col-span-5 lg:aspect-auto lg:min-h-[610px] min-[1600px]:col-span-6" />
+                    <div className="rounded-[22px] border border-nx-border bg-nx-panel p-3 sm:p-4 lg:col-span-7 lg:p-5 min-[1600px]:col-span-6">
+                        <div className="flex items-center justify-between border-b border-nx-border pb-4">
+                            <div className="h-7 w-40 rounded-full bg-nx-raised skeleton-pulse" />
+                            <div className="h-11 w-64 rounded-xl bg-nx-raised skeleton-pulse" />
+                        </div>
+                        <div className="mt-4 grid gap-4">
+                            {Array.from({ length: 3 }).map((_, index) => (
+                                <div
+                                    key={index}
+                                    className="min-h-[164px] rounded-2xl bg-nx-raised skeleton-pulse"
+                                />
+                            ))}
+                        </div>
+                    </div>
                 </div>
             ) : (
                 <div aria-hidden="true" className="scrollbar-hide flex gap-4 overflow-hidden py-3 lg:gap-5 xl:gap-6">

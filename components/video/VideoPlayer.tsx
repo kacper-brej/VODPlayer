@@ -38,7 +38,7 @@ interface VideoPlayerProps {
     onBack?: () => void;
     onNextEpisode?: () => void;
     onPreviousEpisode?: () => void;
-    onProgressUpdate?: (currentTime: number, duration: number) => void;
+    onProgressUpdate?: (currentTime: number, duration: number) => void | Promise<void>;
     startTime?: number;
     chapters?: EpisodeChapter[];
     autoplayNext?: boolean;
@@ -48,6 +48,7 @@ interface VideoPlayerProps {
 
 const NEXT_EPISODE_TRIGGER_SECONDS = 60;
 const NEXT_EPISODE_AUTOPLAY_MS = 5000;
+const PROGRESS_SAVE_INTERVAL_SECONDS = 12;
 
 const isEditableTarget = (target: EventTarget | null) => {
     const element = target as HTMLElement | null;
@@ -81,13 +82,20 @@ export const VideoPlayer = ({
 }: VideoPlayerProps) => {
     const playerRef = useRef<MediaPlayerInstance>(null);
     const prefersReducedMotion = useReducedMotion();
-    const lastSavedTime = useRef<number>(0);
+    const lastQueuedTimeRef = useRef(0);
+    const lastUiSecondRef = useRef(-1);
     const currentTimeRef = useRef(0);
     const durationRef = useRef(0);
     const hasSeekedToStart = useRef(false);
     const hasAppliedDefaultVolume = useRef(false);
     const nextEpisodeRef = useRef(onNextEpisode);
     const seekFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const saveInFlightRef = useRef(false);
+    const pendingProgressRef = useRef<{
+        time: number;
+        duration: number;
+        update: NonNullable<VideoPlayerProps["onProgressUpdate"]>;
+    } | null>(null);
 
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
@@ -117,16 +125,36 @@ export const VideoPlayer = ({
         if (seekFeedbackTimeoutRef.current) clearTimeout(seekFeedbackTimeoutRef.current);
     }, []);
 
+    const drainProgressQueue = useCallback(async () => {
+        if (saveInFlightRef.current) return;
+        saveInFlightRef.current = true;
+
+        try {
+            while (pendingProgressRef.current) {
+                const pending = pendingProgressRef.current;
+                pendingProgressRef.current = null;
+                await pending.update(pending.time, pending.duration);
+            }
+        } finally {
+            saveInFlightRef.current = false;
+        }
+    }, []);
+
     const flushProgress = useCallback(() => {
         const time = currentTimeRef.current;
         const mediaDuration = durationRef.current;
 
         if (!onProgressUpdate || !Number.isFinite(time) || time < 0) return;
-        if (Math.abs(time - lastSavedTime.current) < 0.5) return;
+        if (Math.abs(time - lastQueuedTimeRef.current) < 0.5) return;
 
-        onProgressUpdate(time, mediaDuration);
-        lastSavedTime.current = time;
-    }, [onProgressUpdate]);
+        pendingProgressRef.current = {
+            time,
+            duration: mediaDuration,
+            update: onProgressUpdate,
+        };
+        lastQueuedTimeRef.current = time;
+        void drainProgressQueue();
+    }, [drainProgressQueue, onProgressUpdate]);
 
     const handleError = (detail: MediaErrorDetail) => {
         setMediaError(detail);
@@ -151,15 +179,21 @@ export const VideoPlayer = ({
         hasAppliedDefaultVolume.current = false;
         currentTimeRef.current = 0;
         durationRef.current = 0;
-        lastSavedTime.current = 0;
+        lastQueuedTimeRef.current = 0;
+        lastUiSecondRef.current = -1;
     }, [src]);
 
     const handleTimeUpdate = (detail: MediaTimeUpdateEventDetail) => {
         const time = detail.currentTime;
-        setCurrentTime(time);
         currentTimeRef.current = time;
 
-        if (onProgressUpdate && Math.abs(time - lastSavedTime.current) >= 3) {
+        const uiSecond = Math.floor(time);
+        if (uiSecond !== lastUiSecondRef.current) {
+            lastUiSecondRef.current = uiSecond;
+            setCurrentTime(time);
+        }
+
+        if (onProgressUpdate && Math.abs(time - lastQueuedTimeRef.current) >= PROGRESS_SAVE_INTERVAL_SECONDS) {
             flushProgress();
         }
     };
@@ -324,7 +358,7 @@ export const VideoPlayer = ({
 
     useEffect(() => {
         nextEpisodeRef.current = onNextEpisode;
-    });
+    }, [onNextEpisode]);
 
     useEffect(() => {
         if (!showNextEpisode || autoAdvanceCancelled || prefersReducedMotion || !autoplayNext) return;

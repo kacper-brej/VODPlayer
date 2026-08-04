@@ -13,6 +13,19 @@
   --nx-accent-2: #D8FF72;
   --nx-critical: #FF6F61;
 
+  --r-s: 10px;
+  --r-m: 16px;
+  --r-l: 28px;
+
+  --sh-1: 0 1px 2px rgba(0, 0, 0, .50);
+  --sh-2: 0 2px 4px rgba(0, 0, 0, .45), 0 18px 38px -14px rgba(0, 0, 0, .80);
+  --sh-3: 0 4px 8px rgba(0, 0, 0, .50), 0 34px 70px -20px rgba(0, 0, 0, .90);
+
+  --ease: cubic-bezier(.2, .8, .25, 1);
+  --dur-fast: 140ms;
+  --dur-base: 280ms;
+  --dur-slow: 520ms;
+
   --background: #07070A;
   --surface: #15121C;
   --surface-light: #23202A;

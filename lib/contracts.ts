@@ -4,6 +4,15 @@ export type ContractResult<T> =
     | { ok: true; data: T }
     | { ok: false; error: string };
 
+export type MediaAssetStatus = "registered" | "uploading" | "ready" | "failed";
+
+export interface EpisodeMediaStatus {
+    status: MediaAssetStatus;
+    heights: number[];
+    previewStartSeconds: number | null;
+    hasPreviewClip: boolean;
+}
+
 export interface CatalogEpisodePayload {
     key: string;
     number: number;
@@ -13,6 +22,7 @@ export interface CatalogEpisodePayload {
     synopsis: string | null;
     durationSeconds: number | null;
     thumbnail: string | null;
+    media?: EpisodeMediaStatus | null;
 }
 
 export interface CatalogGenre {
@@ -253,10 +263,13 @@ export interface RequestEmailChangeResponse {
     message: string;
 }
 
+export type UserRole = "viewer" | "admin";
+
 export interface AuthUser {
     id: number;
     username: string;
     email: string;
+    role?: UserRole;
 }
 
 export interface MeResponse {
@@ -335,6 +348,20 @@ const isNullableString = (value: unknown): value is string | null =>
 const isNullableNumber = (value: unknown): value is number | null =>
     value === null || isNumber(value);
 
+const isMediaAssetStatus = (value: unknown): value is MediaAssetStatus =>
+    value === "registered" || value === "uploading" || value === "ready" || value === "failed";
+
+const isEpisodeMediaStatus = (value: unknown): value is EpisodeMediaStatus =>
+    isObject(value)
+    && isMediaAssetStatus(value.status)
+    && Array.isArray(value.heights)
+    && value.heights.every(isNumber)
+    && isNullableNumber(value.previewStartSeconds)
+    && isBoolean(value.hasPreviewClip);
+
+const isOptionalNullableEpisodeMedia = (value: unknown): value is EpisodeMediaStatus | null | undefined =>
+    value === undefined || value === null || isEpisodeMediaStatus(value);
+
 const isCatalogEpisode = (value: unknown): value is CatalogEpisodePayload =>
     isObject(value)
     && isString(value.key)
@@ -344,7 +371,8 @@ const isCatalogEpisode = (value: unknown): value is CatalogEpisodePayload =>
     && isOptionalNullableString(value.title)
     && isOptionalNullableString(value.synopsis)
     && isOptionalNullableNumber(value.durationSeconds)
-    && isOptionalNullableString(value.thumbnail);
+    && isOptionalNullableString(value.thumbnail)
+    && isOptionalNullableEpisodeMedia(value.media);
 
 const isOptionalNullableString = (value: unknown): value is string | null | undefined =>
     value === undefined || isNullableString(value);
@@ -685,6 +713,7 @@ const normalizeCatalogSeries = (series: CatalogSeriesPayload): CatalogSeriesPayl
         synopsis: episode.synopsis ?? null,
         durationSeconds: episode.durationSeconds ?? null,
         thumbnail: episode.thumbnail ?? null,
+        media: episode.media ?? null,
     })),
 });
 
@@ -813,6 +842,8 @@ export const validateRequestEmailChangeResponse = (value: unknown): ContractResu
         ? valid(value)
         : invalid("request email change");
 
+const isUserRole = (value: unknown): value is UserRole => value === "viewer" || value === "admin";
+
 export const validateMeResponse = (value: unknown): ContractResult<MeResponse> => {
     if (!isObject(value) || !isObject(value.user)) return invalid("me");
 
@@ -837,6 +868,7 @@ export const validateMeResponse = (value: unknown): ContractResult<MeResponse> =
             id,
             username: value.user.username,
             email: value.user.email,
+            role: isUserRole(value.user.role) ? value.user.role : "viewer",
         },
     });
 };
@@ -1293,3 +1325,74 @@ export const validateTmdbSeasonResponse = (value: unknown): ContractResult<TmdbS
     isTmdbSeasonResponse(value)
         ? valid(value)
         : invalid("TMDB season response");
+
+export interface AdminLibraryEpisode {
+    episodeKey: string;
+    sizeBytes: number;
+    title: string | null;
+    durationSeconds: number | null;
+}
+
+export interface AdminLibrarySeries {
+    seriesKey: string;
+    episodeCount: number;
+    totalBytes: number;
+    episodes: AdminLibraryEpisode[];
+}
+
+export interface AdminLibraryResponse {
+    series: AdminLibrarySeries[];
+}
+
+const isAdminLibraryEpisode = (value: unknown): value is AdminLibraryEpisode =>
+    isObject(value)
+    && isString(value.episodeKey)
+    && isNumber(value.sizeBytes)
+    && isNullableString(value.title)
+    && isNullableNumber(value.durationSeconds);
+
+const isAdminLibrarySeries = (value: unknown): value is AdminLibrarySeries =>
+    isObject(value)
+    && isString(value.seriesKey)
+    && isNumber(value.episodeCount)
+    && isNumber(value.totalBytes)
+    && Array.isArray(value.episodes)
+    && value.episodes.every(isAdminLibraryEpisode);
+
+const isAdminLibraryResponse = (value: unknown): value is AdminLibraryResponse =>
+    isObject(value) && Array.isArray(value.series) && value.series.every(isAdminLibrarySeries);
+
+export const validateAdminLibraryResponse = (value: unknown): ContractResult<AdminLibraryResponse> =>
+    isAdminLibraryResponse(value)
+        ? valid(value)
+        : invalid("admin library response");
+
+export interface AdminUserRow {
+    id: number;
+    username: string;
+    email: string;
+    emailVerified: boolean;
+    role: UserRole;
+    createdAt: number;
+}
+
+export interface AdminUsersResponse {
+    users: AdminUserRow[];
+}
+
+const isAdminUserRow = (value: unknown): value is AdminUserRow =>
+    isObject(value)
+    && isNumber(value.id)
+    && isString(value.username)
+    && isString(value.email)
+    && isBoolean(value.emailVerified)
+    && isUserRole(value.role)
+    && isNumber(value.createdAt);
+
+const isAdminUsersResponse = (value: unknown): value is AdminUsersResponse =>
+    isObject(value) && Array.isArray(value.users) && value.users.every(isAdminUserRow);
+
+export const validateAdminUsersResponse = (value: unknown): ContractResult<AdminUsersResponse> =>
+    isAdminUsersResponse(value)
+        ? valid(value)
+        : invalid("admin users response");

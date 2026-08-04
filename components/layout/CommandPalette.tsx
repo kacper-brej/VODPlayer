@@ -3,7 +3,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Compass, History, LogOut, RefreshCw, Search, type LucideIcon } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { QUICK_JUMP_ITEMS } from "@/config/menu";
+import { ADMIN_QUICK_JUMP_ITEM, QUICK_JUMP_ITEMS } from "@/config/menu";
 import { COMMAND_PALETTE_OPEN_EVENT } from "@/lib/commandPalette";
 import { useAuth } from "@/lib/AuthContext";
 import { addRecentSearch, getRecentSearches } from "@/lib/recentSearches";
@@ -17,6 +17,7 @@ import type { SearchIndexEntry } from "@/lib/searchIndex";
 
 interface CommandPaletteProps {
     searchIndex: DataResult<SearchIndexEntry[]>;
+    initiallyOpen?: boolean;
 }
 
 type PaletteAction =
@@ -66,17 +67,19 @@ const HighlightedText = ({ text, ranges }: { text: string; ranges: SearchRange[]
     return <>{nodes}</>;
 };
 
-const CommandPalette = ({ searchIndex }: CommandPaletteProps) => {
+const CommandPalette = ({ searchIndex, initiallyOpen = false }: CommandPaletteProps) => {
     const router = useRouter();
-    const { logout } = useAuth();
+    const { logout, user } = useAuth();
     const prefersReducedMotion = useReducedMotion();
     const listboxId = useId();
 
-    const [isOpen, setIsOpen] = useState(false);
+    const [isOpen, setIsOpen] = useState(initiallyOpen);
     const [query, setQuery] = useState("");
     const [debouncedQuery, setDebouncedQuery] = useState("");
     const [activeIndex, setActiveIndex] = useState(0);
-    const [recentSearches, setRecentSearches] = useState<string[]>([]);
+    const [recentSearches, setRecentSearches] = useState<string[]>(() =>
+        initiallyOpen ? getRecentSearches() : []
+    );
     const [viewportHeight, setViewportHeight] = useState<number | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -87,6 +90,10 @@ const CommandPalette = ({ searchIndex }: CommandPaletteProps) => {
 
     useEffect(() => {
         const openPalette = () => {
+            setQuery("");
+            setDebouncedQuery("");
+            setActiveIndex(0);
+            setRecentSearches(getRecentSearches());
             setIsOpen(true);
         };
 
@@ -103,17 +110,6 @@ const CommandPalette = ({ searchIndex }: CommandPaletteProps) => {
             window.removeEventListener("keydown", handleKeyDown);
         };
     }, []);
-
-    const [wasOpen, setWasOpen] = useState(isOpen);
-    if (isOpen !== wasOpen) {
-        setWasOpen(isOpen);
-        if (isOpen) {
-            setQuery("");
-            setDebouncedQuery("");
-            setActiveIndex(0);
-            setRecentSearches(getRecentSearches());
-        }
-    }
 
     useEffect(() => {
         if (!isOpen) return;
@@ -168,16 +164,16 @@ const CommandPalette = ({ searchIndex }: CommandPaletteProps) => {
 
     const onlyFuzzyResults = searchResults.length > 0 && searchResults.every((result) => result.fuzzy);
 
-    const quickJumpItems: PaletteItem[] = useMemo(
-        () =>
-            QUICK_JUMP_ITEMS.map((item) => ({
-                id: `quickjump-${item.href}`,
-                label: item.name,
-                icon: item.icon,
-                action: { kind: "navigate", href: item.href } as const,
-            })),
-        [],
-    );
+    const quickJumpItems: PaletteItem[] = useMemo(() => {
+        const items = user?.role === "admin" ? [...QUICK_JUMP_ITEMS, ADMIN_QUICK_JUMP_ITEM] : QUICK_JUMP_ITEMS;
+
+        return items.map((item) => ({
+            id: `quickjump-${item.href}`,
+            label: item.name,
+            icon: item.icon,
+            action: { kind: "navigate", href: item.href } as const,
+        }));
+    }, [user]);
 
     const actionItems: PaletteItem[] = useMemo(
         () => [

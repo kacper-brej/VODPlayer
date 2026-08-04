@@ -1,4 +1,4 @@
-import WatchClient from "@/app/watch/WatchClient";
+import WatchClient from "./WatchClient";
 import { resolveCatalogSeries } from "@/lib/catalog";
 import { getSeriesResume } from "@/lib/continueWatching";
 import { getSeriesProgressAction } from "@/lib/getProgressAction";

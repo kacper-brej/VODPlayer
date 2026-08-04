@@ -12,6 +12,7 @@ interface ContentRowProps {
     itemCount: number;
     children: ReactNode;
     onMosaicMove?: (direction: -1 | 1) => void;
+    mosaicPanelHeader?: ReactNode;
 }
 
 const horizontalItemClass: Record<Exclude<ContentRowVariant, "mosaic">, string> = {
@@ -27,11 +28,13 @@ const ContentRow = ({
     itemCount,
     children,
     onMosaicMove,
+    mosaicPanelHeader,
 }: ContentRowProps) => {
     const titleId = useId();
     const rowRef = useRef<HTMLDivElement | null>(null);
     const cardStepRef = useRef(0);
     const pageStepRef = useRef(0);
+    const navigationFrameRef = useRef<number | null>(null);
     const [canMoveLeft, setCanMoveLeft] = useState(false);
     const [canMoveRight, setCanMoveRight] = useState(false);
     const items = Children.toArray(children);
@@ -58,6 +61,15 @@ const ContentRow = ({
         setCanMoveLeft(row.scrollLeft > startOffset + 2);
         setCanMoveRight(row.scrollLeft < maxScroll - 2);
     }, [isMosaic]);
+
+    const scheduleNavigationUpdate = useCallback(() => {
+        if (navigationFrameRef.current !== null) return;
+
+        navigationFrameRef.current = window.requestAnimationFrame(() => {
+            navigationFrameRef.current = null;
+            updateNavigation();
+        });
+    }, [updateNavigation]);
 
     const measure = useCallback(() => {
         const row = rowRef.current;
@@ -88,8 +100,14 @@ const ContentRow = ({
         const observer = new ResizeObserver(measure);
         observer.observe(row);
 
-        return () => observer.disconnect();
-    }, [cards, measure]);
+        return () => {
+            observer.disconnect();
+            if (navigationFrameRef.current !== null) {
+                window.cancelAnimationFrame(navigationFrameRef.current);
+                navigationFrameRef.current = null;
+            }
+        };
+    }, [cards, itemCount, measure]);
 
     const setRovingCard = (target: HTMLElement) => {
         cards().forEach((card) => {
@@ -149,7 +167,7 @@ const ContentRow = ({
         });
     };
 
-    if (itemCount === 0) return null;
+    if (itemCount === 0 && !isMosaic) return null;
 
     return (
         <section
@@ -206,52 +224,74 @@ const ContentRow = ({
                     const target = (event.target as HTMLElement).closest<HTMLElement>("[data-content-card]");
                     if (target) setRovingCard(target);
                 }}
-                onScroll={updateNavigation}
+                onScroll={scheduleNavigationUpdate}
                 className={
                     isMosaic
-                        ? "grid grid-cols-1 gap-4 lg:grid-cols-12 lg:grid-rows-3 lg:gap-4"
+                        ? "grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-stretch lg:gap-5"
                         : "scrollbar-hide -mx-2 flex w-[calc(100%+1rem)] snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain px-2 py-4 scroll-smooth motion-reduce:scroll-auto lg:gap-5 xl:gap-6"
                 }
             >
-                {items.map((child, index) => {
-                    if (isMosaic) {
-                        const mosaicClass = index === 0
-                            ? "lg:col-span-7 lg:row-span-3"
-                            : `lg:col-span-5 ${index === 3 ? "lg:max-xl:hidden" : ""}`;
-
-                        return (
+                {isMosaic ? (
+                    <>
+                        {items[0] && (
                             <div
-                                key={index}
                                 data-row-item
-                                className={`nx-section-item ${index === 0 ? "" : "h-full"} ${mosaicClass}`}
-                                style={{ animationDelay: `${Math.min(index * 60, 300)}ms` }}
+                                className="nx-section-item min-h-0 lg:col-span-5 lg:h-full min-[1600px]:col-span-6"
+                                style={{ animationDelay: "0ms" }}
                             >
-                                {child}
+                                {items[0]}
                             </div>
-                        );
-                    }
+                        )}
 
-                    return (
                         <div
-                            key={index}
-                            data-row-item
-                            className={`nx-section-item relative min-w-0 shrink-0 snap-start ${horizontalItemClass[variant]}`}
-                            style={{ animationDelay: `${Math.min(index * 60, 300)}ms` }}
+                            className={`min-w-0 rounded-[22px] border border-nx-border bg-[linear-gradient(145deg,color-mix(in_srgb,var(--nx-panel)_96%,var(--nx-accent))_0%,var(--nx-panel)_48%,color-mix(in_srgb,var(--nx-bg)_78%,var(--nx-panel))_100%)] p-3 shadow-[0_26px_70px_-34px_rgba(0,0,0,0.95)] sm:p-4 lg:p-5 ${
+                                items.length === 0
+                                    ? "lg:col-span-12"
+                                    : "lg:col-span-7 min-[1600px]:col-span-6"
+                            }`}
                         >
-                            {variant === "ranking" && (
-                                <span
-                                    aria-hidden="true"
-                                    className="pointer-events-none absolute -left-[0.08em] bottom-7 z-0 font-display text-[76px] leading-[0.84] tracking-[-0.05em] text-transparent [-webkit-text-stroke:1px_color-mix(in_srgb,var(--nx-accent)_42%,transparent)] sm:text-[92px] xl:text-[112px] min-[1440px]:text-[128px]"
-                                >
-                                    {index + 1}
-                                </span>
-                            )}
-                            <div className={variant === "ranking" ? "relative z-10 ml-[18%] w-[82%]" : ""}>
-                                {child}
+                            {mosaicPanelHeader}
+
+                            <div className="mt-4 grid gap-4">
+                                {items.slice(1).map((child, index) => (
+                                    <div
+                                        key={index}
+                                        data-row-item
+                                        className="nx-section-item min-w-0"
+                                        style={{ animationDelay: `${Math.min((index + 1) * 60, 300)}ms` }}
+                                    >
+                                        {child}
+                                    </div>
+                                ))}
+
+                                {items.length <= 1 && (
+                                    <div className="flex min-h-[164px] items-center justify-center rounded-2xl border border-dashed border-nx-border px-6 text-center text-sm text-nx-text-2">
+                                        Brak pozycji pasujących do filtra.
+                                    </div>
+                                )}
                             </div>
                         </div>
-                    );
-                })}
+                    </>
+                ) : items.map((child, index) => (
+                    <div
+                        key={index}
+                        data-row-item
+                        className={`nx-section-item relative min-w-0 shrink-0 snap-start ${horizontalItemClass[variant]}`}
+                        style={{ animationDelay: `${Math.min(index * 60, 300)}ms` }}
+                    >
+                        {variant === "ranking" && (
+                            <span
+                                aria-hidden="true"
+                                className="pointer-events-none absolute -left-[0.08em] bottom-7 z-0 font-display text-[76px] leading-[0.84] tracking-[-0.05em] text-transparent [-webkit-text-stroke:1px_color-mix(in_srgb,var(--nx-accent)_42%,transparent)] sm:text-[92px] xl:text-[112px] min-[1440px]:text-[128px]"
+                            >
+                                {index + 1}
+                            </span>
+                        )}
+                        <div className={variant === "ranking" ? "relative z-10 ml-[18%] w-[82%]" : ""}>
+                            {child}
+                        </div>
+                    </div>
+                ))}
             </div>
         </section>
     );

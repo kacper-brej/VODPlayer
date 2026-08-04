@@ -4,7 +4,6 @@ import HeroBanerSection, { type LastWatchedData } from "@/components/series/Hero
 import ContentRowSection from "@/components/series/ContentRowSection";
 import ContentRowSkeleton from "@/components/series/ContentRowSkeleton";
 import SeriesModal from "@/components/series/SeriesModal";
-import HomeRefresher from "@/components/series/HomeRefresher";
 import { DataErrorState } from "@/components/data/DataState";
 import { getCatalog, type CatalogSeries } from "@/lib/catalog";
 import { collapseSeriesGroups, getNewestSeries } from "@/lib/catalogRows";
@@ -288,8 +287,6 @@ const HomeDashboard = async () => {
 export default function Home() {
     return (
         <div className="min-h-screen w-full min-w-0 overflow-x-hidden bg-nx-bg">
-            <HomeRefresher />
-
             <Suspense fallback={<div className="min-h-screen bg-nx-bg" />}>
                 <HomeDashboard />
             </Suspense>

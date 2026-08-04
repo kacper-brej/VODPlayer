@@ -4,7 +4,6 @@ import Image from "next/image";
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { Clock, Play, Volume2, VolumeX } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { hasPageInteraction } from "@/lib/pageInteraction";
 import { ARTWORK_SIZES, blurProps, imageLoader, safeArtworkColor } from "@/lib/imageDelivery";
 
 export interface LastWatchedData {
@@ -32,12 +31,15 @@ interface HeroBanerProps {
     lastWatchedData: LastWatchedData | null;
 }
 
-const HOVER_INTENT_MS = 400;
+const HOVER_INTENT_MS = 900;
+const PREVIEW_START_SECONDS = 2;
+const PREVIEW_DURATION_SECONDS = 8;
 
 const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
     const router = useRouter();
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const previewStartRef = useRef(PREVIEW_START_SECONDS);
     const [videoSource, setVideoSource] = useState<string | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [isMuted, setIsMuted] = useState(true);
@@ -56,11 +58,6 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
         if (!videoSource || !video) return;
 
         video.load();
-        video.play().catch(() => {
-            video.muted = true;
-            setIsMuted(true);
-            video.play().catch(() => setIsPlaying(false));
-        });
     }, [videoSource]);
 
     if (!lastWatchedData) return null;
@@ -78,26 +75,51 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
 
     const startPreview = () => {
         const connection = (navigator as Navigator & {
-            connection?: { saveData?: boolean };
+            connection?: {
+                saveData?: boolean;
+                effectiveType?: string;
+                downlink?: number;
+            };
         }).connection;
+        const effectiveType = connection?.effectiveType?.toLowerCase();
+        const slowConnection = effectiveType === "slow-2g"
+            || effectiveType === "2g"
+            || effectiveType === "3g"
+            || (typeof connection?.downlink === "number" && connection.downlink < 5);
 
         if (
             connection?.saveData
+            || slowConnection
             || window.matchMedia("(hover: none)").matches
             || window.matchMedia("(prefers-reduced-motion: reduce)").matches
         ) {
             return;
         }
 
-        setIsMuted(!hasPageInteraction());
+        setIsMuted(true);
+        setIsPlaying(false);
         setVideoSource(activeContent.video);
-        setIsPlaying(true);
     };
 
     const handleHover = () => {
         if (!activeContent.video) return;
         if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-        hoverTimerRef.current = setTimeout(startPreview, HOVER_INTENT_MS);
+        hoverTimerRef.current = setTimeout(() => {
+            hoverTimerRef.current = null;
+            startPreview();
+        }, HOVER_INTENT_MS);
+    };
+
+    const stopPreview = () => {
+        const video = videoRef.current;
+
+        if (video) {
+            video.pause();
+        }
+
+        setIsPlaying(false);
+        setIsMuted(true);
+        setVideoSource(null);
     };
 
     const handleHoverEnd = () => {
@@ -106,33 +128,29 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
             hoverTimerRef.current = null;
         }
 
-        const video = videoRef.current;
-
-        if (video) {
-            video.pause();
-            video.currentTime = activeContent.isResume
-                ? Math.max(0, activeContent.lastWatchedTime - 10)
-                : 2;
-        }
-
-        setIsPlaying(false);
-        setIsMuted(true);
-        setVideoSource(null);
+        stopPreview();
     };
 
     const handleLoadedMetadata = () => {
         const video = videoRef.current;
         if (!video) return;
 
-        video.currentTime = activeContent.isResume
-            ? Math.max(0, activeContent.lastWatchedTime - 10)
-            : Math.min(2, Math.max(0, video.duration - 1));
+        const latestSafeStart = Math.max(0, video.duration - PREVIEW_DURATION_SECONDS - 1);
+        const previewStart = Math.min(PREVIEW_START_SECONDS, latestSafeStart);
+        previewStartRef.current = previewStart;
+        video.currentTime = previewStart;
 
         video.play().catch(() => {
             video.muted = true;
             setIsMuted(true);
             video.play().catch(() => setIsPlaying(false));
         });
+    };
+
+    const handleTimeUpdate = () => {
+        const video = videoRef.current;
+        if (!video || video.currentTime < previewStartRef.current + PREVIEW_DURATION_SECONDS) return;
+        stopPreview();
     };
 
     const toggleMute = (event: MouseEvent<HTMLButtonElement>) => {
@@ -185,8 +203,10 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
                     ref={videoRef}
                     src={videoSource}
                     onLoadedMetadata={handleLoadedMetadata}
+                    onPlaying={() => setIsPlaying(true)}
+                    onTimeUpdate={handleTimeUpdate}
+                    onError={stopPreview}
                     muted={isMuted}
-                    loop
                     playsInline
                     preload="none"
                     className={`absolute inset-0 size-full object-cover transition-opacity duration-520 motion-reduce:transition-none ${isPlaying ? "opacity-100" : "opacity-0"}`}

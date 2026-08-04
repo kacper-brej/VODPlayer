@@ -32,12 +32,18 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+!tools/transcode/.env
 
 # vercel
 .vercel
 
 backend-php/config.php
+backend-php/b2_config.php
 backend-php/vendor/
+
+tools/transcode/node_modules/
+tools/transcode/.transcode-work/
 
 # typescript
 *.tsbuildinfo

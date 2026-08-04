@@ -1,17 +1,12 @@
 "use client"
-import { usePathname, useRouter } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { WifiOff } from "lucide-react";
 import Sidebar from "@/components/layout/Sidebar";
 import SearchBar from "@/components/layout/SearchBar";
-import CommandPaletteResolver from "@/components/layout/CommandPaletteResolver";
+import CommandPaletteLauncher from "@/components/layout/CommandPaletteLauncher";
 import { useAuth } from "@/lib/AuthContext";
 import { ContentSkeleton, DataErrorState } from "@/components/data/DataState";
-import type { SearchIndexEntry } from "@/lib/searchIndex";
-import type { DataResult } from "@/lib/dataResult";
-
-const NO_CHROME_ROUTES = ["/login", "/signup", "/forgot-password", "/reset-password", "/qr-confirm", "/profiles", "/watch"];
-const PUBLIC_ROUTES = ["/login", "/signup", "/forgot-password", "/reset-password", "/qr-confirm"];
 
 const GRAIN_BACKGROUND = `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`;
 
@@ -76,7 +71,6 @@ const OfflineBanner = () => (
 
 interface AppShellProps {
     children: React.ReactNode;
-    searchIndexPromise: Promise<DataResult<SearchIndexEntry[]>>;
 }
 
 const SkipLink = () => (
@@ -88,40 +82,20 @@ const SkipLink = () => (
     </a>
 );
 
-const AppShell = ({ children, searchIndexPromise }: AppShellProps) => {
-    const pathname = usePathname();
+const AppShell = ({ children }: AppShellProps) => {
     const router = useRouter();
     const { user, error, loading, refreshUser } = useAuth();
     const isOnline = useOnlineStatus();
-    const [hadSession, setHadSession] = useState(Boolean(user));
 
-    if (user && !hadSession) {
-        setHadSession(true);
-    }
-
-    const isNoChrome = NO_CHROME_ROUTES.includes(pathname);
-    const sessionExpiredMidWork = !loading && !user && error === "unauthorized" && hadSession;
-    const pendingLoginRedirect = !loading && !user && error === "unauthorized" && !hadSession && !PUBLIC_ROUTES.includes(pathname);
+    const sessionExpiredMidWork = !loading && !user && error === "unauthorized";
+    const pendingLoginRedirect = !loading && !user && !sessionExpiredMidWork && (!error || error === "unauthorized");
 
     useEffect(() => {
         if (loading) return;
         if (error && error !== "unauthorized") return;
         if (sessionExpiredMidWork) return;
-        if (!user && !PUBLIC_ROUTES.includes(pathname)) {
-            router.replace("/login");
-        }
-    }, [error, loading, user, pathname, router, sessionExpiredMidWork]);
-
-    if (isNoChrome) {
-        return (
-            <>
-                <SkipLink />
-                <main id="main-content" tabIndex={-1} className="min-h-dvh outline-none">
-                    {children}
-                </main>
-            </>
-        );
-    }
+        if (!user) router.replace("/login");
+    }, [error, loading, user, router, sessionExpiredMidWork]);
 
     let mainContent: React.ReactNode;
 
@@ -146,7 +120,7 @@ const AppShell = ({ children, searchIndexPromise }: AppShellProps) => {
         <div className="relative flex w-full">
             <div
                 aria-hidden="true"
-                className="pointer-events-none fixed inset-0 z-0 opacity-[0.045] mix-blend-soft-light"
+                className="pointer-events-none fixed inset-0 z-0 hidden opacity-[0.045] mix-blend-soft-light motion-reduce:hidden sm:block"
                 style={{ backgroundImage: GRAIN_BACKGROUND, backgroundSize: "200px 200px" }}
             />
 
@@ -155,7 +129,7 @@ const AppShell = ({ children, searchIndexPromise }: AppShellProps) => {
             <div className="relative z-10 flex w-full">
                 <Sidebar />
                 <div className="flex min-h-dvh min-w-0 flex-1 flex-col overflow-x-hidden">
-                    <header className="sticky top-0 z-40 flex h-[76px] w-full shrink-0 items-center justify-center border-b border-nx-border/70 bg-[color-mix(in_srgb,var(--nx-bg)_88%,transparent)] px-5 backdrop-blur-xl sm:px-8">
+                    <header className="sticky top-0 z-40 flex h-[76px] w-full shrink-0 items-center justify-center border-b border-nx-border/70 bg-[color-mix(in_srgb,var(--nx-bg)_94%,transparent)] px-5 backdrop-blur-none sm:bg-[color-mix(in_srgb,var(--nx-bg)_88%,transparent)] sm:px-8 sm:backdrop-blur-xl">
                         <div className="flex w-full max-w-[1440px] justify-center">
                             <SearchBar />
                         </div>
@@ -172,9 +146,7 @@ const AppShell = ({ children, searchIndexPromise }: AppShellProps) => {
                 </div>
             </div>
 
-            <Suspense fallback={null}>
-                <CommandPaletteResolver searchIndexPromise={searchIndexPromise} />
-            </Suspense>
+            <CommandPaletteLauncher />
         </div>
     );
 };

@@ -1,34 +1,29 @@
 "use client"
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useRef, type KeyboardEvent } from "react";
 import { Command } from "lucide-react";
-import { motion, useReducedMotion } from "framer-motion";
-import { NAV_ITEMS } from "@/config/menu";
+import { ADMIN_QUICK_JUMP_ITEM, NAV_ITEMS } from "@/config/menu";
 import ProfileMenu from "@/components/layout/ProfileMenu";
 import { openCommandPalette } from "@/lib/commandPalette";
+import { useAuth } from "@/lib/AuthContext";
 
 interface NavRailItemsProps {
     orientation: "vertical" | "horizontal";
-    layoutId: string;
 }
 
-const NavRailItems = ({ orientation, layoutId }: NavRailItemsProps) => {
+const NavRailItems = ({ orientation }: NavRailItemsProps) => {
     const pathname = usePathname();
-    const prefersReducedMotion = useReducedMotion();
-    const activeIndex = NAV_ITEMS.findIndex((item) => item.href === pathname);
-
-    const [lastPathname, setLastPathname] = useState(pathname);
-    const [rovingIndex, setRovingIndex] = useState(activeIndex >= 0 ? activeIndex : 0);
+    const { user } = useAuth();
+    const items = user?.role === "admin" ? [...NAV_ITEMS, ADMIN_QUICK_JUMP_ITEM] : NAV_ITEMS;
+    const activeIndex = items.findIndex((item) =>
+        item.href === "/"
+            ? pathname === "/"
+            : pathname === item.href || pathname.startsWith(`${item.href}/`),
+    );
     const linkRefs = useRef<(HTMLAnchorElement | null)[]>([]);
 
-    if (pathname !== lastPathname) {
-        setLastPathname(pathname);
-        if (activeIndex >= 0) setRovingIndex(activeIndex);
-    }
-
     const moveFocus = (nextIndex: number) => {
-        setRovingIndex(nextIndex);
         linkRefs.current[nextIndex]?.focus();
     };
 
@@ -38,16 +33,16 @@ const NavRailItems = ({ orientation, layoutId }: NavRailItemsProps) => {
 
         if (event.key === nextKey) {
             event.preventDefault();
-            moveFocus((index + 1) % NAV_ITEMS.length);
+            moveFocus((index + 1) % items.length);
         } else if (event.key === prevKey) {
             event.preventDefault();
-            moveFocus((index - 1 + NAV_ITEMS.length) % NAV_ITEMS.length);
+            moveFocus((index - 1 + items.length) % items.length);
         } else if (event.key === "Home") {
             event.preventDefault();
             moveFocus(0);
         } else if (event.key === "End") {
             event.preventDefault();
-            moveFocus(NAV_ITEMS.length - 1);
+            moveFocus(items.length - 1);
         }
     };
 
@@ -59,7 +54,7 @@ const NavRailItems = ({ orientation, layoutId }: NavRailItemsProps) => {
                     : "flex w-full flex-row items-stretch justify-between"
             }
         >
-            {NAV_ITEMS.map(({ name, href, icon: Icon }, index) => {
+            {items.map(({ name, href, icon: Icon }, index) => {
                 const isActive = index === activeIndex;
 
                 return (
@@ -70,19 +65,15 @@ const NavRailItems = ({ orientation, layoutId }: NavRailItemsProps) => {
                             }}
                             href={href}
                             aria-current={isActive ? "page" : undefined}
-                            tabIndex={index === rovingIndex ? 0 : -1}
-                            onFocus={() => setRovingIndex(index)}
                             onKeyDown={(event) => handleKeyDown(event, index)}
                             className={`relative flex flex-col items-center gap-1 rounded-lg px-2 py-2.5 text-center outline-none transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary ${
                                 isActive ? "text-foreground" : "text-muted hover:bg-surface-light hover:text-foreground"
                             }`}
                         >
                             {isActive && (
-                                <motion.span
-                                    layoutId={layoutId}
+                                <span
                                     aria-hidden="true"
                                     className="absolute left-0 top-1/2 h-8 w-[2px] -translate-y-1/2 rounded-full bg-primary"
-                                    transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.28, ease: [0.2, 0.8, 0.25, 1] }}
                                 />
                             )}
                             <Icon size={20} strokeWidth={2} aria-hidden="true" />
@@ -111,7 +102,7 @@ const Sidebar = () => {
                     </Link>
 
                     <nav aria-label="Główna nawigacja" className="w-full px-2">
-                        <NavRailItems orientation="vertical" layoutId="nav-rail-indicator-desktop" />
+                        <NavRailItems orientation="vertical" />
                     </nav>
                 </div>
 
@@ -141,7 +132,7 @@ const Sidebar = () => {
                     paddingBottom: "env(safe-area-inset-bottom)",
                 }}
             >
-                <NavRailItems orientation="horizontal" layoutId="nav-rail-indicator-mobile" />
+                <NavRailItems orientation="horizontal" />
             </nav>
         </>
     );

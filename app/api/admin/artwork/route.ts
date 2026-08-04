@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sessionHeaders, VOD_ORIGIN } from "@/lib/vodConfig";
-import { hasValidSession } from "@/lib/verifySession";
+import { hasActiveSession } from "@/lib/verifySession";
 
 const MAX_BYTES = 8 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 export const POST = async (request: NextRequest) => {
-    if (!(await hasValidSession(request))) {
+    if (!(await hasActiveSession(request))) {
         return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
     }
 
