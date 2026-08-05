@@ -33,7 +33,6 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example
-!tools/transcode/.env
 
 # vercel
 .vercel
@@ -41,6 +40,11 @@ yarn-error.log*
 backend-php/config.php
 backend-php/b2_config.php
 backend-php/vendor/
+backend-php/hls_cache/
+backend-php/catalog_cache.json
+
+tools/transcode/.master-key-temp.txt
+tools/transcode/.b2-server-config-values.txt
 
 tools/transcode/node_modules/
 tools/transcode/.transcode-work/

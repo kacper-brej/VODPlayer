@@ -4,6 +4,7 @@ import type { CardInput } from "@/components/series/SeriesCard";
 import type { CatalogSeries } from "@/lib/catalog";
 import type { ResumePoint } from "@/lib/contracts";
 import { seriesPath, watchPath } from "@/lib/routes";
+import { resolvePreviewSource } from "@/lib/videoAccess";
 
 const NEW_EPISODE_WINDOW_SECONDS = 7 * 24 * 60 * 60;
 
@@ -40,6 +41,10 @@ export const toContentCard = (
         && !hasProgress
         && Boolean(latest)
         && latest!.addedAt >= Math.floor(Date.now() / 1000) - NEW_EPISODE_WINDOW_SECONDS;
+    const resumePositionSeconds = resume && episode?.key === resume.episodeKey
+        ? resume.positionSeconds
+        : null;
+    const previewSource = episode ? resolvePreviewSource(series.key, episode, resumePositionSeconds) : null;
 
     return {
         seriesKey: series.key,
@@ -72,6 +77,7 @@ export const toContentCard = (
         href: href ?? seriesPath(series.key),
         infoId: series.id,
         inWatchlist,
+        previewSource,
     };
 };
 

@@ -58,6 +58,10 @@ interface PlayerOptionsMenuProps {
 const PlayerOptionsMenu = ({ onPreviousEpisode }: PlayerOptionsMenuProps) => {
     const remote = useMediaRemote();
     const playbackRate = useMediaState("playbackRate");
+    const qualities = useMediaState("qualities");
+    const currentQuality = useMediaState("quality");
+    const autoQuality = useMediaState("autoQuality");
+    const sortedQualities = [...qualities].sort((a, b) => b.height - a.height);
     const [open, setOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
     const triggerRef = useRef<HTMLButtonElement>(null);
@@ -119,11 +123,52 @@ const PlayerOptionsMenu = ({ onPreviousEpisode }: PlayerOptionsMenuProps) => {
                         </button>
                     )}
                     <span className="np-menu-label">Odtwarzanie</span>
-                    <div className="np-menu-status" aria-label="Jakość oryginalna">
-                        <Monitor />
-                        <span>Jakość</span>
-                        <span>Oryginalna</span>
-                    </div>
+                    {sortedQualities.length > 0 && (
+                        <>
+                            <span className="np-menu-label np-menu-label--section">
+                                <Monitor />
+                                Jakość
+                            </span>
+                            <button
+                                type="button"
+                                role="menuitemradio"
+                                aria-checked={autoQuality}
+                                data-selected={autoQuality ? "" : undefined}
+                                className="np-menu-item"
+                                onClick={() => {
+                                    remote.changeQuality(-1);
+                                    setOpen(false);
+                                    triggerRef.current?.focus();
+                                }}
+                            >
+                                <span>Auto</span>
+                                {autoQuality && <Check />}
+                            </button>
+                            {sortedQualities.map((quality) => {
+                                const isSelected = !autoQuality && currentQuality?.height === quality.height;
+
+                                return (
+                                    <button
+                                        key={quality.height}
+                                        type="button"
+                                        role="menuitemradio"
+                                        aria-checked={isSelected}
+                                        data-selected={isSelected ? "" : undefined}
+                                        className="np-menu-item"
+                                        onClick={() => {
+                                            const index = qualities.findIndex((item) => item.height === quality.height);
+                                            if (index >= 0) remote.changeQuality(index);
+                                            setOpen(false);
+                                            triggerRef.current?.focus();
+                                        }}
+                                    >
+                                        <span>{quality.height}p</span>
+                                        {isSelected && <Check />}
+                                    </button>
+                                );
+                            })}
+                        </>
+                    )}
                     <span className="np-menu-label np-menu-label--section">
                         <Gauge />
                         Prędkość

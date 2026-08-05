@@ -4,16 +4,22 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import '@vidstack/react/player/styles/base.css';
 import {
     Gesture,
+    isHLSProvider,
     MediaErrorDetail,
     MediaPlayer,
     MediaPlayerInstance,
     MediaProvider,
+    MediaProviderAdapter,
     MediaTimeUpdateEventDetail,
     Poster,
 } from '@vidstack/react';
+import type { ErrorData as HlsErrorData } from 'hls.js';
 import { AlertTriangle, RotateCcw } from 'lucide-react';
 import { MotionConfig, useReducedMotion } from 'framer-motion';
 import type { EpisodeChapter } from '@/lib/contracts';
+import type { PlaybackSource } from '@/lib/videoAccess';
+import { buildHlsConfig } from '@/lib/videoPlayerConfig';
+import refreshPlaybackSourceAction from '@/lib/refreshPlaybackSourceAction';
 import PlayerControls from './PlayerControls';
 import {
     BufferingIndicator,
@@ -25,7 +31,9 @@ import {
 } from './PlayerOverlays';
 
 interface VideoPlayerProps {
-    src: string;
+    playback: PlaybackSource;
+    seriesKey: string;
+    episodeKey: string;
     title: string;
     kicker?: string;
     subtitle?: string;
@@ -60,7 +68,9 @@ const isEditableTarget = (target: EventTarget | null) => {
 };
 
 export const VideoPlayer = ({
-    src,
+    playback,
+    seriesKey,
+    episodeKey,
     title,
     kicker,
     subtitle,
@@ -108,6 +118,11 @@ export const VideoPlayer = ({
         seconds: number;
         id: number;
     } | null>(null);
+    const [activePlayback, setActivePlayback] = useState<PlaybackSource>(playback);
+    const [previousPlaybackSrc, setPreviousPlaybackSrc] = useState(playback.src);
+    const [manifestUnrecoverable, setManifestUnrecoverable] = useState(false);
+    const refreshAttemptsRef = useRef(0);
+    const desiredStartPositionRef = useRef(startTime);
 
     const showSeekFeedback = useCallback((seconds: number) => {
         if (seekFeedbackTimeoutRef.current) clearTimeout(seekFeedbackTimeoutRef.current);
@@ -156,15 +171,71 @@ export const VideoPlayer = ({
         void drainProgressQueue();
     }, [drainProgressQueue, onProgressUpdate]);
 
+    const attemptPlaybackRefresh = useCallback(() => {
+        if (refreshAttemptsRef.current >= 1) {
+            setManifestUnrecoverable(true);
+            return;
+        }
+
+        refreshAttemptsRef.current += 1;
+        desiredStartPositionRef.current = currentTimeRef.current;
+
+        void refreshPlaybackSourceAction(seriesKey, episodeKey).then((result) => {
+            if (result.kind !== 'success') {
+                setManifestUnrecoverable(true);
+                return;
+            }
+
+            hasSeekedToStart.current = false;
+            setActivePlayback(result.data);
+        });
+    }, [seriesKey, episodeKey]);
+
+    const handleProviderChange = useCallback((provider: MediaProviderAdapter | null) => {
+        if (isHLSProvider(provider)) {
+            provider.library = () => import('hls.js');
+            provider.config = buildHlsConfig(desiredStartPositionRef.current);
+
+            if (playerRef.current) {
+                playerRef.current.qualities.switch = 'next';
+            }
+        }
+    }, []);
+
+    const handleHlsError = useCallback((detail: HlsErrorData) => {
+        if (!detail.fatal) return;
+
+        const statusCode = detail.response?.code;
+
+        if (statusCode === 403) {
+            setManifestUnrecoverable(true);
+            return;
+        }
+
+        if (statusCode === 410) {
+            attemptPlaybackRefresh();
+        }
+    }, [attemptPlaybackRefresh]);
+
     const handleError = (detail: MediaErrorDetail) => {
+        if (activePlayback.kind === 'mp4' && refreshAttemptsRef.current < 1) {
+            attemptPlaybackRefresh();
+            return;
+        }
+
         setMediaError(detail);
     };
 
     const handleCanPlay = () => {
         setMediaError(null);
 
-        if (!hasSeekedToStart.current && startTime > 0 && playerRef.current) {
-            playerRef.current.currentTime = startTime;
+        if (
+            activePlayback.kind === 'mp4'
+            && !hasSeekedToStart.current
+            && desiredStartPositionRef.current > 0
+            && playerRef.current
+        ) {
+            playerRef.current.currentTime = desiredStartPositionRef.current;
             hasSeekedToStart.current = true;
         }
 
@@ -181,7 +252,15 @@ export const VideoPlayer = ({
         durationRef.current = 0;
         lastQueuedTimeRef.current = 0;
         lastUiSecondRef.current = -1;
-    }, [src]);
+        refreshAttemptsRef.current = 0;
+        desiredStartPositionRef.current = startTime;
+    }, [playback.src, startTime]);
+
+    if (playback.src !== previousPlaybackSrc) {
+        setPreviousPlaybackSrc(playback.src);
+        setManifestUnrecoverable(false);
+        setActivePlayback(playback);
+    }
 
     const handleTimeUpdate = (detail: MediaTimeUpdateEventDetail) => {
         const time = detail.currentTime;
@@ -377,17 +456,25 @@ export const VideoPlayer = ({
 
     const handleRetry = () => {
         setMediaError(null);
+        setManifestUnrecoverable(false);
+        refreshAttemptsRef.current = 0;
         setMediaInstanceKey((value) => value + 1);
     };
+
+    const mediaSrc = activePlayback.kind === 'hls'
+        ? { src: activePlayback.src, type: 'application/vnd.apple.mpegurl' as const }
+        : { src: activePlayback.src, type: 'video/mp4' as const };
 
     return (
         <MotionConfig reducedMotion="user">
         <div className="np-stage">
             <MediaPlayer
-                key={`${src}-${mediaInstanceKey}`}
+                key={`${activePlayback.src}-${mediaInstanceKey}`}
                 ref={playerRef}
                 title={subtitle ? `${title} — ${subtitle}` : title}
-                src={{ src, type: 'video/mp4' }}
+                src={mediaSrc}
+                onProviderChange={handleProviderChange}
+                onHlsError={handleHlsError}
                 autoPlay
                 keyTarget="document"
                 keyDisabled
@@ -444,11 +531,14 @@ export const VideoPlayer = ({
                     chapters={chapters}
                 />
 
-                <SkipIntroPill visible={showSkipIntro && !showNextEpisode && !mediaError} onSkip={handleSkipIntro} />
+                <SkipIntroPill
+                    visible={showSkipIntro && !showNextEpisode && !mediaError && !manifestUnrecoverable}
+                    onSkip={handleSkipIntro}
+                />
 
                 {onNextEpisode && (
                     <NextEpisodePill
-                        visible={showNextEpisode && !mediaError}
+                        visible={showNextEpisode && !mediaError && !manifestUnrecoverable}
                         countdownMs={NEXT_EPISODE_AUTOPLAY_MS}
                         countdownActive={showNextEpisode && !autoAdvanceCancelled && !prefersReducedMotion && autoplayNext}
                         episodesLeft={episodesLeft}
@@ -457,13 +547,17 @@ export const VideoPlayer = ({
                     />
                 )}
 
-                {mediaError && (
+                {(mediaError || manifestUnrecoverable) && (
                     <div className="np-error-layer" role="alert">
                         <div className="np-error-panel">
                             <AlertTriangle className="np-error-icon" />
                             <div className="np-error-copy">
                                 <h2>Nie udało się odtworzyć odcinka</h2>
-                                <p>Plik jest chwilowo niedostępny albo przeglądarka nie może go odczytać.</p>
+                                <p>
+                                    {manifestUnrecoverable
+                                        ? 'Sesja odtwarzania wygasła i nie udało się jej odświeżyć.'
+                                        : 'Plik jest chwilowo niedostępny albo przeglądarka nie może go odczytać.'}
+                                </p>
                             </div>
                             <div className="np-error-actions">
                                 <button type="button" onClick={handleRetry} className="np-error-primary">

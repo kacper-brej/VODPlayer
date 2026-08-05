@@ -1367,6 +1367,122 @@ export const validateAdminLibraryResponse = (value: unknown): ContractResult<Adm
         ? valid(value)
         : invalid("admin library response");
 
+export interface MediaStatusRendition {
+    height: number;
+    width: number | null;
+    bitrateKbps: number;
+    playlistKey: string;
+    segmentCount: number | null;
+    sizeBytes: number | null;
+}
+
+export interface MediaStatusAsset {
+    seriesKey: string;
+    episodeKey: string;
+    status: string;
+    durationSeconds: number | null;
+    totalSizeBytes: number | null;
+    previewClipKey: string | null;
+    errorMessage: string | null;
+    updatedAt: string;
+    renditions: MediaStatusRendition[];
+}
+
+export interface MediaStatusLastVerification {
+    ranAt: string;
+    checkedCount: number;
+    failedCount: number;
+}
+
+export interface MediaStatusResponse {
+    assets: MediaStatusAsset[];
+    lastVerification: MediaStatusLastVerification | null;
+}
+
+const isMediaStatusRendition = (value: unknown): value is MediaStatusRendition =>
+    isObject(value)
+    && isNumber(value.height)
+    && isNullableNumber(value.width)
+    && isNumber(value.bitrateKbps)
+    && isString(value.playlistKey)
+    && isNullableNumber(value.segmentCount)
+    && isNullableNumber(value.sizeBytes);
+
+const isMediaStatusAsset = (value: unknown): value is MediaStatusAsset =>
+    isObject(value)
+    && isString(value.seriesKey)
+    && isString(value.episodeKey)
+    && isString(value.status)
+    && isNullableNumber(value.durationSeconds)
+    && isNullableNumber(value.totalSizeBytes)
+    && isNullableString(value.previewClipKey)
+    && isNullableString(value.errorMessage)
+    && isString(value.updatedAt)
+    && Array.isArray(value.renditions)
+    && value.renditions.every(isMediaStatusRendition);
+
+const isMediaStatusLastVerification = (value: unknown): value is MediaStatusLastVerification =>
+    isObject(value)
+    && isString(value.ranAt)
+    && isNumber(value.checkedCount)
+    && isNumber(value.failedCount);
+
+const isMediaStatusResponse = (value: unknown): value is MediaStatusResponse =>
+    isObject(value)
+    && Array.isArray(value.assets)
+    && value.assets.every(isMediaStatusAsset)
+    && (value.lastVerification === null || isMediaStatusLastVerification(value.lastVerification));
+
+export const validateMediaStatusResponse = (value: unknown): ContractResult<MediaStatusResponse> =>
+    isMediaStatusResponse(value)
+        ? valid(value)
+        : invalid("media status response");
+
+export interface StorageUsageSnapshot {
+    date: string;
+    totalBytes: number;
+}
+
+export interface StorageUsageResponse {
+    currentTotalBytes: number;
+    currentMonthAverageBytes: number;
+    history: StorageUsageSnapshot[];
+}
+
+const isStorageUsageSnapshot = (value: unknown): value is StorageUsageSnapshot =>
+    isObject(value) && isString(value.date) && isNumber(value.totalBytes);
+
+const isStorageUsageResponse = (value: unknown): value is StorageUsageResponse =>
+    isObject(value)
+    && isNumber(value.currentTotalBytes)
+    && isNumber(value.currentMonthAverageBytes)
+    && Array.isArray(value.history)
+    && value.history.every(isStorageUsageSnapshot);
+
+export const validateStorageUsageResponse = (value: unknown): ContractResult<StorageUsageResponse> =>
+    isStorageUsageResponse(value)
+        ? valid(value)
+        : invalid("storage usage response");
+
+export interface AdminMediaDeleteResponse {
+    success: boolean;
+    deletedB2Objects: number;
+    localFileDeleted: boolean;
+    b2Error: string | null;
+}
+
+const isAdminMediaDeleteResponse = (value: unknown): value is AdminMediaDeleteResponse =>
+    isObject(value)
+    && isBoolean(value.success)
+    && isNumber(value.deletedB2Objects)
+    && isBoolean(value.localFileDeleted)
+    && isNullableString(value.b2Error);
+
+export const validateAdminMediaDeleteResponse = (value: unknown): ContractResult<AdminMediaDeleteResponse> =>
+    isAdminMediaDeleteResponse(value)
+        ? valid(value)
+        : invalid("admin media delete response");
+
 export interface AdminUserRow {
     id: number;
     username: string;

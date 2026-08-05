@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from
 import { Clock, Play, Volume2, VolumeX } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ARTWORK_SIZES, blurProps, imageLoader, safeArtworkColor } from "@/lib/imageDelivery";
+import { cancelPreview, claimPreviewSlot } from "@/components/series/previewController";
 
 export interface LastWatchedData {
     seriesKey: string;
@@ -40,25 +41,20 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const previewStartRef = useRef(PREVIEW_START_SECONDS);
-    const [videoSource, setVideoSource] = useState<string | null>(null);
+    const previewTokenRef = useRef(Symbol("hero-preview"));
     const [isPlaying, setIsPlaying] = useState(false);
     const [isMuted, setIsMuted] = useState(true);
     const [failedArtwork, setFailedArtwork] = useState<string | null>(null);
     const [failedLogo, setFailedLogo] = useState<string | null>(null);
 
     useEffect(() => {
+        const previewToken = previewTokenRef.current;
+
         return () => {
             if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+            cancelPreview(previewToken);
         };
     }, []);
-
-    useEffect(() => {
-        const video = videoRef.current;
-
-        if (!videoSource || !video) return;
-
-        video.load();
-    }, [videoSource]);
 
     if (!lastWatchedData) return null;
 
@@ -87,8 +83,11 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
             || effectiveType === "3g"
             || (typeof connection?.downlink === "number" && connection.downlink < 5);
 
+        const video = videoRef.current;
+
         if (
-            connection?.saveData
+            !video
+            || connection?.saveData
             || slowConnection
             || window.matchMedia("(hover: none)").matches
             || window.matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -96,9 +95,13 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
             return;
         }
 
+        claimPreviewSlot(previewTokenRef.current, video);
+
         setIsMuted(true);
         setIsPlaying(false);
-        setVideoSource(activeContent.video);
+        video.muted = true;
+        video.src = activeContent.video;
+        video.load();
     };
 
     const handleHover = () => {
@@ -111,15 +114,9 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
     };
 
     const stopPreview = () => {
-        const video = videoRef.current;
-
-        if (video) {
-            video.pause();
-        }
-
+        cancelPreview(previewTokenRef.current);
         setIsPlaying(false);
         setIsMuted(true);
-        setVideoSource(null);
     };
 
     const handleHoverEnd = () => {
@@ -198,20 +195,17 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
                 />
             )}
 
-            {videoSource && (
-                <video
-                    ref={videoRef}
-                    src={videoSource}
-                    onLoadedMetadata={handleLoadedMetadata}
-                    onPlaying={() => setIsPlaying(true)}
-                    onTimeUpdate={handleTimeUpdate}
-                    onError={stopPreview}
-                    muted={isMuted}
-                    playsInline
-                    preload="none"
-                    className={`absolute inset-0 size-full object-cover transition-opacity duration-520 motion-reduce:transition-none ${isPlaying ? "opacity-100" : "opacity-0"}`}
-                />
-            )}
+            <video
+                ref={videoRef}
+                onLoadedMetadata={handleLoadedMetadata}
+                onPlaying={() => setIsPlaying(true)}
+                onTimeUpdate={handleTimeUpdate}
+                onError={stopPreview}
+                muted={isMuted}
+                playsInline
+                preload="none"
+                className={`absolute inset-0 size-full object-cover transition-opacity duration-520 motion-reduce:transition-none ${isPlaying ? "opacity-100" : "opacity-0"}`}
+            />
 
             <span className="pointer-events-none absolute inset-0 bg-linear-to-t from-nx-bg via-nx-bg/15 to-transparent md:bg-[linear-gradient(90deg,var(--nx-bg)_0%,color-mix(in_srgb,var(--nx-bg)_88%,transparent)_34%,color-mix(in_srgb,var(--nx-bg)_20%,transparent)_64%,color-mix(in_srgb,var(--nx-bg)_55%,transparent)_100%)]" />
             <span className="pointer-events-none absolute inset-0 hidden bg-linear-to-t from-nx-bg via-transparent to-transparent md:block" />

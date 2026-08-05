@@ -2,7 +2,7 @@ import WatchClient from "./WatchClient";
 import { resolveCatalogSeries } from "@/lib/catalog";
 import { getSeriesResume } from "@/lib/continueWatching";
 import { getSeriesProgressAction } from "@/lib/getProgressAction";
-import { signedEpisodeUrl } from "@/lib/videoAccess";
+import { resolvePlaybackSource } from "@/lib/videoAccess";
 import { getEpisodeChapters } from "@/lib/chapters";
 import { DEFAULT_PROFILE_SETTINGS, getSettings } from "@/lib/settings";
 import { notFound } from "next/navigation";
@@ -94,11 +94,13 @@ const WatchPage = async ({ searchParams }: { searchParams: Promise<{ id?: string
     const settingsResult = await settingsPromise;
     const settings = settingsResult.kind === "error" ? DEFAULT_PROFILE_SETTINGS : settingsResult.data;
 
+    const playback = resolvePlaybackSource(series.key, episode);
+
     return (
         <>
             <PreconnectVideoOrigin />
             <WatchClient
-                videoSrc={signedEpisodeUrl(series.key, episode.key)}
+                playback={playback}
                 seriesTitle={series.title}
                 episodeTitle={episode.title ?? `Odcinek ${episode.number}`}
                 seasonNumber={series.seasonNumber}

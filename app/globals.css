@@ -989,6 +989,21 @@ body {
   -webkit-backdrop-filter: var(--np-glass-blur);
   box-shadow: var(--np-glass-shadow);
   text-align: left;
+  scrollbar-width: thin;
+  scrollbar-color: var(--nx-text-2) transparent;
+}
+
+.np-menu-panel::-webkit-scrollbar {
+  width: 5px;
+}
+
+.np-menu-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.np-menu-panel::-webkit-scrollbar-thumb {
+  background-color: var(--nx-text-2);
+  border-radius: var(--r-full, 999px);
 }
 
 .np-menu-label {

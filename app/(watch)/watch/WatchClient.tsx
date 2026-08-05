@@ -6,6 +6,7 @@ import saveProgressAction from "@/lib/saveProgressAction";
 import PlayerErrorBoundary from "@/components/video/PlayerErrorBoundary";
 import { seriesPath, watchPath } from "@/lib/routes";
 import type { EpisodeChapter } from "@/lib/contracts";
+import type { PlaybackSource } from "@/lib/videoAccess";
 
 const VideoPlayer = dynamic(
     () => import("@/components/video/VideoPlayer").then((mod) => mod.VideoPlayer),
@@ -21,7 +22,7 @@ const VideoPlayer = dynamic(
 );
 
 interface WatchClientProps {
-    videoSrc: string;
+    playback: PlaybackSource;
     seriesTitle: string;
     episodeTitle: string;
     seasonNumber: number | null;
@@ -40,7 +41,7 @@ interface WatchClientProps {
 }
 
 const WatchClient = ({
-    videoSrc,
+    playback,
     seriesTitle,
     episodeTitle,
     seasonNumber,
@@ -97,6 +98,7 @@ const WatchClient = ({
         } else {
             router.replace(seriesPath(seriesId));
         }
+        router.refresh();
     }
 
     const handlePreviousEpisode = () => {
@@ -104,6 +106,7 @@ const WatchClient = ({
         isNavigatingRef.current = true;
 
         router.replace(watchPath(seriesId, currentEpisode - 1));
+        router.refresh();
     }
 
     const handleBack = () => {
@@ -111,6 +114,7 @@ const WatchClient = ({
             document.exitFullscreen().catch(() => {});
         }
         router.back();
+        router.refresh();
     }
 
     return (
@@ -124,7 +128,9 @@ const WatchClient = ({
                     onBack={handleBack}
                 >
                     <VideoPlayer
-                        src={videoSrc}
+                        playback={playback}
+                        seriesKey={seriesKey}
+                        episodeKey={fileName}
                         title={seriesTitle}
                         kicker={`Odcinek ${currentEpisode}`}
                         subtitle={episodeTitle}

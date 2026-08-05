@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useRef, type KeyboardEvent } from "react";
-import { FolderOpen, LayoutDashboard, ShieldCheck, UploadCloud, Users } from "lucide-react";
+import { FolderOpen, HardDrive, LayoutDashboard, ShieldCheck, UploadCloud, Users } from "lucide-react";
 
 const ADMIN_ITEMS = [
     { label: "Przegląd", href: "/admin", icon: LayoutDashboard },
     { label: "Biblioteka", href: "/admin/library", icon: FolderOpen },
+    { label: "Magazyn B2", href: "/admin/storage", icon: HardDrive },
     { label: "Wyślij plik", href: "/admin/upload", icon: UploadCloud },
     { label: "Konta", href: "/admin/users", icon: Users },
 ] as const;

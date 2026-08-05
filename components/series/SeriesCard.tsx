@@ -6,6 +6,8 @@ import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, ty
 import { Check, Clock3, Info, MoreVertical, Plus, Star } from "lucide-react";
 import toggleWatchlistAction from "@/lib/toggleWatchlistAction";
 import { blurProps, imageLoader, safeArtworkColor } from "@/lib/imageDelivery";
+import type { PreviewSource } from "@/lib/videoAccess";
+import { cancelPreview, requestPreview } from "@/components/series/previewController";
 
 export type ContentCardVariant = "landscape" | "poster" | "row" | "mosaic";
 
@@ -37,6 +39,7 @@ export interface CardInput {
     href: string;
     infoId?: string | number;
     inWatchlist?: boolean;
+    previewSource?: PreviewSource | null;
 }
 
 export interface SeriesCardProps {
@@ -52,6 +55,7 @@ export interface SeriesCardProps {
 }
 
 const WATCHLIST_ERROR_DISPLAY_MS = 2500;
+const PREVIEW_HOVER_INTENT_MS = 400;
 
 const formatEpisode = (value: number) => String(value).padStart(2, "0");
 const formatTime = (value: number | null | undefined) => {
@@ -82,11 +86,15 @@ const SeriesCard = ({
     const pathname = usePathname();
     const containerRef = useRef<HTMLElement | null>(null);
     const watchlistErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const previewVideoRef = useRef<HTMLVideoElement | null>(null);
+    const previewHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const previewTokenRef = useRef(Symbol("series-card-preview"));
     const [failedArtwork, setFailedArtwork] = useState<string | null>(null);
     const [watchlisted, setWatchlisted] = useState(Boolean(item.inWatchlist));
     const [syncedWatchlist, setSyncedWatchlist] = useState(Boolean(item.inWatchlist));
     const [watchlistError, setWatchlistError] = useState<string | null>(null);
     const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+    const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
 
     if (Boolean(item.inWatchlist) !== syncedWatchlist) {
         setSyncedWatchlist(Boolean(item.inWatchlist));
@@ -94,10 +102,44 @@ const SeriesCard = ({
     }
 
     useEffect(() => {
+        const previewToken = previewTokenRef.current;
+
         return () => {
             if (watchlistErrorTimerRef.current) clearTimeout(watchlistErrorTimerRef.current);
+            if (previewHoverTimerRef.current) clearTimeout(previewHoverTimerRef.current);
+            cancelPreview(previewToken);
         };
     }, []);
+
+    const handlePreviewHoverStart = () => {
+        if (!item.previewSource) return;
+        if (previewHoverTimerRef.current) clearTimeout(previewHoverTimerRef.current);
+
+        previewHoverTimerRef.current = setTimeout(() => {
+            previewHoverTimerRef.current = null;
+            const video = previewVideoRef.current;
+            const source = item.previewSource;
+            if (!video || !source) return;
+
+            requestPreview({
+                token: previewTokenRef.current,
+                element: video,
+                kind: source.kind,
+                src: source.src,
+                startSeconds: source.startSeconds,
+            });
+        }, PREVIEW_HOVER_INTENT_MS);
+    };
+
+    const handlePreviewHoverEnd = () => {
+        if (previewHoverTimerRef.current) {
+            clearTimeout(previewHoverTimerRef.current);
+            previewHoverTimerRef.current = null;
+        }
+
+        cancelPreview(previewTokenRef.current);
+        setIsPreviewPlaying(false);
+    };
 
     const preferredArtwork = variant === "poster"
         ? item.poster ?? item.backdrop
@@ -224,6 +266,19 @@ const SeriesCard = ({
                         {item.title}
                     </span>
                 </span>
+            )}
+
+            {item.previewSource && (
+                <video
+                    ref={previewVideoRef}
+                    muted
+                    playsInline
+                    preload="none"
+                    onPlaying={() => setIsPreviewPlaying(true)}
+                    onError={() => setIsPreviewPlaying(false)}
+                    className={`pointer-events-none absolute inset-0 size-full object-cover transition-opacity duration-500 motion-reduce:transition-none ${isPreviewPlaying ? "opacity-100" : "opacity-0"}`}
+                    style={{ objectPosition }}
+                />
             )}
 
             <span className="pointer-events-none absolute inset-0 shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--nx-text)_9%,transparent)]" />
@@ -473,6 +528,8 @@ const SeriesCard = ({
             aria-label={`${item.title}${progressDescription}`}
             onClick={navigate}
             onKeyDown={handleCardKeyDown}
+            onMouseEnter={handlePreviewHoverStart}
+            onMouseLeave={handlePreviewHoverEnd}
             onContextMenu={(event) => {
                 if (item.infoId === undefined) return;
                 event.preventDefault();
