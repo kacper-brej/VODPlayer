@@ -16,10 +16,10 @@ import {
 import type { ErrorData as HlsErrorData } from 'hls.js';
 import { AlertTriangle, RotateCcw } from 'lucide-react';
 import { MotionConfig, useReducedMotion } from 'framer-motion';
-import type { EpisodeChapter } from '@/lib/contracts';
-import type { PlaybackSource } from '@/lib/videoAccess';
-import { buildHlsConfig } from '@/lib/videoPlayerConfig';
-import refreshPlaybackSourceAction from '@/lib/refreshPlaybackSourceAction';
+import type { EpisodeChapter } from '@/lib/core/contracts';
+import type { PlaybackSource } from '@/lib/player/videoAccess';
+import { buildHlsConfig } from '@/lib/player/videoPlayerConfig';
+import refreshPlaybackSourceAction from '@/lib/upload/refreshPlaybackSourceAction';
 import PlayerControls from './PlayerControls';
 import {
     BufferingIndicator,
@@ -109,8 +109,7 @@ export const VideoPlayer = ({
 
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
-    const [autoAdvanceCancelled, setAutoAdvanceCancelled] = useState(false);
-    const [prevShowNextEpisode, setPrevShowNextEpisode] = useState(false);
+    const [cancelledAutoAdvanceEpisode, setCancelledAutoAdvanceEpisode] = useState<string | null>(null);
     const [mediaError, setMediaError] = useState<MediaErrorDetail | null>(null);
     const [mediaInstanceKey, setMediaInstanceKey] = useState(0);
     const [seekFeedback, setSeekFeedback] = useState<{
@@ -314,6 +313,19 @@ export const VideoPlayer = ({
     );
     const showNextEpisode =
         !!onNextEpisode && hasNextEpisode && duration > 0 && duration - currentTime <= NEXT_EPISODE_TRIGGER_SECONDS;
+    const autoAdvanceCancelled = cancelledAutoAdvanceEpisode === episodeKey;
+    const nextEpisodeCountdownActive = Boolean(
+        showNextEpisode && !autoAdvanceCancelled && !prefersReducedMotion && autoplayNext
+    );
+
+    const handleNextEpisodeRequest = useCallback(() => {
+        if (nextEpisodeCountdownActive) {
+            setCancelledAutoAdvanceEpisode(episodeKey);
+            return;
+        }
+
+        onNextEpisode?.();
+    }, [episodeKey, nextEpisodeCountdownActive, onNextEpisode]);
 
     const handleSkipIntro = useCallback(() => {
         if (playerRef.current && introEndSeconds !== null) {
@@ -353,6 +365,10 @@ export const VideoPlayer = ({
             if (!player) return;
 
             const key = event.key.toLowerCase();
+            const interruptedCountdown = nextEpisodeCountdownActive;
+
+            if (interruptedCountdown) setCancelledAutoAdvanceEpisode(episodeKey);
+
             const seek = (seconds: number) => {
                 player.currentTime = Math.min(
                     durationRef.current || Number.POSITIVE_INFINITY,
@@ -397,6 +413,7 @@ export const VideoPlayer = ({
                 player.remoteControl.toggleCaptions(event);
             } else if (key === 'n' && onNextEpisode) {
                 event.preventDefault();
+                if (interruptedCountdown) return;
                 onNextEpisode();
             } else if (key === 'p' && onPreviousEpisode) {
                 event.preventDefault();
@@ -412,46 +429,42 @@ export const VideoPlayer = ({
 
         document.addEventListener('keydown', handleKeyboard);
         return () => document.removeEventListener('keydown', handleKeyboard);
-    }, [onBack, onNextEpisode, onPreviousEpisode, showSeekFeedback, showSkipIntro]);
-
-    if (showNextEpisode !== prevShowNextEpisode) {
-        setPrevShowNextEpisode(showNextEpisode);
-        setAutoAdvanceCancelled(false);
-    }
+    }, [episodeKey, nextEpisodeCountdownActive, onBack, onNextEpisode, onPreviousEpisode, showSeekFeedback, showSkipIntro]);
 
     useEffect(() => {
-        if (!showNextEpisode) return;
+        if (!nextEpisodeCountdownActive) return;
 
-        const cancelAutoAdvance = () => setAutoAdvanceCancelled(true);
+        const cancelAutoAdvance = () => setCancelledAutoAdvanceEpisode(episodeKey);
 
-        window.addEventListener('mousemove', cancelAutoAdvance);
-        window.addEventListener('touchstart', cancelAutoAdvance);
+        window.addEventListener('pointermove', cancelAutoAdvance);
+        window.addEventListener('pointerdown', cancelAutoAdvance);
         window.addEventListener('click', cancelAutoAdvance);
+        window.addEventListener('wheel', cancelAutoAdvance, { passive: true });
 
         return () => {
-            window.removeEventListener('mousemove', cancelAutoAdvance);
-            window.removeEventListener('touchstart', cancelAutoAdvance);
+            window.removeEventListener('pointermove', cancelAutoAdvance);
+            window.removeEventListener('pointerdown', cancelAutoAdvance);
             window.removeEventListener('click', cancelAutoAdvance);
+            window.removeEventListener('wheel', cancelAutoAdvance);
         };
-    }, [showNextEpisode]);
+    }, [episodeKey, nextEpisodeCountdownActive]);
 
     useEffect(() => {
         nextEpisodeRef.current = onNextEpisode;
     }, [onNextEpisode]);
 
     useEffect(() => {
-        if (!showNextEpisode || autoAdvanceCancelled || prefersReducedMotion || !autoplayNext) return;
+        if (!nextEpisodeCountdownActive) return;
 
         const timeout = setTimeout(() => {
             nextEpisodeRef.current?.();
         }, NEXT_EPISODE_AUTOPLAY_MS);
 
         return () => clearTimeout(timeout);
-    }, [showNextEpisode, autoAdvanceCancelled, prefersReducedMotion, autoplayNext]);
+    }, [episodeKey, nextEpisodeCountdownActive]);
 
     const handleEnded = () => {
         flushProgress();
-        if (!prefersReducedMotion && autoplayNext) onNextEpisode?.();
     };
 
     const handleRetry = () => {
@@ -525,7 +538,7 @@ export const VideoPlayer = ({
                     subheading={subtitle}
                     episodeNumber={episodeNumber}
                     onBack={onBack}
-                    onNextEpisode={onNextEpisode}
+                    onNextEpisode={onNextEpisode ? handleNextEpisodeRequest : undefined}
                     onPreviousEpisode={onPreviousEpisode}
                     onSeekFeedback={showSeekFeedback}
                     chapters={chapters}
@@ -538,11 +551,14 @@ export const VideoPlayer = ({
 
                 {onNextEpisode && (
                     <NextEpisodePill
+                        key={episodeKey}
                         visible={showNextEpisode && !mediaError && !manifestUnrecoverable}
                         countdownMs={NEXT_EPISODE_AUTOPLAY_MS}
-                        countdownActive={showNextEpisode && !autoAdvanceCancelled && !prefersReducedMotion && autoplayNext}
+                        countdownActive={nextEpisodeCountdownActive}
+                        countdownCancelled={autoAdvanceCancelled}
                         episodesLeft={episodesLeft}
                         nextEpisodeTitle={nextEpisodeTitle}
+                        onCancelCountdown={() => setCancelledAutoAdvanceEpisode(episodeKey)}
                         onNextEpisode={onNextEpisode}
                     />
                 )}

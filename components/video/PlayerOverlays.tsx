@@ -7,26 +7,6 @@ import { Play, RotateCcw, RotateCw, SkipForward, StepForward, Volume1, Volume2, 
 
 const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
-const PILL_CLASS =
-    'group relative px-6 py-3 md:px-8 md:py-4 bg-[#030712]/80 hover:bg-primary-hover border border-white/10 hover:border-primary-hover ' +
-    'text-slate-200 hover:text-white rounded-full transition-transform duration-500 backdrop-blur-xl flex items-center gap-4 shadow-[0_10px_40px_rgba(0,0,0,0.6)]' +
-    'hover:shadow-[0_0_50px_rgba(139,92,246,0.8)] hover:scale-[1.03] overflow-hidden cursor-pointer pointer-events-auto';
-
-const PILL_ICON_CLASS =
-    'relative z-10 bg-primary/20 p-2.5 rounded-full group-hover:bg-white/20 transition-colors shadow-inner text-primary-hover group-hover:text-white';
-
-const PILL_TITLE_CLASS =
-    'text-xs md:text-sm font-bold uppercase tracking-[0.2em] leading-none text-slate-200';
-
-const PILL_SUB_CLASS =
-    'text-[9px] md:text-[10px] font-bold mt-1.5 tracking-widest uppercase group-hover:text-primary-hover text-primary-hover';
-
-const PILL_NOTE_CLASS =
-    'block max-w-[220px] md:max-w-[340px] truncate px-5 text-center text-[10px] md:text-xs font-semibold tracking-wide text-slate-300 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]';
-
-const NEXT_TITLE_CLASS =
-    'block max-w-[220px] md:max-w-[340px] truncate px-5 text-center text-sm md:text-base font-bold tracking-wide text-slate-100 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]';
-
 export const formatEpisodesLeft = (count: number) => {
     if (count === 1) return 'ostatni odcinek';
     if (count === 2 || count === 3) return `${count} odcinki do końca`;
@@ -246,73 +226,102 @@ interface NextEpisodePillProps {
     visible: boolean;
     countdownMs: number;
     countdownActive: boolean;
+    countdownCancelled: boolean;
     episodesLeft?: number;
     nextEpisodeTitle?: string;
+    onCancelCountdown: () => void;
     onNextEpisode: () => void;
 }
+
+const NextEpisodeCountdown = ({ countdownMs }: { countdownMs: number }) => {
+    const [remaining, setRemaining] = useState(() => Math.ceil(countdownMs / 1000));
+
+    useEffect(() => {
+        const startedAt = Date.now();
+        const interval = setInterval(() => {
+            const elapsed = Date.now() - startedAt;
+            setRemaining(Math.max(0, Math.ceil((countdownMs - elapsed) / 1000)));
+        }, 250);
+
+        return () => clearInterval(interval);
+    }, [countdownMs]);
+
+    return <>Następny odcinek za {remaining}s</>;
+};
 
 export const NextEpisodePill = ({
     visible,
     countdownMs,
     countdownActive,
+    countdownCancelled,
     episodesLeft,
     nextEpisodeTitle,
+    onCancelCountdown,
     onNextEpisode,
 }: NextEpisodePillProps) => {
-    const totalSeconds = Math.ceil(countdownMs / 1000);
-    const [remaining, setRemaining] = useState(totalSeconds);
-    const [prevCountdownActive, setPrevCountdownActive] = useState(countdownActive);
-
-    if (countdownActive !== prevCountdownActive) {
-        setPrevCountdownActive(countdownActive);
-        setRemaining(totalSeconds);
-    }
-
-    useEffect(() => {
-        if (!countdownActive) return;
-
-        const interval = setInterval(() => setRemaining((value) => Math.max(0, value - 1)), 1000);
-
-        return () => clearInterval(interval);
-    }, [countdownActive]);
-
     const episodesNote = typeof episodesLeft === 'number' ? formatEpisodesLeft(episodesLeft) : null;
+    const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+        event.stopPropagation();
+
+        if (countdownActive) {
+            onCancelCountdown();
+            return;
+        }
+
+        onNextEpisode();
+    };
 
     return (
         <AnimatePresence>
             {visible && (
                 <motion.div
-                    className="absolute bottom-32 md:bottom-40 right-6 md:right-12 z-[60] flex flex-col items-center gap-2 pointer-events-auto max-w-[calc(100%-3rem)]"
+                    className="np-next-episode-layer"
                     initial={{ opacity: 0, y: 32, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 32, scale: 0.95 }}
                     transition={{ duration: 0.4, ease: EASE_OUT }}
                 >
-                    {nextEpisodeTitle && <span className={NEXT_TITLE_CLASS}>{nextEpisodeTitle}</span>}
+                    {nextEpisodeTitle && <span className="np-next-episode-title">{nextEpisodeTitle}</span>}
 
-                    <button type="button" onClick={onNextEpisode} className={PILL_CLASS}>
-                        {countdownActive && (
+                    <button
+                        type="button"
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onClick={handleClick}
+                        className="np-next-episode"
+                        aria-label={countdownActive
+                            ? 'Zatrzymaj odliczanie do następnego odcinka'
+                            : 'Odtwórz następny odcinek'}
+                    >
+                        {(countdownActive || countdownCancelled) && (
                             <motion.span
-                                className="absolute left-0 top-0 bottom-0 w-full origin-left bg-primary/40 z-0 will-change-transform"
-                                initial={{ scaleX: 0 }}
+                                key={countdownActive ? 'countdown-active' : 'countdown-cancelled'}
+                                className="np-next-episode-fill"
+                                initial={{ scaleX: countdownActive ? 0 : 1 }}
                                 animate={{ scaleX: 1 }}
-                                transition={{ duration: countdownMs / 1000, ease: 'linear' }}
+                                transition={{
+                                    duration: countdownActive ? countdownMs / 1000 : 0,
+                                    ease: 'linear',
+                                }}
                             />
                         )}
 
-                        <div className={PILL_ICON_CLASS}>
+                        <span className="np-next-episode-icon" aria-hidden="true">
                             <StepForward size={18} />
-                        </div>
+                        </span>
 
-                        <div className="relative z-10 flex flex-col text-left pr-2">
-                            <span className={PILL_TITLE_CLASS}>Następny odcinek</span>
-                            {countdownActive && (
-                                <span className={PILL_SUB_CLASS}>Załaduje się za {remaining}s...</span>
+                        <span className="np-next-episode-copy" aria-live="polite">
+                            <span className="np-next-episode-label">
+                                {countdownActive
+                                    ? <NextEpisodeCountdown countdownMs={countdownMs} />
+                                    : 'Następny odcinek'}
+                            </span>
+                            {countdownCancelled && (
+                                <span className="np-next-episode-hint">Kliknij, aby odtworzyć</span>
                             )}
-                        </div>
+                        </span>
                     </button>
 
-                    {episodesNote && <span className={PILL_NOTE_CLASS}>{episodesNote}</span>}
+                    {episodesNote && <span className="np-next-episode-note">{episodesNote}</span>}
                 </motion.div>
             )}
         </AnimatePresence>

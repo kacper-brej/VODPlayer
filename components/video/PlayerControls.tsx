@@ -35,7 +35,7 @@ import {
     Volume2,
     VolumeX,
 } from "lucide-react";
-import type { EpisodeChapter } from "@/lib/contracts";
+import type { EpisodeChapter } from "@/lib/core/contracts";
 
 const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -226,9 +226,10 @@ const PlayerControls = ({
 
     const VolumeIcon = muted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
     const defaultEpisodeTitle = episodeNumber ? `Odcinek ${episodeNumber}` : null;
+    const visibleSubheading = subheading && subheading !== defaultEpisodeTitle ? subheading : null;
     const nowPlayingEpisode = [
         episodeNumber ? `O${episodeNumber}` : kicker,
-        subheading && subheading !== defaultEpisodeTitle ? subheading : null,
+        visibleSubheading,
     ].filter(Boolean).join("  ");
 
     return (
@@ -240,9 +241,9 @@ const PlayerControls = ({
                     </button>
                 )}
                 <div className="np-heading">
-                    {kicker && <span className="np-heading-kicker">{kicker}</span>}
                     <span className="np-heading-title">{heading}</span>
-                    {subheading && <span className="np-heading-subtitle">{subheading}</span>}
+                    {kicker && <span className="np-heading-kicker">{kicker}</span>}
+                    {visibleSubheading && <span className="np-heading-subtitle">{visibleSubheading}</span>}
                 </div>
             </Controls.Group>
 
@@ -335,6 +336,7 @@ const PlayerControls = ({
                     <div className="np-controls-group np-controls-group--right">
                         <button
                             type="button"
+                            onPointerDown={(event) => event.stopPropagation()}
                             onClick={onNextEpisode}
                             className="np-control"
                             aria-label={onNextEpisode ? "Następny odcinek" : "To ostatni odcinek"}

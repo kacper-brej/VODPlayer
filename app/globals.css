@@ -722,8 +722,9 @@ body {
 
 .np-pause-status {
   position: absolute;
+  top: max(32px, env(safe-area-inset-top));
   right: 32px;
-  bottom: max(116px, calc(env(safe-area-inset-bottom) + 116px));
+  bottom: auto;
   z-index: 1;
   color: var(--nx-text-2);
   font-size: 12px;
@@ -1154,6 +1155,124 @@ body {
   outline-offset: 3px;
 }
 
+.np-next-episode-layer {
+  position: absolute;
+  right: 32px;
+  bottom: max(144px, calc(env(safe-area-inset-bottom) + 144px));
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  width: min(380px, calc(100% - 64px));
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.np-next-episode-title,
+.np-next-episode-note {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  color: var(--nx-text);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.35;
+  text-align: right;
+  text-overflow: ellipsis;
+  text-shadow: var(--sh-2);
+  white-space: nowrap;
+}
+
+.np-next-episode-note {
+  color: var(--nx-text-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.np-next-episode {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 280px;
+  min-height: 58px;
+  gap: 12px;
+  padding: 8px 18px 8px 10px;
+  overflow: hidden;
+  border: 1px solid var(--nx-border);
+  border-radius: var(--r-s);
+  background: color-mix(in srgb, var(--nx-bg) 90%, transparent);
+  box-shadow: var(--sh-2);
+  color: var(--nx-text);
+  cursor: pointer;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  transition: background-color var(--np-transition), border-color var(--np-transition);
+}
+
+.np-next-episode:hover {
+  border-color: color-mix(in srgb, var(--nx-text) 30%, var(--nx-border));
+  background: var(--nx-raised);
+}
+
+.np-next-episode:focus-visible {
+  outline: 2px solid var(--nx-accent);
+  outline-offset: 3px;
+}
+
+.np-next-episode-fill {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: color-mix(in srgb, var(--nx-accent) 34%, transparent);
+  transform: scaleX(0);
+  transform-origin: left center;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.np-next-episode-icon {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--nx-accent) 18%, transparent);
+  color: var(--nx-accent);
+  place-items: center;
+}
+
+.np-next-episode-icon svg {
+  width: 19px;
+  height: 19px;
+}
+
+.np-next-episode-copy {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 3px;
+  text-align: left;
+}
+
+.np-next-episode-label {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.02em;
+}
+
+.np-next-episode-hint {
+  color: var(--nx-text-2);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
 .np-volume-hud-layer {
   position: absolute;
   top: max(28px, env(safe-area-inset-top));
@@ -1489,6 +1608,11 @@ body {
     right: 20px;
   }
 
+  .np-next-episode-layer {
+    right: 20px;
+    width: min(380px, calc(100% - 40px));
+  }
+
   .np-volume-hud-layer {
     right: 20px;
   }
@@ -1654,6 +1778,23 @@ body {
     width: 100%;
   }
 
+  .np-next-episode-layer {
+    right: 12px;
+    bottom: max(124px, calc(env(safe-area-inset-bottom) + 124px));
+    left: 12px;
+    width: auto;
+  }
+
+  .np-next-episode {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .np-next-episode-title,
+  .np-next-episode-note {
+    text-align: left;
+  }
+
   .np-menu-panel {
     right: -46px;
     min-width: min(260px, calc(100vw - 24px));
@@ -1683,6 +1824,7 @@ body {
   .np-back,
   .np-overlaid-play,
   .np-skip-intro,
+  .np-next-episode,
   .np-volume-slider,
   .np-error-primary,
   .np-error-secondary {
