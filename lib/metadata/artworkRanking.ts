@@ -1,4 +1,4 @@
-import type { TmdbImage } from "@/lib/contracts";
+import type { TmdbImage } from "@/lib/core/contracts";
 import type { ProviderArtwork } from "@/lib/metadata/types";
 
 const MAX_CANDIDATES_PER_KIND = 5;

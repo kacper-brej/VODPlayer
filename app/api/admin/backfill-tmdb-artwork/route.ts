@@ -1,13 +1,21 @@
-import { NextRequest, NextResponse } from "next/server";
-import { hasActiveSession } from "@/lib/verifySession";
-import backfillTmdbArtworkAction from "@/lib/tmdbEnrichmentAction";
+import { NextResponse } from "next/server";
+import { requireAdminRoute } from "@/lib/http/routeAuth";
+import backfillTmdbArtworkAction from "@/lib/admin/tmdbEnrichmentAction";
+import { AdminJobAlreadyRunningError, withAdminJobLock } from "@/lib/admin/jobLock";
+import { rejectCrossSiteMutation } from "@/lib/http/requestSecurity";
 
-export const GET = async (request: NextRequest) => {
-    if (!(await hasActiveSession(request))) {
-        return NextResponse.json({ error: "Brak autoryzacji." }, { status: 401 });
+export const POST = async (request: Request) => {
+    const rejected = rejectCrossSiteMutation(request);
+    if (rejected) return rejected;
+    const gate = await requireAdminRoute();
+    if (!gate.ok) return gate.response;
+
+    let result;
+    try { result = await withAdminJobLock("backfill-tmdb-artwork", backfillTmdbArtworkAction); }
+    catch (error) {
+        if (error instanceof AdminJobAlreadyRunningError) return NextResponse.json({ error: "Zadanie już trwa." }, { status: 409 });
+        throw error;
     }
-
-    const result = await backfillTmdbArtworkAction();
 
     if (result.kind === "error") {
         return NextResponse.json({ error: result.reason }, { status: 500 });

@@ -1,4 +1,4 @@
-import type { DataResult } from "@/lib/dataResult";
+import type { DataResult } from "@/lib/core/dataResult";
 
 export type ProviderId = "anilist" | "tmdb" | "jikan";
 

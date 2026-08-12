@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { DataErrorReason } from "@/lib/dataResult";
+import type { DataErrorReason } from "@/lib/core/dataResult";
 
 type DataStateKind = "empty" | "error" | "offline" | "inline" | "forbidden";
 type DataStateAction = "retry" | "login" | null;

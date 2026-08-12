@@ -3,11 +3,11 @@
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
-import { Check, Clock3, Info, MoreVertical, Plus, Star } from "lucide-react";
-import toggleWatchlistAction from "@/lib/toggleWatchlistAction";
-import { blurProps, imageLoader, safeArtworkColor } from "@/lib/imageDelivery";
-import type { PreviewSource } from "@/lib/videoAccess";
-import { cancelPreview, requestPreview } from "@/components/series/previewController";
+import { Check, Clock3, Info, MoreVertical, Play, Plus, Star } from "lucide-react";
+import toggleWatchlistAction from "@/lib/watchlist/toggleWatchlistAction";
+import { blurProps, imageLoader, safeArtworkColor } from "@/lib/catalog/imageDelivery";
+import type { PreviewSource } from "@/lib/player/videoAccess";
+import { usePreviewSurface } from "@/components/preview/usePreviewSurface";
 
 export type ContentCardVariant = "landscape" | "poster" | "row" | "mosaic";
 
@@ -55,7 +55,6 @@ export interface SeriesCardProps {
 }
 
 const WATCHLIST_ERROR_DISPLAY_MS = 2500;
-const PREVIEW_HOVER_INTENT_MS = 400;
 
 const formatEpisode = (value: number) => String(value).padStart(2, "0");
 const formatTime = (value: number | null | undefined) => {
@@ -86,15 +85,12 @@ const SeriesCard = ({
     const pathname = usePathname();
     const containerRef = useRef<HTMLElement | null>(null);
     const watchlistErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const previewVideoRef = useRef<HTMLVideoElement | null>(null);
-    const previewHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const previewTokenRef = useRef(Symbol("series-card-preview"));
+    const preview = usePreviewSurface(item.previewSource);
     const [failedArtwork, setFailedArtwork] = useState<string | null>(null);
     const [watchlisted, setWatchlisted] = useState(Boolean(item.inWatchlist));
     const [syncedWatchlist, setSyncedWatchlist] = useState(Boolean(item.inWatchlist));
     const [watchlistError, setWatchlistError] = useState<string | null>(null);
     const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
-    const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
 
     if (Boolean(item.inWatchlist) !== syncedWatchlist) {
         setSyncedWatchlist(Boolean(item.inWatchlist));
@@ -102,44 +98,10 @@ const SeriesCard = ({
     }
 
     useEffect(() => {
-        const previewToken = previewTokenRef.current;
-
         return () => {
             if (watchlistErrorTimerRef.current) clearTimeout(watchlistErrorTimerRef.current);
-            if (previewHoverTimerRef.current) clearTimeout(previewHoverTimerRef.current);
-            cancelPreview(previewToken);
         };
     }, []);
-
-    const handlePreviewHoverStart = () => {
-        if (!item.previewSource) return;
-        if (previewHoverTimerRef.current) clearTimeout(previewHoverTimerRef.current);
-
-        previewHoverTimerRef.current = setTimeout(() => {
-            previewHoverTimerRef.current = null;
-            const video = previewVideoRef.current;
-            const source = item.previewSource;
-            if (!video || !source) return;
-
-            requestPreview({
-                token: previewTokenRef.current,
-                element: video,
-                kind: source.kind,
-                src: source.src,
-                startSeconds: source.startSeconds,
-            });
-        }, PREVIEW_HOVER_INTENT_MS);
-    };
-
-    const handlePreviewHoverEnd = () => {
-        if (previewHoverTimerRef.current) {
-            clearTimeout(previewHoverTimerRef.current);
-            previewHoverTimerRef.current = null;
-        }
-
-        cancelPreview(previewTokenRef.current);
-        setIsPreviewPlaying(false);
-    };
 
     const preferredArtwork = variant === "poster"
         ? item.poster ?? item.backdrop
@@ -270,13 +232,8 @@ const SeriesCard = ({
 
             {item.previewSource && (
                 <video
-                    ref={previewVideoRef}
-                    muted
-                    playsInline
-                    preload="none"
-                    onPlaying={() => setIsPreviewPlaying(true)}
-                    onError={() => setIsPreviewPlaying(false)}
-                    className={`pointer-events-none absolute inset-0 size-full object-cover transition-opacity duration-500 motion-reduce:transition-none ${isPreviewPlaying ? "opacity-100" : "opacity-0"}`}
+                    {...preview.videoProps}
+                    className={`pointer-events-none absolute inset-0 size-full object-cover transition-opacity duration-500 motion-reduce:transition-none ${preview.isPlaying ? "opacity-100" : "opacity-0"}`}
                     style={{ objectPosition }}
                 />
             )}
@@ -364,6 +321,16 @@ const SeriesCard = ({
                 if (!event.currentTarget.contains(event.relatedTarget)) setIsMoreMenuOpen(false);
             }}
         >
+            {item.previewSource && (
+                <button
+                    type="button"
+                    onClick={preview.startManual}
+                    aria-label={`Odtwórz podgląd: ${item.title}`}
+                    className="flex size-11 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text opacity-0 outline-none transition-[opacity,background-color] hover:bg-nx-raised focus:opacity-100 focus-visible:outline-2 focus-visible:outline-nx-accent group-hover/card:opacity-100 [@media(pointer:coarse)]:opacity-100 sm:size-12"
+                >
+                    <Play size={17} fill="currentColor" aria-hidden="true" />
+                </button>
+            )}
             <button
                 type="button"
                 tabIndex={variant === "row" ? 0 : -1}
@@ -528,8 +495,7 @@ const SeriesCard = ({
             aria-label={`${item.title}${progressDescription}`}
             onClick={navigate}
             onKeyDown={handleCardKeyDown}
-            onMouseEnter={handlePreviewHoverStart}
-            onMouseLeave={handlePreviewHoverEnd}
+            {...preview.surfaceProps}
             onContextMenu={(event) => {
                 if (item.infoId === undefined) return;
                 event.preventDefault();

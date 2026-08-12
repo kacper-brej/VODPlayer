@@ -6,8 +6,8 @@ import { Check, Smartphone } from "lucide-react";
 import { AuthCardShell, authInputClass, authPrimaryButtonClass } from "@/components/auth/AuthCardShell";
 import { AuthStatusMessage } from "@/components/auth/AuthStatusMessage";
 import { PasswordField } from "@/components/auth/PasswordField";
-import { approveQrSessionAction, getCurrentUserAction, loginAction, type AuthActionResult } from "@/lib/authActions";
-import type { AuthUser } from "@/lib/contracts";
+import { approveQrSessionAction, getCurrentUserAction, loginAction, type AuthActionResult } from "@/lib/auth/authActions";
+import type { AuthUser } from "@/lib/core/contracts";
 
 type Phase = "checking" | "login" | "confirm" | "approved" | "invalid";
 
@@ -49,7 +49,7 @@ export function QrConfirmCard() {
             }
             const currentUser = await getCurrentUserAction();
             if (!currentUser) {
-                setResult({ ok: false, code: "server", message: "Could not verify the current user." });
+                setResult({ ok: false, code: "server", message: "Nie udało się potwierdzić użytkownika." });
                 return;
             }
             setUser(currentUser);
@@ -69,7 +69,7 @@ export function QrConfirmCard() {
     return (
         <AuthCardShell title="Potwierdź urządzenie" description="Zatwierdź logowanie na drugim ekranie.">
             {phase === "checking" && <p role="status" className="py-6 text-center text-sm text-nx-text-2">Sprawdzanie sesji…</p>}
-            {phase === "invalid" && <AuthStatusMessage status="error" message="The QR link is missing or invalid." />}
+            {phase === "invalid" && <AuthStatusMessage status="error" message="Brakuje linku QR lub link jest nieprawidłowy." />}
             {phase === "login" && (
                 <form action={signIn} className="space-y-4">
                     <div>

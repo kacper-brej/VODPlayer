@@ -1,4 +1,4 @@
-import type { CatalogGenre } from "@/lib/contracts";
+import type { CatalogGenre } from "@/lib/core/contracts";
 import { Star } from "lucide-react";
 
 interface SeriesMetadataProps {

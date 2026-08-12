@@ -1,6 +1,7 @@
 import { ChevronDown } from "lucide-react";
 import { DataErrorState, DataState } from "@/components/data/DataState";
-import { getAdminLibraryAction } from "@/lib/adminActions";
+import { getAdminLibraryAction } from "@/lib/admin/adminActions";
+import SeriesVisibilityControl from "@/components/admin/SeriesVisibilityControl";
 
 const formatBytes = (bytes: number): string => {
     if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
@@ -88,6 +89,13 @@ const AdminLibraryPage = async () => {
                                     {item.episodeCount} odc. · {formatBytes(item.totalBytes)}
                                 </span>
                             </summary>
+
+                            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-nx-border px-5 py-3">
+                                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-nx-text-2">
+                                    Dostęp do materiału
+                                </span>
+                                <SeriesVisibilityControl seriesKey={item.seriesKey} visibility={item.visibility} />
+                            </div>
 
                             <ul className="max-h-96 overflow-y-auto overscroll-contain border-t border-nx-border px-5">
                                 {item.episodes.map((episode) => (

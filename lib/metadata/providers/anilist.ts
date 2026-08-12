@@ -9,8 +9,8 @@ import {
     validateAniListMediaResponse,
     validateAniListSearchResponse,
     type AniListMedia,
-} from "@/lib/contracts";
-import { dataFailure, dataSuccess, type DataResult } from "@/lib/dataResult";
+} from "@/lib/core/contracts";
+import { dataFailure, dataSuccess, type DataResult } from "@/lib/core/dataResult";
 
 const ANILIST_ENDPOINT = "https://graphql.anilist.co";
 const SEARCH_PER_PAGE = 10;

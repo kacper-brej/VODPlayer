@@ -1,6 +1,6 @@
 "use client";
 import { Search } from "lucide-react";
-import { openCommandPalette } from "@/lib/commandPalette";
+import { openCommandPalette } from "@/lib/search/commandPalette";
 
 const SearchBar = () => {
     return (

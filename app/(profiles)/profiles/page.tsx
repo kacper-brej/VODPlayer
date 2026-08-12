@@ -1,5 +1,5 @@
 import ProfileSelector from "@/components/profiles/ProfileSelector";
-import { getProfiles } from "@/lib/profiles";
+import { getProfiles } from "@/lib/profiles/profiles";
 import { DataErrorState } from "@/components/data/DataState";
 
 export default async function ProfilesPage() {

@@ -1,11 +1,16 @@
 import { DataErrorState, DataState } from "@/components/data/DataState";
-import { getAdminUsersAction } from "@/lib/adminActions";
+import { getAdminUsersAction } from "@/lib/admin/adminActions";
+import { getSeriesAccessOverviewAction } from "@/lib/admin/accessControlActions";
+import SeriesAccessMatrix from "@/components/admin/SeriesAccessMatrix";
 
 const formatDate = (unixSeconds: number): string =>
     new Date(unixSeconds * 1000).toLocaleDateString("pl-PL", { year: "numeric", month: "short", day: "numeric" });
 
 const AdminUsersPage = async () => {
-    const result = await getAdminUsersAction();
+    const [result, accessOverview] = await Promise.all([
+        getAdminUsersAction(),
+        getSeriesAccessOverviewAction(),
+    ]);
 
     if (result.kind === "error") {
         return (
@@ -25,7 +30,8 @@ const AdminUsersPage = async () => {
                     Konta
                 </h1>
                 <p className="mt-3 text-sm leading-6 text-nx-text-2">
-                    Tylko podgląd - nadanie roli administratora odbywa się wyłącznie przez bezpośredni dostęp do bazy.
+                    Nadanie roli administratora odbywa się wyłącznie przez bezpośredni dostęp do bazy.
+                    Dostęp do pojedynczych tytułów nadajesz niżej.
                 </p>
             </div>
 
@@ -83,6 +89,23 @@ const AdminUsersPage = async () => {
                     </table>
                 </div>
             )}
+
+            <section className="flex flex-col gap-4">
+                <div className="max-w-3xl">
+                    <h2 className="font-display text-[24px] leading-[1.15] tracking-[-0.02em] text-nx-text">
+                        Dostęp do tytułów
+                    </h2>
+                    <p className="mt-2 text-sm leading-6 text-nx-text-2">
+                        Lista obejmuje tytuły o poziomie „tylko wybrane konta”. Konto bez uprawnienia widzi kafelek
+                        z opisami, ale odtwarza materiał demonstracyjny. Nadanie dostępu usuwa postęp zebrany
+                        na tym materiale.
+                    </p>
+                </div>
+
+                {accessOverview.kind === "error"
+                    ? <DataErrorState reason={accessOverview.reason} headingLevel={2} />
+                    : <SeriesAccessMatrix overview={accessOverview.data} />}
+            </section>
         </div>
     );
 };

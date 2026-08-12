@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, Send } from "lucide-react";
 import { AuthCardShell, authInputClass, authLinkClass, authPrimaryButtonClass } from "@/components/auth/AuthCardShell";
 import { AuthStatusMessage } from "@/components/auth/AuthStatusMessage";
-import { forgotPasswordAction, type AuthActionResult } from "@/lib/authActions";
+import { forgotPasswordAction, type AuthActionResult } from "@/lib/auth/authActions";
 
 export function ForgotPasswordCard() {
     const [result, setResult] = useState<AuthActionResult | null>(null);

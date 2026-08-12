@@ -5,12 +5,20 @@ import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { ArrowLeft, CircleCheck, RefreshCw } from "lucide-react";
 import { authSecondaryButtonClass } from "@/components/auth/AuthCardShell";
-import { checkQrSessionAction, createQrSessionAction } from "@/lib/authActions";
-import { useAuth } from "@/lib/AuthContext";
+import { checkQrSessionAction, createQrSessionAction } from "@/lib/auth/authActions";
+import { useAuth } from "@/lib/auth/AuthContext";
 
 type QrStatus = "loading" | "pending" | "approved" | "expired" | "error";
 
-export function QrLoginPanel({ onBack, mode = "login" }: { onBack: () => void; mode?: "login" | "register" }) {
+export function QrLoginPanel({
+    onBack,
+    mode = "login",
+    returnTo = "/profiles",
+}: {
+    onBack: () => void;
+    mode?: "login" | "register";
+    returnTo?: string;
+}) {
     const router = useRouter();
     const { setAuthenticatedUser } = useAuth();
     const [token, setToken] = useState<string | null>(null);
@@ -55,7 +63,7 @@ export function QrLoginPanel({ onBack, mode = "login" }: { onBack: () => void; m
             if (next.status === "approved") {
                 setAuthenticatedUser(next.user);
                 setStatus("approved");
-                router.replace("/profiles");
+                router.replace(returnTo);
                 return;
             }
             if (next.status === "expired" || next.status === "error") {
@@ -71,7 +79,7 @@ export function QrLoginPanel({ onBack, mode = "login" }: { onBack: () => void; m
             active = false;
             if (timer) clearTimeout(timer);
         };
-    }, [router, status, token, setAuthenticatedUser]);
+    }, [returnTo, router, status, token, setAuthenticatedUser]);
 
     const qrUrl = token && typeof window !== "undefined"
         ? mode === "register"

@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { Check, Languages, PlayCircle, ShieldCheck, UserRound } from "lucide-react";
-import { useAuth } from "@/lib/AuthContext";
-import requestPasswordChangeAction from "@/lib/requestPasswordChangeAction";
-import updateSettingsAction from "@/lib/updateSettingsAction";
-import type { ProfileSettings } from "@/lib/settings";
+import { useAuth } from "@/lib/auth/AuthContext";
+import requestPasswordChangeAction from "@/lib/auth/requestPasswordChangeAction";
+import updateSettingsAction from "@/lib/settings/updateSettingsAction";
+import type { ProfileSettings } from "@/lib/settings/settings";
+import { usePreviewPreferences } from "@/components/preview/PreviewPreferences";
 
 interface SettingsPanelProps {
     initialSettings: ProfileSettings;
@@ -51,6 +52,7 @@ const sectionClass = "rounded-2xl border border-nx-border bg-nx-panel p-5 shadow
 
 const SettingsPanel = ({ initialSettings, loadFailed }: SettingsPanelProps) => {
     const { user } = useAuth();
+    const { setPreviewPreferences } = usePreviewPreferences();
     const [settings, setSettings] = useState(initialSettings);
     const [savedSettings, setSavedSettings] = useState(initialSettings);
     const [message, setMessage] = useState(loadFailed ? "Nie udało się pobrać ustawień. Pokazujemy wartości domyślne." : "");
@@ -76,6 +78,10 @@ const SettingsPanel = ({ initialSettings, loadFailed }: SettingsPanelProps) => {
 
             setSettings(result.settings);
             setSavedSettings(result.settings);
+            setPreviewPreferences({
+                autoPreviewsEnabled: result.settings.autoPreviewsEnabled,
+                reduceData: result.settings.reduceData,
+            });
             setMessageKind("info");
             setMessage("Ustawienia zostały zapisane.");
         });
@@ -101,7 +107,7 @@ const SettingsPanel = ({ initialSettings, loadFailed }: SettingsPanelProps) => {
                         Ustaw noc po swojemu
                     </h1>
                     <p className="mt-4 max-w-[58ch] text-[15px] leading-6 text-nx-text-2">
-                        Preferencje są przypisane do aktywnego profilu i będą używane podczas każdego seansu.
+                        Te ustawienia dotyczą aktywnego profilu i są używane podczas oglądania.
                     </p>
                 </header>
 
@@ -133,6 +139,12 @@ const SettingsPanel = ({ initialSettings, loadFailed }: SettingsPanelProps) => {
                                     description="Po napisach od razu przejdź do kolejnego dostępnego odcinka."
                                     checked={settings.autoplayNext}
                                     onChange={(value) => patchSetting("autoplayNext", value)}
+                                />
+                                <SwitchRow
+                                    label="Automatyczne podglądy"
+                                    description="Po zatrzymaniu kursora lub fokusu Nocturna uruchomi krótki, wyciszony podgląd. Nadal możesz włączyć go ręcznie."
+                                    checked={settings.autoPreviewsEnabled}
+                                    onChange={(value) => patchSetting("autoPreviewsEnabled", value)}
                                 />
                                 <SwitchRow
                                     label="Pokazuj pomijanie intro"

@@ -1,0 +1,9 @@
+import { NextResponse } from "next/server";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export const GET = () => NextResponse.json(
+    { serverNowMs: Date.now() },
+    { headers: { "Cache-Control": "no-store" } },
+);

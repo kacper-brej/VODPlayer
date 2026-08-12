@@ -5,7 +5,7 @@ import { WifiOff } from "lucide-react";
 import Sidebar from "@/components/layout/Sidebar";
 import SearchBar from "@/components/layout/SearchBar";
 import CommandPaletteLauncher from "@/components/layout/CommandPaletteLauncher";
-import { useAuth } from "@/lib/AuthContext";
+import { useAuth } from "@/lib/auth/AuthContext";
 import { ContentSkeleton, DataErrorState } from "@/components/data/DataState";
 
 const GRAIN_BACKGROUND = `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`;

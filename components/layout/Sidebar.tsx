@@ -5,8 +5,8 @@ import { useRef, type KeyboardEvent } from "react";
 import { Command } from "lucide-react";
 import { ADMIN_QUICK_JUMP_ITEM, NAV_ITEMS } from "@/config/menu";
 import ProfileMenu from "@/components/layout/ProfileMenu";
-import { openCommandPalette } from "@/lib/commandPalette";
-import { useAuth } from "@/lib/AuthContext";
+import { openCommandPalette } from "@/lib/search/commandPalette";
+import { useAuth } from "@/lib/auth/AuthContext";
 
 interface NavRailItemsProps {
     orientation: "vertical" | "horizontal";

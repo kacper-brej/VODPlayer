@@ -3,8 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LogOut, Settings, User } from "lucide-react";
-import { useAuth } from "@/lib/AuthContext";
-import { getUnreadNotificationsCountAction } from "@/lib/notificationsActions";
+import { useAuth } from "@/lib/auth/AuthContext";
+import { getUnreadNotificationsCountAction } from "@/lib/notifications/notificationsActions";
 
 const initialsFrom = (username: string) => {
     const trimmed = username.trim();
@@ -21,6 +21,8 @@ const ProfileMenu = () => {
     const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
+    const [logoutFailed, setLogoutFailed] = useState(false);
+    const [logoutPending, setLogoutPending] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const triggerRef = useRef<HTMLButtonElement>(null);
 
@@ -62,8 +64,15 @@ const ProfileMenu = () => {
     }, [isOpen]);
 
     const handleLogout = async () => {
+        setLogoutPending(true);
+        setLogoutFailed(false);
+        const revoked = await logout();
+        setLogoutPending(false);
+        if (!revoked) {
+            setLogoutFailed(true);
+            return;
+        }
         setIsOpen(false);
-        await logout();
         router.push("/login");
     };
 
@@ -115,11 +124,17 @@ const ProfileMenu = () => {
                         role="menuitem"
                         type="button"
                         onClick={handleLogout}
+                        disabled={logoutPending}
                         className="flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-danger outline-none transition-colors hover:bg-surface-light focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
                     >
                         <LogOut size={16} aria-hidden="true" />
-                        Wyloguj
+                        {logoutPending ? "Wylogowywanie…" : "Wyloguj"}
                     </button>
+                    {logoutFailed && (
+                        <p role="alert" className="px-3 py-1 text-xs text-danger">
+                            Nie udało się unieważnić sesji. Spróbuj ponownie.
+                        </p>
+                    )}
                 </div>
             )}
         </div>

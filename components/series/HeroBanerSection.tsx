@@ -1,11 +1,13 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useState, type KeyboardEvent, type MouseEvent } from "react";
 import { Clock, Play, Volume2, VolumeX } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { ARTWORK_SIZES, blurProps, imageLoader, safeArtworkColor } from "@/lib/imageDelivery";
-import { cancelPreview, claimPreviewSlot } from "@/components/series/previewController";
+import { ARTWORK_SIZES, blurProps, imageLoader, safeArtworkColor } from "@/lib/catalog/imageDelivery";
+import type { PreviewSource } from "@/lib/player/videoAccess";
+import { setPreviewMuted } from "@/components/series/previewController";
+import { usePreviewSurface } from "@/components/preview/usePreviewSurface";
 
 export interface LastWatchedData {
     seriesKey: string;
@@ -22,7 +24,7 @@ export interface LastWatchedData {
     safeLeft?: number | null;
     safeBottom?: number | null;
     focal?: { x: number; y: number };
-    video: string;
+    previewSource: PreviewSource | null;
     description: string | null;
     href: string;
     isResume: boolean;
@@ -32,29 +34,12 @@ interface HeroBanerProps {
     lastWatchedData: LastWatchedData | null;
 }
 
-const HOVER_INTENT_MS = 900;
-const PREVIEW_START_SECONDS = 2;
-const PREVIEW_DURATION_SECONDS = 8;
-
 const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
     const router = useRouter();
-    const videoRef = useRef<HTMLVideoElement | null>(null);
-    const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const previewStartRef = useRef(PREVIEW_START_SECONDS);
-    const previewTokenRef = useRef(Symbol("hero-preview"));
-    const [isPlaying, setIsPlaying] = useState(false);
+    const preview = usePreviewSurface(lastWatchedData?.previewSource);
     const [isMuted, setIsMuted] = useState(true);
     const [failedArtwork, setFailedArtwork] = useState<string | null>(null);
     const [failedLogo, setFailedLogo] = useState<string | null>(null);
-
-    useEffect(() => {
-        const previewToken = previewTokenRef.current;
-
-        return () => {
-            if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-            cancelPreview(previewToken);
-        };
-    }, []);
 
     if (!lastWatchedData) return null;
 
@@ -69,94 +54,14 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
 
     const openEpisode = () => router.push(activeContent.href);
 
-    const startPreview = () => {
-        const connection = (navigator as Navigator & {
-            connection?: {
-                saveData?: boolean;
-                effectiveType?: string;
-                downlink?: number;
-            };
-        }).connection;
-        const effectiveType = connection?.effectiveType?.toLowerCase();
-        const slowConnection = effectiveType === "slow-2g"
-            || effectiveType === "2g"
-            || effectiveType === "3g"
-            || (typeof connection?.downlink === "number" && connection.downlink < 5);
-
-        const video = videoRef.current;
-
-        if (
-            !video
-            || connection?.saveData
-            || slowConnection
-            || window.matchMedia("(hover: none)").matches
-            || window.matchMedia("(prefers-reduced-motion: reduce)").matches
-        ) {
-            return;
-        }
-
-        claimPreviewSlot(previewTokenRef.current, video);
-
-        setIsMuted(true);
-        setIsPlaying(false);
-        video.muted = true;
-        video.src = activeContent.video;
-        video.load();
-    };
-
-    const handleHover = () => {
-        if (!activeContent.video) return;
-        if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-        hoverTimerRef.current = setTimeout(() => {
-            hoverTimerRef.current = null;
-            startPreview();
-        }, HOVER_INTENT_MS);
-    };
-
-    const stopPreview = () => {
-        cancelPreview(previewTokenRef.current);
-        setIsPlaying(false);
-        setIsMuted(true);
-    };
-
-    const handleHoverEnd = () => {
-        if (hoverTimerRef.current) {
-            clearTimeout(hoverTimerRef.current);
-            hoverTimerRef.current = null;
-        }
-
-        stopPreview();
-    };
-
-    const handleLoadedMetadata = () => {
-        const video = videoRef.current;
-        if (!video) return;
-
-        const latestSafeStart = Math.max(0, video.duration - PREVIEW_DURATION_SECONDS - 1);
-        const previewStart = Math.min(PREVIEW_START_SECONDS, latestSafeStart);
-        previewStartRef.current = previewStart;
-        video.currentTime = previewStart;
-
-        video.play().catch(() => {
-            video.muted = true;
-            setIsMuted(true);
-            video.play().catch(() => setIsPlaying(false));
-        });
-    };
-
-    const handleTimeUpdate = () => {
-        const video = videoRef.current;
-        if (!video || video.currentTime < previewStartRef.current + PREVIEW_DURATION_SECONDS) return;
-        stopPreview();
-    };
-
     const toggleMute = (event: MouseEvent<HTMLButtonElement>) => {
         event.stopPropagation();
-        const video = videoRef.current;
+        const video = preview.videoRef.current;
         if (!video) return;
 
-        video.muted = !video.muted;
-        setIsMuted(video.muted);
+        const muted = !video.muted;
+        setPreviewMuted(muted);
+        setIsMuted(muted);
     };
 
     const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
@@ -173,8 +78,7 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
             aria-label={`${activeContent.isResume ? "Wznów" : "Odtwórz"} ${activeContent.title}`}
             onClick={openEpisode}
             onKeyDown={handleKeyDown}
-            onMouseEnter={handleHover}
-            onMouseLeave={handleHoverEnd}
+            {...preview.surfaceProps}
             className="group/hero relative h-[46vh] min-h-80 max-h-105 w-full cursor-pointer overflow-hidden border-y border-nx-border bg-nx-panel outline-none lg:h-[52vh] lg:min-h-105 lg:max-h-155 xl:h-[58vh] xl:min-h-130 xl:max-h-190 min-[1440px]:h-[62vh] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-nx-accent"
             style={safeDominantColor ? {
                 background: `linear-gradient(to top, var(--nx-bg), color-mix(in srgb, ${safeDominantColor} 8%, var(--nx-panel)))`,
@@ -196,21 +100,16 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
             )}
 
             <video
-                ref={videoRef}
-                onLoadedMetadata={handleLoadedMetadata}
-                onPlaying={() => setIsPlaying(true)}
-                onTimeUpdate={handleTimeUpdate}
-                onError={stopPreview}
+                {...preview.videoProps}
+                onVolumeChange={(event) => setIsMuted(event.currentTarget.muted)}
                 muted={isMuted}
-                playsInline
-                preload="none"
-                className={`absolute inset-0 size-full object-cover transition-opacity duration-520 motion-reduce:transition-none ${isPlaying ? "opacity-100" : "opacity-0"}`}
+                className={`absolute inset-0 size-full object-cover transition-opacity duration-520 motion-reduce:transition-none ${preview.isPlaying ? "opacity-100" : "opacity-0"}`}
             />
 
             <span className="pointer-events-none absolute inset-0 bg-linear-to-t from-nx-bg via-nx-bg/15 to-transparent md:bg-[linear-gradient(90deg,var(--nx-bg)_0%,color-mix(in_srgb,var(--nx-bg)_88%,transparent)_34%,color-mix(in_srgb,var(--nx-bg)_20%,transparent)_64%,color-mix(in_srgb,var(--nx-bg)_55%,transparent)_100%)]" />
             <span className="pointer-events-none absolute inset-0 hidden bg-linear-to-t from-nx-bg via-transparent to-transparent md:block" />
 
-            {isPlaying && (
+            {preview.isPlaying && (
                 <button
                     type="button"
                     onClick={toggleMute}
@@ -273,6 +172,16 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
                         ? `Wznów odcinek ${activeContent.episodeNumber}`
                         : `Odtwórz odcinek ${activeContent.episodeNumber}`}
                 </button>
+                {activeContent.previewSource && (
+                    <button
+                        type="button"
+                        onClick={preview.startManual}
+                        className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-nx-border bg-nx-panel px-5 text-sm font-semibold text-nx-text outline-none hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent [@media(pointer:fine)]:w-fit"
+                    >
+                        <Play size={16} aria-hidden="true" />
+                        Podgląd
+                    </button>
+                )}
             </div>
 
             {activeContent.progressPercent !== null && (

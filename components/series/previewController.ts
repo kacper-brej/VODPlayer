@@ -1,6 +1,10 @@
 import type Hls from "hls.js";
+import type { ErrorData as HlsErrorData } from "hls.js";
+import { shouldAllowAutomaticPreview } from "@/lib/player/previewClientPolicy";
+import { isPreviewSessionSource, type PreviewSessionSource } from "@/lib/player/previewTypes";
 
-export type PreviewSourceKind = "hls" | "mp4";
+export type PreviewSourceKind = "session";
+export type PreviewIntent = "hover" | "focus" | "manual";
 
 export interface PreviewRequest {
     token: symbol;
@@ -10,124 +14,250 @@ export interface PreviewRequest {
     startSeconds: number;
 }
 
+export interface PreviewOptions {
+    intent: PreviewIntent;
+    autoPreviewsEnabled: boolean;
+    reduceData: boolean;
+    delayMs?: number;
+}
+
+const PREVIEW_MAX_SECONDS = 10;
 let activeToken: symbol | null = null;
 let activeElement: HTMLVideoElement | null = null;
+let activeAbortController: AbortController | null = null;
+let pendingTimer: ReturnType<typeof setTimeout> | null = null;
+let mediaCleanup: (() => void) | null = null;
 let hlsInstance: Hls | null = null;
 let hlsConstructorPromise: Promise<typeof Hls> | null = null;
+let previewMutedPreference: boolean | null = null;
+let lifecycleListenersInstalled = false;
+
+export const isPreviewMuted = (): boolean => {
+    if (previewMutedPreference !== null) return previewMutedPreference;
+    if (typeof navigator === "undefined") return true;
+    return !navigator.userActivation?.hasBeenActive;
+};
+
+export const setPreviewMuted = (muted: boolean): void => {
+    previewMutedPreference = muted;
+    if (activeElement) activeElement.muted = muted;
+};
 
 const loadHlsConstructor = (): Promise<typeof Hls> => {
-    if (!hlsConstructorPromise) {
-        hlsConstructorPromise = import("hls.js").then((module) => module.default);
-    }
-
+    if (!hlsConstructorPromise) hlsConstructorPromise = import("hls.js").then((module) => module.default);
     return hlsConstructorPromise;
 };
 
-const detachHls = (): void => {
-    if (!hlsInstance) return;
+const playWithAutoplayFallback = (element: HTMLVideoElement): void => {
+    void element.play().catch(() => {
+        if (element.muted) return;
+        element.muted = true;
+        void element.play().catch(() => {});
+    });
+};
 
-    hlsInstance.stopLoad();
-    hlsInstance.detachMedia();
+const detachHls = (): void => {
+    hlsInstance?.destroy();
+    hlsInstance = null;
+};
+
+const clearPending = (): void => {
+    if (pendingTimer) clearTimeout(pendingTimer);
+    pendingTimer = null;
 };
 
 const stopActiveElement = (): void => {
+    clearPending();
+    activeAbortController?.abort();
+    activeAbortController = null;
+    mediaCleanup?.();
+    mediaCleanup = null;
     detachHls();
-
     if (activeElement) {
         activeElement.pause();
         activeElement.removeAttribute("src");
         activeElement.load();
     }
-
     activeElement = null;
 };
 
-export const cancelPreview = (token: symbol): void => {
-    if (activeToken !== token) return;
-
+const cancelActivePreview = (): void => {
     activeToken = null;
     stopActiveElement();
 };
 
-export const claimPreviewSlot = (token: symbol, element: HTMLVideoElement): void => {
-    if (activeToken === token) return;
-
-    stopActiveElement();
-    activeToken = token;
-    activeElement = element;
-};
-
-const shouldSkipPreview = (): boolean => {
-    if (typeof window === "undefined") return true;
-    if (document.visibilityState !== "visible") return true;
-    if (window.matchMedia("(hover: none)").matches) return true;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return true;
-
-    const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
-
-    return Boolean(connection?.saveData);
-};
-
-const startMp4Preview = (request: PreviewRequest): void => {
-    const { element, src, startSeconds, token } = request;
-
-    const applyStartPosition = () => {
-        if (activeToken !== token) return;
-
-        element.currentTime = startSeconds;
-        void element.play().catch(() => {});
-    };
-
-    element.muted = true;
-    element.addEventListener("loadedmetadata", applyStartPosition, { once: true });
-    element.src = src;
-    element.load();
-};
-
-const startHlsPreview = (request: PreviewRequest): void => {
-    const { element, src, startSeconds, token } = request;
-
-    element.muted = true;
-
-    void loadHlsConstructor().then((HlsConstructor) => {
-        if (activeToken !== token) return;
-
-        if (!hlsInstance) {
-            hlsInstance = new HlsConstructor({
-                startLevel: 0,
-                capLevelToPlayerSize: true,
-                maxBufferLength: 8,
-                autoStartLoad: false,
-                abrEwmaDefaultEstimate: 200_000,
-            });
-        }
-
-        hlsInstance.detachMedia();
-        hlsInstance.attachMedia(element);
-        hlsInstance.loadSource(src);
-        hlsInstance.startLoad(startSeconds);
-
-        element.addEventListener("loadeddata", () => {
-            if (activeToken !== token) return;
-
-            void element.play().catch(() => {});
-        }, { once: true });
+const ensureLifecycleListeners = (): void => {
+    if (lifecycleListenersInstalled || typeof window === "undefined") return;
+    lifecycleListenersInstalled = true;
+    window.addEventListener("pagehide", cancelActivePreview);
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState !== "visible") cancelActivePreview();
+    });
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") cancelActivePreview();
     });
 };
 
-export const requestPreview = (request: PreviewRequest): void => {
-    if (shouldSkipPreview()) return;
+export const cancelPreview = (token: symbol): void => {
+    if (activeToken !== token) return;
+    cancelActivePreview();
+};
 
+const claimPreviewSlot = (token: symbol, element: HTMLVideoElement): void => {
     stopActiveElement();
-    activeToken = request.token;
-    activeElement = request.element;
+    activeToken = token;
+    activeElement = element;
+    ensureLifecycleListeners();
+};
 
+const connectionSaveData = (): boolean =>
+    Boolean((navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData);
+
+const shouldStart = (options: PreviewOptions): boolean => {
+    if (typeof window === "undefined" || document.visibilityState !== "visible") return false;
+    if (options.intent === "manual") return true;
+    return shouldAllowAutomaticPreview({
+        autoPreviewsEnabled: options.autoPreviewsEnabled,
+        reduceData: options.reduceData,
+        saveData: connectionSaveData(),
+        reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+        documentVisible: true,
+        finePointer: window.matchMedia("(hover: hover) and (pointer: fine)").matches,
+        intent: options.intent,
+    });
+};
+
+const bindPreviewLimit = (token: symbol, element: HTMLVideoElement, startSeconds: number): void => {
+    mediaCleanup?.();
+    const stopAtLimit = () => {
+        if (activeToken === token && element.currentTime >= startSeconds + PREVIEW_MAX_SECONDS) {
+            cancelActivePreview();
+        }
+    };
+    const stopAtEnd = () => {
+        if (activeToken === token) cancelActivePreview();
+    };
+    element.addEventListener("timeupdate", stopAtLimit);
+    element.addEventListener("ended", stopAtEnd);
+    mediaCleanup = () => {
+        element.removeEventListener("timeupdate", stopAtLimit);
+        element.removeEventListener("ended", stopAtEnd);
+    };
+};
+
+const bindPendingMediaEvents = (
+    element: HTMLVideoElement,
+    events: Array<["loadedmetadata" | "loadeddata", EventListener]>,
+): void => {
+    mediaCleanup?.();
+    for (const [name, listener] of events) element.addEventListener(name, listener, { once: true });
+    mediaCleanup = () => {
+        for (const [name, listener] of events) element.removeEventListener(name, listener);
+    };
+};
+
+const startMp4Preview = (token: symbol, element: HTMLVideoElement, source: PreviewSessionSource): void => {
+    const applyStartPosition = () => {
+        if (activeToken !== token) return;
+        element.currentTime = source.mediaOffsetSeconds;
+        bindPreviewLimit(token, element, source.mediaOffsetSeconds);
+        playWithAutoplayFallback(element);
+    };
+    element.muted = isPreviewMuted();
+    bindPendingMediaEvents(element, [["loadedmetadata", applyStartPosition]]);
+    element.src = source.src;
+    element.load();
+};
+
+const fetchPreviewSession = async (url: string, signal: AbortSignal): Promise<PreviewSessionSource> => {
+    const response = await fetch(new URL(url, window.location.origin), {
+        credentials: "same-origin",
+        cache: "no-store",
+        signal,
+    });
+    if (!response.ok) throw new Error(`preview-session-${response.status}`);
+    const value: unknown = await response.json();
+    if (!isPreviewSessionSource(value)) throw new Error("preview-session-invalid");
+    return value;
+};
+
+const startHlsPreview = async (
+    request: PreviewRequest,
+    source: PreviewSessionSource,
+    options: PreviewOptions,
+    refreshAttempt: number,
+): Promise<void> => {
+    const { element, token } = request;
+    element.muted = isPreviewMuted();
+    const HlsConstructor = await loadHlsConstructor();
+    if (activeToken !== token) return;
+    detachHls();
+    hlsInstance = new HlsConstructor({
+        startLevel: 0,
+        capLevelToPlayerSize: true,
+        maxBufferLength: 12,
+        autoStartLoad: false,
+        abrEwmaDefaultEstimate: 200_000,
+    });
+    const instance = hlsInstance;
+    instance.attachMedia(element);
+    instance.loadSource(source.src);
+    instance.on(HlsConstructor.Events.ERROR, (_event, detail: HlsErrorData) => {
+        const status = detail.response?.code;
+        if (!detail.fatal || (status !== 403 && status !== 410) || refreshAttempt >= 1 || activeToken !== token) return;
+        void resolveAndStart(request, options, refreshAttempt + 1);
+    });
+    const applyStartPosition = () => {
+        if (activeToken !== token) return;
+        if (Math.abs(element.currentTime - source.mediaOffsetSeconds) > 0.25) element.currentTime = source.mediaOffsetSeconds;
+    };
+    const handleLoadedData = () => {
+        if (activeToken !== token) return;
+        applyStartPosition();
+        bindPreviewLimit(token, element, source.mediaOffsetSeconds);
+        playWithAutoplayFallback(element);
+    };
+    bindPendingMediaEvents(element, [
+        ["loadedmetadata", applyStartPosition],
+        ["loadeddata", handleLoadedData],
+    ]);
+    instance.startLoad(source.mediaOffsetSeconds);
+};
+
+async function resolveAndStart(
+    request: PreviewRequest,
+    options: PreviewOptions,
+    refreshAttempt: number,
+): Promise<number | null> {
+    activeAbortController?.abort();
+    const controller = new AbortController();
+    activeAbortController = controller;
+    try {
+        const source = await fetchPreviewSession(request.src, controller.signal);
+        if (activeToken !== request.token) return null;
+        if (source.type === "mp4") startMp4Preview(request.token, request.element, source);
+        else await startHlsPreview(request, source, options, refreshAttempt);
+        return source.mediaOffsetSeconds;
+    } catch {
+        if (activeToken === request.token) cancelActivePreview();
+        return null;
+    }
+}
+
+export const requestPreview = async (request: PreviewRequest, options: PreviewOptions): Promise<number | null> => {
+    if (!shouldStart(options)) return null;
+    claimPreviewSlot(request.token, request.element);
     request.element.preload = "none";
     request.element.playsInline = true;
+    return resolveAndStart(request, options, 0);
+};
 
-    if (request.kind === "mp4") {
-        startMp4Preview(request);
-    } else {
-        startHlsPreview(request);
-    }
+export const schedulePreview = (request: PreviewRequest, options: PreviewOptions): void => {
+    if (!shouldStart(options)) return;
+    claimPreviewSlot(request.token, request.element);
+    pendingTimer = setTimeout(() => {
+        pendingTimer = null;
+        if (activeToken !== request.token) return;
+        void resolveAndStart(request, options, 0);
+    }, Math.max(0, options.delayMs ?? 300));
 };

@@ -1,36 +1,18 @@
-import { VOD_ORIGIN, sessionHeaders } from "@/lib/vodConfig";
 import type { ProviderArtwork, ProviderId, ProviderSeries } from "@/lib/metadata/types";
-import { persistSeriesMetadata, toLegacyMetadata } from "@/lib/seriesMetadata";
+import { toLegacyMetadata } from "@/lib/catalog/seriesMetadata";
+import { persistCompleteSeriesMetadata } from "@/lib/seriesMetadata/seriesMetadataService";
+import type { ExternalIdProvider } from "@/lib/seriesMetadata/seriesMetadataContracts";
 
 type TitleKind = "primary" | "romaji" | "english" | "native" | "synonym";
 type ArtworkPrimaryPolicy = "force" | "if-absent" | "never";
 
-const identityProviderFor = (providerId: ProviderId): string =>
+const identityProviderFor = (providerId: ProviderId): ExternalIdProvider =>
     providerId === "jikan" ? "mal" : providerId;
 
 const ARTWORK_PRIMARY_POLICY: Record<ProviderId, Exclude<ArtworkPrimaryPolicy, "never">> = {
     tmdb: "force",
     anilist: "if-absent",
     jikan: "if-absent",
-};
-
-export const postSeriesMetadata = async (headers: Record<string, string>, body: unknown): Promise<boolean> => {
-    try {
-        const res = await fetch(`${VOD_ORIGIN}/series-metadata.php`, {
-            method: "POST",
-            headers: { ...headers, "Content-Type": "application/json" },
-            cache: "no-store",
-            body: JSON.stringify(body),
-        });
-
-        if (!res.ok) return false;
-
-        const payload: unknown = await res.json().catch(() => null);
-        return Boolean(payload) && typeof payload === "object" && (payload as { success?: unknown }).success === true;
-    } catch (error) {
-        console.error("series-metadata persist failed", error);
-        return false;
-    }
 };
 
 const buildTitles = (seriesKey: string, series: ProviderSeries): { title: string; kind: TitleKind }[] => {
@@ -82,37 +64,33 @@ export const persistSeriesIdentity = async (
     artwork: ProviderArtwork[],
     matchSource: "auto" | "manual",
 ): Promise<boolean> => {
-    const headers = await sessionHeaders();
-    if (!headers) return false;
-
-    const externalIdWrites = [
-        postSeriesMetadata(headers, {
-            seriesKey,
-            provider: identityProviderFor(providerId),
-            externalId,
-            matchSource,
-        }),
-    ];
+    const externalIds = [{ provider: identityProviderFor(providerId), externalId, matchSource }];
 
     if (series.malId !== null && providerId !== "jikan") {
-        externalIdWrites.push(postSeriesMetadata(headers, {
-            seriesKey,
-            provider: "mal",
-            externalId: String(series.malId),
-            matchSource,
-        }));
+        externalIds.push({ provider: "mal", externalId: String(series.malId), matchSource });
     }
-
-    const titlesWrite = postSeriesMetadata(headers, { seriesKey, titles: buildTitles(seriesKey, series) });
-
-    const artworkItems = buildArtworkPayload(providerId, artwork, matchSource);
-    const artworkWrite = artworkItems.length > 0
-        ? postSeriesMetadata(headers, { seriesKey, artwork: artworkItems })
-        : Promise.resolve(true);
-
-    const descriptiveWrite = persistSeriesMetadata(seriesKey, toLegacyMetadata(providerId, externalId, series, artwork));
-
-    const results = await Promise.all([...externalIdWrites, titlesWrite, artworkWrite, descriptiveWrite]);
-
-    return results.every(Boolean);
+    const descriptive = toLegacyMetadata(providerId, externalId, series, artwork);
+    try {
+        await persistCompleteSeriesMetadata({
+            seriesKey,
+            externalIds,
+            titles: buildTitles(seriesKey, series),
+            artwork: buildArtworkPayload(providerId, artwork, matchSource).map((item) => ({
+                ...item,
+                dominantColor: null,
+                placeholder: null,
+            })),
+            cover: {
+                title: seriesKey,
+                ...descriptive,
+                backdropSource: descriptive.backdropImage ? "jikan" : null,
+                genres: descriptive.genres,
+                studio: descriptive.studio,
+            },
+        });
+        return true;
+    } catch (error) {
+        console.error("series metadata persist failed", error);
+        return false;
+    }
 };

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRef, type KeyboardEvent } from "react";
 import { Search, X } from "lucide-react";
-import type { CatalogGenre } from "@/lib/contracts";
+import type { CatalogGenre } from "@/lib/core/contracts";
 
 interface FilterOption {
     value: string;

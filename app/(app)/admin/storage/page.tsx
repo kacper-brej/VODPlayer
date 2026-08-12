@@ -1,7 +1,7 @@
 import { DataErrorState } from "@/components/data/DataState";
 import EpisodeDeleteButton from "@/components/admin/EpisodeDeleteButton";
-import { getMediaStorageStatus } from "@/lib/mediaStorageStatus";
-import { getStorageUsageAction } from "@/lib/adminStorageActions";
+import { getMediaStorageStatus } from "@/lib/admin/mediaStorageStatus";
+import { getStorageUsageAction } from "@/lib/admin/adminStorageActions";
 
 const B2_FREE_TIER_STORAGE_GB = 10;
 const STORAGE_HISTORY_DAYS_SHOWN = 14;

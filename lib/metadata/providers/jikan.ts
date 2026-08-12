@@ -11,14 +11,14 @@ import {
     validateJikanAnimeResponse,
     validateJikanEpisodesResponse,
     type JikanAnime,
-} from "@/lib/contracts";
-import { dataFailure, dataSuccess, type DataResult } from "@/lib/dataResult";
+} from "@/lib/core/contracts";
+import { dataFailure, dataSuccess, type DataResult } from "@/lib/core/dataResult";
 
 const MAX_EPISODE_PAGES = 500;
 
 const client = createRateLimitedClient({
     providerId: "jikan",
-    baseUrl: process.env.NEXT_PUBLIC_MOVIE_API_URL ?? "",
+    baseUrl: process.env.JIKAN_API_URL ?? "",
     minRequestIntervalMs: 400,
     cacheTtlMs: 60 * 60 * 1000,
     cacheMaxEntries: 128,

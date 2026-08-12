@@ -1,46 +1,68 @@
-import { NextRequest, NextResponse } from "next/server";
-import { sessionHeaders, VOD_ORIGIN } from "@/lib/vodConfig";
-import { hasActiveSession } from "@/lib/verifySession";
+import { requireAdminRoute } from "@/lib/http/routeAuth";
+import { invalidateCatalogCache } from "@/lib/catalog/seriesMetadata";
+import { ARTWORK_MAX_INPUT_BYTES } from "@/lib/artwork/artworkValidation";
+import {
+    isArtworkKind,
+    isSafeArtworkSeriesKey,
+    saveManualArtwork,
+} from "@/lib/artwork/artworkService";
 
-const MAX_BYTES = 8 * 1024 * 1024;
-const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-export const POST = async (request: NextRequest) => {
-    if (!(await hasActiveSession(request))) {
-        return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+const json = (payload: unknown, status = 200) => Response.json(payload, {
+    status,
+    headers: { "Cache-Control": "no-store" },
+});
+
+export const POST = async (request: Request) => {
+    const gate = await requireAdminRoute();
+    if (!gate.ok) return gate.response;
+
+    let formData: FormData;
+    try {
+        formData = await request.formData();
+    } catch {
+        return json({ error: "Nieprawidłowe dane formularza." }, 400);
     }
 
-    const headers = await sessionHeaders();
-    if (!headers) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-
-    const formData = await request.formData();
     const file = formData.get("file");
     const seriesKey = formData.get("seriesKey");
     const kind = formData.get("kind");
 
-    if (!(file instanceof File) || typeof seriesKey !== "string" || typeof kind !== "string") {
-        return NextResponse.json({ error: "Invalid upload data." }, { status: 422 });
+    if (
+        !(file instanceof File)
+        || typeof seriesKey !== "string"
+        || typeof kind !== "string"
+        || !isSafeArtworkSeriesKey(seriesKey)
+        || !isArtworkKind(kind)
+    ) {
+        return json({ error: "Nieprawidłowe dane grafiki." }, 422);
     }
 
-    if (file.size < 1 || file.size > MAX_BYTES || !ALLOWED_TYPES.has(file.type)) {
-        return NextResponse.json({ error: "Choose a JPG, PNG or WebP file up to 8 MB." }, { status: 422 });
+    if (file.size < 1 || file.size > ARTWORK_MAX_INPUT_BYTES) {
+        return json({ error: "Wybierz plik JPG, PNG lub WebP do 8 MB." }, 422);
     }
-
-    const upstream = new FormData();
-    upstream.set("seriesKey", seriesKey);
-    upstream.set("kind", kind);
-    upstream.set("file", file, file.name);
 
     try {
-        const response = await fetch(`${VOD_ORIGIN}/artwork-upload.php`, {
-            method: "POST",
-            headers,
-            body: upstream,
-            cache: "no-store",
-        });
-        const payload: unknown = await response.json().catch(() => ({ error: "Invalid server response." }));
-        return NextResponse.json(payload, { status: response.status });
-    } catch {
-        return NextResponse.json({ error: "The media server is unavailable." }, { status: 503 });
+        const result = await saveManualArtwork(seriesKey, kind, Buffer.from(await file.arrayBuffer()));
+        if (!result.ok) {
+            if (result.code === "invalid") {
+                return json({ error: "Plik nie jest poprawną grafiką JPG, PNG lub WebP do 8 MB." }, 415);
+            }
+            if (result.code === "invalid_dimensions") {
+                const expected = kind === "poster" ? "pionowy" : "poziomy";
+                return json({ error: `Dla rodzaju ${kind} wymagany jest obraz ${expected}.` }, 422);
+            }
+            if (result.code === "not_found") return json({ error: "Nieznany serial." }, 404);
+            if (result.code === "storage") return json({ error: "Nie udało się zapisać grafiki w B2." }, 502);
+            return json({ error: "Nie udało się zapisać grafiki." }, 500);
+        }
+
+        invalidateCatalogCache();
+        return json({ success: true, id: result.id, url: result.url });
+    } catch (error) {
+        console.error("POST /api/admin/artwork: nieoczekiwany błąd", error);
+        return json({ error: "Nie udało się zapisać grafiki." }, 500);
     }
 };

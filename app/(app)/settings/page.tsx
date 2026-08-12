@@ -1,5 +1,5 @@
 import SettingsPanel from "@/components/settings/SettingsPanel";
-import { DEFAULT_PROFILE_SETTINGS, getSettings } from "@/lib/settings";
+import { DEFAULT_PROFILE_SETTINGS, getSettings } from "@/lib/settings/settings";
 
 const SettingsPage = async () => {
     const result = await getSettings();

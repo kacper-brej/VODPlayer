@@ -3,8 +3,10 @@
 import Image from "next/image";
 import { Check, Play } from "lucide-react";
 import { useState, type KeyboardEvent, type Ref } from "react";
-import { formatEpisodeNumber } from "@/lib/seriesPage";
-import { ARTWORK_SIZES, imageLoader } from "@/lib/imageDelivery";
+import { formatEpisodeNumber } from "@/lib/catalog/seriesPage";
+import { ARTWORK_SIZES, imageLoader } from "@/lib/catalog/imageDelivery";
+import type { PreviewSource } from "@/lib/player/videoAccess";
+import { usePreviewSurface } from "@/components/preview/usePreviewSurface";
 
 export interface EpisodeCardData {
     id: string;
@@ -20,6 +22,7 @@ export interface EpisodeCardData {
     started: boolean;
     progressKnown: boolean;
     isNew: boolean;
+    previewSource: PreviewSource | null;
 }
 
 interface EpisodeCardProps {
@@ -40,19 +43,28 @@ const EpisodeCard = ({
     onKeyDown,
 }: EpisodeCardProps) => {
     const [imageFailed, setImageFailed] = useState(false);
+    const preview = usePreviewSurface(episode.previewSource);
 
     return (
-        <button
-            ref={cardRef}
-            type="button"
+        <article
             role="gridcell"
-            tabIndex={tabIndex}
-            onFocus={onFocus}
-            onClick={() => onPlay(episode)}
-            onKeyDown={onKeyDown}
             aria-label={`${episode.title}${episode.watched ? ", obejrzane" : episode.started ? episode.progressKnown ? `, obejrzane w ${episode.percent}%` : ", rozpoczęte" : ""}`}
-            className="group w-full scroll-m-6 overflow-hidden rounded-2xl border border-nx-border bg-nx-panel text-left transition-colors hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent"
+            className="group relative w-full scroll-m-6 overflow-hidden rounded-2xl border border-nx-border bg-nx-panel text-left transition-colors hover:bg-nx-raised"
         >
+            <button
+                ref={cardRef}
+                type="button"
+                tabIndex={tabIndex}
+                onClick={() => onPlay(episode)}
+                onKeyDown={onKeyDown}
+                {...preview.surfaceProps}
+                onFocus={(event) => {
+                    preview.surfaceProps.onFocus(event);
+                    onFocus();
+                }}
+                aria-label={`Odtwórz ${episode.title}`}
+                className="block w-full text-left focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-nx-accent"
+            >
             <span className="relative block aspect-video overflow-hidden bg-nx-panel">
                 {episode.thumbnail && !imageFailed ? (
                     <Image
@@ -68,6 +80,13 @@ const EpisodeCard = ({
                     <span className="absolute inset-0 flex items-center justify-center font-mono text-xl text-nx-text-2">
                         {formatEpisodeNumber(episode.episodeNumber)}
                     </span>
+                )}
+
+                {episode.previewSource && (
+                    <video
+                        {...preview.videoProps}
+                        className={`pointer-events-none absolute inset-0 size-full object-cover transition-opacity duration-300 motion-reduce:transition-none ${preview.isPlaying ? "opacity-100" : "opacity-0"}`}
+                    />
                 )}
 
                 <span className="absolute inset-0 border border-[color-mix(in_srgb,var(--nx-text)_9%,transparent)]" />
@@ -111,7 +130,19 @@ const EpisodeCard = ({
                     {episode.remainingTime ?? episode.fileName}
                 </span>
             </span>
-        </button>
+            </button>
+
+            {episode.previewSource && (
+                <button
+                    type="button"
+                    onClick={preview.startManual}
+                    aria-label={`Odtwórz podgląd: ${episode.title}`}
+                    className="absolute bottom-3 right-3 z-20 flex size-10 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text opacity-0 outline-none transition-opacity hover:bg-nx-raised focus:opacity-100 focus-visible:outline-2 focus-visible:outline-nx-accent group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100"
+                >
+                    <Play size={15} fill="currentColor" aria-hidden="true" />
+                </button>
+            )}
+        </article>
     );
 };
 

@@ -8,8 +8,9 @@ import { AuthCardShell, authInputClass, authLinkClass, authPrimaryButtonClass, a
 import { AuthStatusMessage } from "@/components/auth/AuthStatusMessage";
 import { PasswordField } from "@/components/auth/PasswordField";
 import { QrLoginPanel } from "@/components/auth/QrLoginPanel";
-import { loginAction, resendVerificationAction, type AuthActionResult } from "@/lib/authActions";
-import { useAuth } from "@/lib/AuthContext";
+import { loginAction, resendVerificationAction, type AuthActionResult } from "@/lib/auth/authActions";
+import { useAuth } from "@/lib/auth/AuthContext";
+import { safeReturnPath } from "@/lib/core/routes";
 
 export function SignInCard() {
     const router = useRouter();
@@ -19,6 +20,7 @@ export function SignInCard() {
     const [result, setResult] = useState<AuthActionResult | null>(null);
     const [lastEmail, setLastEmail] = useState("");
     const [pending, startTransition] = useTransition();
+    const returnTo = safeReturnPath(searchParams.get("returnTo"));
 
     useEffect(() => {
         const clearStatus = (event: KeyboardEvent) => {
@@ -36,7 +38,7 @@ export function SignInCard() {
             setResult(next);
             if (next.ok && next.user) {
                 setAuthenticatedUser(next.user);
-                router.replace("/profiles");
+                router.replace(returnTo);
             }
         });
     };
@@ -47,14 +49,14 @@ export function SignInCard() {
 
     const verified = searchParams.get("verified");
     const verifiedResult = verified === "1"
-        ? { ok: true, message: "Email confirmed. You can now sign in." }
+        ? { ok: true, message: "Adres email został potwierdzony. Możesz się zalogować." }
         : verified === "0"
-            ? { ok: false, message: "The confirmation link is invalid or has expired." }
+            ? { ok: false, message: "Link potwierdzający jest nieprawidłowy lub wygasł." }
             : null;
 
     return (
         <AuthCardShell title={qrMode ? "Zaloguj przez QR" : "Witaj ponownie"} description={qrMode ? "Zeskanuj kod na urządzeniu, na którym masz aktywną sesję." : "Zaloguj się, aby wrócić do swojej biblioteki."}>
-            {qrMode ? <QrLoginPanel onBack={() => setQrMode(false)} /> : (
+            {qrMode ? <QrLoginPanel onBack={() => setQrMode(false)} returnTo={returnTo} /> : (
                 <form action={submit} className="space-y-4">
                     <div>
                         <label htmlFor="login-email" className="mb-2 block text-sm font-medium text-nx-text">Adres email</label>
@@ -69,7 +71,7 @@ export function SignInCard() {
                         <Link href="/forgot-password" className={authLinkClass}>Nie pamiętasz hasła?</Link>
                     </div>
                     <AuthStatusMessage status={(result ?? verifiedResult) ? (result ?? verifiedResult)!.ok ? "success" : "error" : null} message={(result ?? verifiedResult)?.message ?? ""} />
-                    {result?.code === "unconfirmed" && (
+                    {result?.code === "invalid" && (
                         <button type="button" onClick={resendVerification} disabled={pending} className={authSecondaryButtonClass}>Wyślij link potwierdzający ponownie</button>
                     )}
                     <button type="submit" disabled={pending || result?.ok} className={authPrimaryButtonClass}>

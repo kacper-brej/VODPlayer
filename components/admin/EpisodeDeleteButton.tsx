@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
-import { deleteAdminMediaAction } from "@/lib/adminStorageActions";
+import { deleteAdminMediaAction } from "@/lib/admin/adminStorageActions";
 
 interface EpisodeDeleteButtonProps {
     seriesKey: string;

@@ -49,13 +49,21 @@ interface PlayerControlsProps {
     onPreviousEpisode?: () => void;
     onSeekFeedback?: (seconds: number) => void;
     chapters?: EpisodeChapter[];
+    partyControl?: {
+        canControl: boolean;
+        onToggle: () => void;
+        onSeekBy: (seconds: number) => void;
+        onSeekTo: (seconds: number) => void;
+        onControlDenied: () => void;
+    };
 }
 
 interface PlayerOptionsMenuProps {
     onPreviousEpisode?: () => void;
+    partyMode?: boolean;
 }
 
-const PlayerOptionsMenu = ({ onPreviousEpisode }: PlayerOptionsMenuProps) => {
+const PlayerOptionsMenu = ({ onPreviousEpisode, partyMode = false }: PlayerOptionsMenuProps) => {
     const remote = useMediaRemote();
     const playbackRate = useMediaState("playbackRate");
     const qualities = useMediaState("qualities");
@@ -171,9 +179,9 @@ const PlayerOptionsMenu = ({ onPreviousEpisode }: PlayerOptionsMenuProps) => {
                     )}
                     <span className="np-menu-label np-menu-label--section">
                         <Gauge />
-                        Prędkość
+                        {partyMode ? "Prędkość sterowana przez pokój" : "Prędkość"}
                     </span>
-                    {PLAYBACK_RATES.map((rate) => (
+                    {!partyMode && PLAYBACK_RATES.map((rate) => (
                         <button
                             key={rate}
                             type="button"
@@ -213,6 +221,7 @@ const PlayerControls = ({
     onPreviousEpisode,
     onSeekFeedback,
     chapters = [],
+    partyControl,
 }: PlayerControlsProps) => {
     const paused = useMediaState("paused");
     const ended = useMediaState("ended");
@@ -223,6 +232,17 @@ const PlayerControls = ({
     const canFullscreen = useMediaState("canFullscreen");
     const canPictureInPicture = useMediaState("canPictureInPicture");
     const duration = useMediaState("duration");
+    const currentTime = useMediaState("currentTime");
+    const [partySeekTarget, setPartySeekTarget] = useState<number | null>(null);
+
+    const runPartyControl = (action: () => void) => {
+        if (!partyControl) return;
+        if (!partyControl.canControl) {
+            partyControl.onControlDenied();
+            return;
+        }
+        action();
+    };
 
     const VolumeIcon = muted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
     const defaultEpisodeTitle = episodeNumber ? `Odcinek ${episodeNumber}` : null;
@@ -236,7 +256,7 @@ const PlayerControls = ({
         <Controls.Root className="np-shell" hideDelay={2500}>
             <Controls.Group className="np-top">
                 {onBack && (
-                    <button type="button" onClick={onBack} aria-label="Powrót do serialu" className="np-back">
+                    <button type="button" onClick={onBack} aria-label="Powrót do strony głównej" className="np-back">
                         <ArrowLeft />
                     </button>
                 )}
@@ -250,7 +270,7 @@ const PlayerControls = ({
             <div className="np-spacer" />
 
             <Controls.Group className="np-console">
-                <TimeSlider.Root className="np-progress" aria-label="Pozycja odtwarzania">
+                <TimeSlider.Root className="np-progress" aria-label="Pozycja odtwarzania" disabled={Boolean(partyControl)}>
                     <TimeSlider.Track className="np-range-track">
                         <TimeSlider.Progress className="np-range-buffer" />
                         <TimeSlider.TrackFill className="np-range-fill" />
@@ -275,15 +295,59 @@ const PlayerControls = ({
                     <TimeSlider.Preview className="np-preview">
                         <TimeSlider.Value className="np-preview-value" />
                     </TimeSlider.Preview>
+                    {partyControl && duration > 0 && (
+                        <input
+                            type="range"
+                            min={0}
+                            max={duration}
+                            step={0.1}
+                            value={partySeekTarget ?? currentTime}
+                            aria-label="Wspólna pozycja odtwarzania"
+                            onPointerDown={(event) => event.stopPropagation()}
+                            onChange={(event) => setPartySeekTarget(Number(event.currentTarget.value))}
+                            onPointerUp={(event) => {
+                                runPartyControl(() => partyControl.onSeekTo(Number(event.currentTarget.value)));
+                                setPartySeekTarget(null);
+                            }}
+                            onClick={(event) => event.stopPropagation()}
+                            onKeyDown={(event) => event.stopPropagation()}
+                            onKeyUp={(event) => {
+                                event.stopPropagation();
+                                runPartyControl(() => partyControl.onSeekTo(Number(event.currentTarget.value)));
+                                setPartySeekTarget(null);
+                            }}
+                            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer" }}
+                        />
+                    )}
                 </TimeSlider.Root>
 
                 <div className="np-console-row">
                     <div className="np-controls-group np-controls-group--left">
-                        <PlayButton className="np-control np-control--play" aria-label={paused ? "Odtwórz" : "Wstrzymaj"}>
-                            {ended ? <RotateCcw /> : paused ? <Play /> : <Pause />}
-                        </PlayButton>
+                        {partyControl ? (
+                            <button
+                                type="button"
+                                className="np-control np-control--play"
+                                aria-label={paused ? "Odtwórz wspólnie" : "Wstrzymaj wspólnie"}
+                                onClick={() => runPartyControl(partyControl.onToggle)}
+                            >
+                                {ended ? <RotateCcw /> : paused ? <Play /> : <Pause />}
+                            </button>
+                        ) : (
+                            <PlayButton className="np-control np-control--play" aria-label={paused ? "Odtwórz" : "Wstrzymaj"}>
+                                {ended ? <RotateCcw /> : paused ? <Play /> : <Pause />}
+                            </PlayButton>
+                        )}
 
-                        <SeekButton
+                        {partyControl ? (
+                            <button
+                                type="button"
+                                className="np-control np-control--seek"
+                                aria-label="Cofnij wspólnie o 10 sekund"
+                                onClick={() => runPartyControl(() => partyControl.onSeekBy(-10))}
+                            >
+                                <span className="np-seek-icon" aria-hidden="true"><RotateCcw /><span>10</span></span>
+                            </button>
+                        ) : <SeekButton
                             className="np-control np-control--seek"
                             seconds={-10}
                             aria-label="Cofnij o 10 sekund"
@@ -293,9 +357,18 @@ const PlayerControls = ({
                                 <RotateCcw />
                                 <span>10</span>
                             </span>
-                        </SeekButton>
+                        </SeekButton>}
 
-                        <SeekButton
+                        {partyControl ? (
+                            <button
+                                type="button"
+                                className="np-control np-control--seek"
+                                aria-label="Przewiń wspólnie o 10 sekund"
+                                onClick={() => runPartyControl(() => partyControl.onSeekBy(10))}
+                            >
+                                <span className="np-seek-icon" aria-hidden="true"><RotateCw /><span>10</span></span>
+                            </button>
+                        ) : <SeekButton
                             className="np-control np-control--seek"
                             seconds={10}
                             aria-label="Przewiń o 10 sekund"
@@ -305,7 +378,7 @@ const PlayerControls = ({
                                 <RotateCw />
                                 <span>10</span>
                             </span>
-                        </SeekButton>
+                        </SeekButton>}
 
                         <div className="np-volume">
                             <MuteButton className="np-control" aria-label={muted ? "Włącz dźwięk" : "Wycisz"}>
@@ -349,7 +422,7 @@ const PlayerControls = ({
                             <Captions />
                         </CaptionButton>
 
-                        <PlayerOptionsMenu onPreviousEpisode={onPreviousEpisode} />
+                        <PlayerOptionsMenu onPreviousEpisode={onPreviousEpisode} partyMode={Boolean(partyControl)} />
 
                         {canPictureInPicture && (
                             <PIPButton className="np-control np-control--hide-tablet" aria-label="Obraz w obrazie">

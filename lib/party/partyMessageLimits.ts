@@ -1,0 +1,2 @@
+export const PARTY_MESSAGE_MAX_LENGTH = 500;
+export const PARTY_MESSAGE_HISTORY_LIMIT = 50;

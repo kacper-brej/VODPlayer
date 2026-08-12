@@ -15,8 +15,8 @@ import {
     type TmdbSeasonResponse,
     type TmdbSeasonSummary,
     type TmdbTvDetails,
-} from "@/lib/contracts";
-import { dataFailure, dataSuccess, type DataResult } from "@/lib/dataResult";
+} from "@/lib/core/contracts";
+import { dataFailure, dataSuccess, type DataResult } from "@/lib/core/dataResult";
 
 const EXTERNAL_ID_PATTERN = /^tv:(\d+)$/;
 

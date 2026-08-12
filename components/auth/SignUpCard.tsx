@@ -8,7 +8,7 @@ import { AuthCardShell, authInputClass, authLinkClass, authPrimaryButtonClass, a
 import { AuthStatusMessage } from "@/components/auth/AuthStatusMessage";
 import { PasswordField } from "@/components/auth/PasswordField";
 import { QrLoginPanel } from "@/components/auth/QrLoginPanel";
-import { registerAction, type AuthActionResult } from "@/lib/authActions";
+import { registerAction, type AuthActionResult } from "@/lib/auth/authActions";
 
 export function SignUpCard() {
     const qrToken = useSearchParams().get("qrToken") ?? "";
@@ -32,7 +32,7 @@ export function SignUpCard() {
     return (
         <AuthCardShell
             title={qrMode ? "Rejestracja przez QR" : qrToken ? "Dokończ rejestrację" : "Utwórz konto"}
-            description={qrMode ? "Zeskanuj kod i dokończ zakładanie konta na telefonie." : qrToken ? "Po potwierdzeniu emaila pierwsze urządzenie zaloguje się automatycznie." : "Jedno konto, osobne profile i wspólna biblioteka Nocturny."}
+            description={qrMode ? "Zeskanuj kod i dokończ zakładanie konta na telefonie." : qrToken ? "Po potwierdzeniu emaila pierwsze urządzenie zaloguje się automatycznie." : "Na jednym koncie możesz utworzyć kilka profili ze wspólną biblioteką Nocturny."}
         >
             {qrMode ? (
                 <QrLoginPanel mode="register" onBack={() => setQrMode(false)} />

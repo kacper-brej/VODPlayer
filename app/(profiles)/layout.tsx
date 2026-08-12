@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import SkipLink from "@/components/layout/SkipLink";
-import { getCurrentUserAction } from "@/lib/authActions";
+import { getCurrentUserAction } from "@/lib/auth/authActions";
 
 const ProfilesLayout = async ({ children }: Readonly<{ children: React.ReactNode }>) => {
     const user = await getCurrentUserAction();

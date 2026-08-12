@@ -1,10 +1,11 @@
+import "server-only";
 import {
     dataFailure,
     dataSuccess,
     failureFromStatus,
     type DataResult,
-} from "@/lib/dataResult";
-import { VOD_ORIGIN, serviceHeaders } from "@/lib/vodConfig";
+} from "@/lib/core/dataResult";
+import { getCachedResponse, setCachedResponse } from "@/lib/providerCache/providerCacheService";
 
 export interface RateLimitedClientConfig {
     providerId: string;
@@ -24,7 +25,6 @@ export interface RateLimitedClient {
 }
 
 const NETWORK_TIMEOUT_MS = 8_000;
-const PERSISTENT_CACHE_TIMEOUT_MS = 5_000;
 const CIRCUIT_BREAKER_THRESHOLD = 5;
 const CIRCUIT_BREAKER_COOLDOWN_MS = 60_000;
 
@@ -47,51 +47,18 @@ interface PersistedEntry {
 }
 
 const readPersistentCache = async (providerId: string, path: string): Promise<PersistedEntry | null> => {
-    try {
-        const res = await fetch(
-            `${VOD_ORIGIN}/provider-cache.php?provider=${encodeURIComponent(providerId)}&key=${encodeURIComponent(path)}`,
-            {
-                headers: serviceHeaders(),
-                cache: "no-store",
-                signal: AbortSignal.timeout(PERSISTENT_CACHE_TIMEOUT_MS),
-            },
-        );
-
-        if (!res.ok) return null;
-
-        const payload: unknown = await res.json().catch(() => null);
-        if (!payload || typeof payload !== "object") return null;
-
-        const row = payload as { success?: unknown; data?: unknown; fetchedAt?: unknown };
-        if (row.success !== true || typeof row.fetchedAt !== "string") return null;
-
-        const fetchedAt = Date.parse(row.fetchedAt);
-        if (Number.isNaN(fetchedAt)) return null;
-
-        return { data: row.data, fetchedAt };
-    } catch (error) {
-        console.error("provider-cache read failed:", error);
-        return null;
-    }
+    const cached = await getCachedResponse(providerId, path);
+    return cached ? { data: cached.data, fetchedAt: cached.fetchedAtMs } : null;
 };
 
 const writePersistentCache = async (providerId: string, path: string, data: unknown): Promise<void> => {
-    try {
-        await fetch(`${VOD_ORIGIN}/provider-cache.php`, {
-            method: "POST",
-            headers: { ...serviceHeaders(), "Content-Type": "application/json" },
-            cache: "no-store",
-            signal: AbortSignal.timeout(PERSISTENT_CACHE_TIMEOUT_MS),
-            body: JSON.stringify({ provider: providerId, key: path, data }),
-        });
-    } catch (error) {
-        console.error("provider-cache write failed:", error);
+    const result = await setCachedResponse(providerId, path, data);
+    if (!result.ok) {
+        console.error(`providerCache[${providerId}]: zapis odrzucony (${result.code})`, path);
     }
 };
 
 export const createRateLimitedClient = (config: RateLimitedClientConfig): RateLimitedClient => {
-    // L1: in-process cache, only useful for deduping repeat calls within one invocation's lifetime.
-    // The provider-cache.php table is the durable cache that survives cold starts between invocations.
     const cache = new Map<string, { data: unknown; expiresAt: number }>();
     const pending = new Map<string, Promise<DataResult<unknown>>>();
     let schedule: Promise<void> = Promise.resolve();
@@ -206,8 +173,6 @@ export const createRateLimitedClient = (config: RateLimitedClientConfig): RateLi
 
                 recordSuccess();
                 writeLocalCache(path, data);
-                // Nie "fire-and-forget": jeśli provider padnie tuż po tym zapisie, stale-while-error
-                // musi zastać wpis już zapisany, nie w locie (zweryfikowane realnym race conditionem w M8).
                 await writePersistentCache(config.providerId, path, data);
                 return dataSuccess(data);
             } catch (error) {

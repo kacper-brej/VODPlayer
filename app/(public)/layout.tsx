@@ -1,5 +1,5 @@
 import SkipLink from "@/components/layout/SkipLink";
-import { AuthProvider } from "@/lib/AuthContext";
+import { AuthProvider } from "@/lib/auth/AuthContext";
 
 const PublicLayout = ({ children }: Readonly<{ children: React.ReactNode }>) => (
     <AuthProvider initialUser={null}>

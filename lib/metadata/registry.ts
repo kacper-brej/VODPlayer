@@ -9,7 +9,7 @@ import type {
     ProviderSeries,
     SeriesCandidate,
 } from "@/lib/metadata/types";
-import { dataEmpty, dataFailure, dataSuccess, type DataResult } from "@/lib/dataResult";
+import { dataEmpty, dataFailure, dataSuccess, type DataResult } from "@/lib/core/dataResult";
 
 const registry = new Map<ProviderId, MetadataProvider>([
     ["anilist", anilistProvider],

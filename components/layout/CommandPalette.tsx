@@ -4,16 +4,16 @@ import { useRouter } from "next/navigation";
 import { Compass, History, LogOut, RefreshCw, Search, type LucideIcon } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ADMIN_QUICK_JUMP_ITEM, QUICK_JUMP_ITEMS } from "@/config/menu";
-import { COMMAND_PALETTE_OPEN_EVENT } from "@/lib/commandPalette";
-import { useAuth } from "@/lib/AuthContext";
-import { addRecentSearch, getRecentSearches } from "@/lib/recentSearches";
-import { seriesPath } from "@/lib/routes";
+import { COMMAND_PALETTE_OPEN_EVENT } from "@/lib/search/commandPalette";
+import { useAuth } from "@/lib/auth/AuthContext";
+import { addRecentSearch, getRecentSearches } from "@/lib/search/recentSearches";
+import { seriesPath } from "@/lib/core/routes";
 import { DataErrorState } from "@/components/data/DataState";
-import type { DataResult } from "@/lib/dataResult";
-import revalidateCatalogAction from "@/lib/revalidateCatalogAction";
-import { useModalFocus } from "@/lib/useModalFocus";
+import type { DataResult } from "@/lib/core/dataResult";
+import revalidateCatalogAction from "@/lib/catalog/revalidateCatalogAction";
+import { useModalFocus } from "@/lib/core/useModalFocus";
 import { searchEntries, type SearchRange } from "@/lib/search";
-import type { SearchIndexEntry } from "@/lib/searchIndex";
+import type { SearchIndexEntry } from "@/lib/search/searchIndex";
 
 interface CommandPaletteProps {
     searchIndex: DataResult<SearchIndexEntry[]>;
@@ -82,6 +82,7 @@ const CommandPalette = ({ searchIndex, initiallyOpen = false }: CommandPalettePr
     );
     const [viewportHeight, setViewportHeight] = useState<number | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [logoutFailed, setLogoutFailed] = useState(false);
 
     const inputRef = useRef<HTMLInputElement>(null);
     const itemRefs = useRef<(HTMLLIElement | null)[]>([]);
@@ -177,20 +178,20 @@ const CommandPalette = ({ searchIndex, initiallyOpen = false }: CommandPalettePr
 
     const actionItems: PaletteItem[] = useMemo(
         () => [
-            {
+            ...(user?.role === "admin" ? [{
                 id: "action-refresh-catalog",
                 label: isRefreshing ? "Odświeżanie katalogu…" : "Odśwież katalog",
                 icon: RefreshCw,
                 action: { kind: "refresh-catalog" } as const,
-            },
+            }] : []),
             {
                 id: "action-logout",
-                label: "Wyloguj",
+                label: logoutFailed ? "Wylogowanie nie powiodło się — spróbuj ponownie" : "Wyloguj",
                 icon: LogOut,
                 action: { kind: "logout" } as const,
             },
         ],
-        [isRefreshing],
+        [isRefreshing, logoutFailed, user?.role],
     );
 
     const recentItems: PaletteItem[] = useMemo(
@@ -249,8 +250,15 @@ const CommandPalette = ({ searchIndex, initiallyOpen = false }: CommandPalettePr
                 .finally(() => setIsRefreshing(false));
             close();
         } else if (action.kind === "logout") {
-            close();
-            logout().then(() => router.push("/login"));
+            setLogoutFailed(false);
+            logout().then((revoked) => {
+                if (!revoked) {
+                    setLogoutFailed(true);
+                    return;
+                }
+                close();
+                router.push("/login");
+            });
         }
     };
 

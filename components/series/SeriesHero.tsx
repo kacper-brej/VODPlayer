@@ -1,14 +1,16 @@
 "use client";
 
 import Image from "next/image";
-import { Play, Star } from "lucide-react";
+import { Play, Star, Users } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { watchPath } from "@/lib/routes";
-import { ARTWORK_SIZES, blurProps, imageLoader, safeArtworkColor } from "@/lib/imageDelivery";
+import { partyWatchPath, watchPath } from "@/lib/core/routes";
+import { ARTWORK_SIZES, blurProps, imageLoader, safeArtworkColor } from "@/lib/catalog/imageDelivery";
+import { startPartyForEpisode } from "@/lib/party/startPartyForEpisode";
 
 interface SeriesHeroProps {
     seriesId: number;
+    seriesKey: string;
     title: string;
     backdropImage: string | null;
     logoImage: string | null;
@@ -30,6 +32,7 @@ interface SeriesHeroProps {
 
 const SeriesHero = ({
     seriesId,
+    seriesKey,
     title,
     backdropImage,
     logoImage,
@@ -53,6 +56,7 @@ const SeriesHero = ({
     const [imageStep, setImageStep] = useState(backdropImage ? 1 : dominantColor ? 2 : 3);
     const [logoFailed, setLogoFailed] = useState(false);
     const [notice, setNotice] = useState("");
+    const [startingParty, setStartingParty] = useState(false);
     const activeEpisodeKey = resumeEpisodeKey ?? firstEpisodeKey;
     const hasBackdrop = imageStep === 1 && backdropImage;
     const safeColor = safeArtworkColor(dominantColor);
@@ -66,6 +70,21 @@ const SeriesHero = ({
             return;
         }
         router.push(watchPath(seriesId, activeEpisodeKey));
+    };
+
+    const watchTogether = async () => {
+        if (!activeEpisodeKey) {
+            setNotice("Ten tytuł nie ma jeszcze odcinków.");
+            return;
+        }
+        setStartingParty(true);
+        const result = await startPartyForEpisode(seriesKey, activeEpisodeKey);
+        setStartingParty(false);
+        if (!result.ok || !result.code) {
+            setNotice(result.error ?? "Nie udało się utworzyć pokoju.");
+            return;
+        }
+        router.push(partyWatchPath(seriesId, activeEpisodeKey, result.code));
     };
 
     const failImage = () => {
@@ -166,20 +185,30 @@ const SeriesHero = ({
                         </div>
                     )}
 
-                    <div className="mt-6">
+                    <div className="mt-6 flex flex-wrap items-center gap-3">
                         <button
                             type="button"
                             onClick={play}
                             aria-disabled={!activeEpisodeKey}
-                            className={`flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-nx-accent px-6 text-[15px] font-semibold text-nx-on-accent transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent sm:w-fit xl:h-13 ${activeEpisodeKey ? "" : "opacity-45"}`}
+                            className={`flex h-12 items-center justify-center gap-2 rounded-xl bg-nx-accent px-6 text-[15px] font-semibold text-nx-on-accent transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent xl:h-13 ${activeEpisodeKey ? "" : "opacity-45"}`}
                         >
                             <Play size={18} fill="currentColor" />
                             {resumeEpisodeKey && resumeEpisodeNumber
                                 ? `Wznów odcinek ${resumeEpisodeNumber}`
                                 : "Odtwórz odcinek 1"}
                         </button>
-                        <p className="mt-2 min-h-5 text-sm text-nx-text-2" aria-live="polite">{notice}</p>
+                        <button
+                            type="button"
+                            onClick={watchTogether}
+                            disabled={startingParty}
+                            aria-disabled={!activeEpisodeKey}
+                            className={`flex h-12 items-center justify-center gap-2 rounded-xl border border-nx-border bg-nx-panel/70 px-6 text-[15px] font-semibold text-nx-text transition-colors hover:border-nx-accent focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent xl:h-13 ${activeEpisodeKey ? "" : "opacity-45"} ${startingParty ? "opacity-70" : ""}`}
+                        >
+                            <Users size={18} />
+                            {startingParty ? "Tworzenie pokoju…" : "Oglądaj razem"}
+                        </button>
                     </div>
+                    <p className="mt-2 min-h-5 text-sm text-nx-text-2" aria-live="polite">{notice}</p>
                 </div>
             </div>
         </section>

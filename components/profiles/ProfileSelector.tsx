@@ -3,20 +3,36 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Plus, Trash2, X } from "lucide-react";
-import type { Profile } from "@/lib/profiles";
-import createProfileAction from "@/lib/createProfileAction";
-import deleteProfileAction from "@/lib/deleteProfileAction";
-import renameProfileAction from "@/lib/renameProfileAction";
-import selectProfileAction from "@/lib/selectProfileAction";
-import { useModalFocus } from "@/lib/useModalFocus";
+import type { Profile } from "@/lib/profiles/profiles";
+import createProfileAction from "@/lib/profiles/createProfileAction";
+import deleteProfileAction from "@/lib/profiles/deleteProfileAction";
+import renameProfileAction from "@/lib/profiles/renameProfileAction";
+import selectProfileAction from "@/lib/profiles/selectProfileAction";
+import { useModalFocus } from "@/lib/core/useModalFocus";
+import { preloadHeroPreview } from "@/lib/player/preloadHeroPreview";
+import { ProfileAvatarTile } from "@/components/profiles/ProfileAvatarTile";
+import {
+    ProfileHandoff,
+    type ProfileHandoffOrigin,
+    type ProfileHandoffPhase,
+} from "@/components/profiles/ProfileHandoff";
 
 const MAX_PROFILES = 5;
+const SPINNER_DELAY_MS = 240;
+const HANDOFF_EXIT_MS = 360;
 
 type DialogState =
     | { kind: "create" }
     | { kind: "rename"; profile: Profile }
     | { kind: "delete"; profile: Profile }
     | null;
+
+interface HandoffState {
+    profile: Profile;
+    origin: ProfileHandoffOrigin | null;
+    phase: ProfileHandoffPhase;
+    showSpinner: boolean;
+}
 
 export default function ProfileSelector({ profiles: initialProfiles }: { profiles: Profile[] }) {
     const router = useRouter();
@@ -25,35 +41,95 @@ export default function ProfileSelector({ profiles: initialProfiles }: { profile
     const [dialog, setDialog] = useState<DialogState>(null);
     const [error, setError] = useState("");
     const [pendingId, setPendingId] = useState<number | null>(null);
+    const [handoff, setHandoff] = useState<HandoffState | null>(null);
     const [pending, startTransition] = useTransition();
     const tileRefs = useRef<Array<HTMLButtonElement | null>>([]);
+    const autoSelectionStartedRef = useRef(false);
+    const spinnerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const navigationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const closeDialog = useCallback(() => setDialog(null), []);
     const dialogRef = useModalFocus<HTMLDivElement>(dialog !== null, closeDialog);
 
-    useEffect(() => {
-        if (profiles.length === 1) {
-            startTransition(async () => {
-                const result = await selectProfileAction(profiles[0].id);
-                if (result.success) router.replace("/");
-                else setError("Could not select the profile.");
-            });
-            return;
+    const clearSpinnerTimer = useCallback(() => {
+        if (spinnerTimerRef.current !== null) {
+            clearTimeout(spinnerTimerRef.current);
+            spinnerTimerRef.current = null;
         }
-        tileRefs.current[0]?.focus();
-    }, [profiles, router]);
+    }, []);
 
-    const selectProfile = (profile: Profile) => {
-        if (manage || pending) return;
+    const resetFailedHandoff = useCallback(() => {
+        clearSpinnerTimer();
+        setPendingId(null);
+        setHandoff(null);
+        setError("Nie udało się wybrać profilu.");
+    }, [clearSpinnerTimer]);
+
+    const beginProfileHandoff = useCallback((profile: Profile, origin: ProfileHandoffOrigin | null) => {
         setError("");
         setPendingId(profile.id);
+        setHandoff({ profile, origin, phase: "loading", showSpinner: false });
+        clearSpinnerTimer();
+        spinnerTimerRef.current = setTimeout(() => {
+            setHandoff((current) => current?.profile.id === profile.id && current.phase === "loading"
+                ? { ...current, showSpinner: true }
+                : current);
+        }, SPINNER_DELAY_MS);
+
         startTransition(async () => {
-            const result = await selectProfileAction(profile.id);
-            if (result.success) router.replace("/");
-            else {
-                setPendingId(null);
-                setError("Could not select the profile.");
+            try {
+                const result = await selectProfileAction(profile.id);
+                if (!result.success) {
+                    resetFailedHandoff();
+                    return;
+                }
+
+                router.prefetch("/");
+                await preloadHeroPreview(result.previewSource);
+                clearSpinnerTimer();
+                setHandoff((current) => current?.profile.id === profile.id
+                    ? { ...current, phase: "leaving", showSpinner: false }
+                    : current);
+
+                // The spinner has no minimum display time. Only the short, visible
+                // handoff remains before the ready route replaces this screen.
+                const exitDelay = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+                    ? 0
+                    : HANDOFF_EXIT_MS;
+                navigationTimerRef.current = setTimeout(() => router.replace("/"), exitDelay);
+            } catch {
+                resetFailedHandoff();
             }
         });
+    }, [clearSpinnerTimer, resetFailedHandoff, router]);
+
+    useEffect(() => () => {
+        clearSpinnerTimer();
+        if (navigationTimerRef.current !== null) clearTimeout(navigationTimerRef.current);
+    }, [clearSpinnerTimer]);
+
+    useEffect(() => {
+        if (profiles.length === 1) {
+            if (!autoSelectionStartedRef.current) {
+                autoSelectionStartedRef.current = true;
+                beginProfileHandoff(profiles[0], null);
+            }
+            return;
+        }
+
+        autoSelectionStartedRef.current = false;
+        tileRefs.current[0]?.focus();
+    }, [beginProfileHandoff, profiles]);
+
+    const selectProfile = (profile: Profile, index: number) => {
+        if (manage || pending) return;
+        const avatar = tileRefs.current[index]?.querySelector<HTMLElement>("[data-profile-avatar]");
+        const rect = avatar?.getBoundingClientRect();
+        beginProfileHandoff(profile, rect ? {
+            left: rect.left,
+            top: rect.top,
+            width: rect.width,
+            height: rect.height,
+        } : null);
     };
 
     const moveFocus = (event: React.KeyboardEvent, index: number) => {
@@ -74,21 +150,21 @@ export default function ProfileSelector({ profiles: initialProfiles }: { profile
             if (currentDialog.kind === "create") {
                 const result = await createProfileAction(String(formData.get("name") ?? ""));
                 if ("error" in result) {
-                    setError("Could not create the profile.");
+                    setError("Nie udało się utworzyć profilu.");
                     return;
                 }
                 setProfiles((items) => [...items, result]);
             } else if (currentDialog.kind === "rename") {
                 const result = await renameProfileAction(currentDialog.profile.id, String(formData.get("name") ?? ""));
                 if ("error" in result) {
-                    setError("Could not rename the profile.");
+                    setError("Nie udało się zmienić nazwy profilu.");
                     return;
                 }
                 setProfiles((items) => items.map((item) => item.id === result.id ? { ...item, name: result.name } : item));
             } else {
                 const result = await deleteProfileAction(currentDialog.profile.id);
                 if (!result.success) {
-                    setError("Could not delete the profile.");
+                    setError("Nie udało się usunąć profilu.");
                     return;
                 }
                 setProfiles((items) => items.filter((item) => item.id !== currentDialog.profile.id));
@@ -100,15 +176,15 @@ export default function ProfileSelector({ profiles: initialProfiles }: { profile
 
     if (profiles.length <= 1) {
         return (
-            <div className="grid min-h-dvh place-items-center bg-nx-bg px-4 text-nx-text">
-                <p role="status" className="text-sm text-nx-text-2">Przygotowujemy Twój profil…</p>
+            <div className="min-h-dvh bg-nx-bg text-nx-text">
+                {handoff && <ProfileHandoff {...handoff} />}
                 {error && <p role="alert" className="sr-only">{error}</p>}
             </div>
         );
     }
 
     return (
-        <div className={`min-h-dvh bg-nx-bg px-5 py-12 text-nx-text transition-opacity duration-[280ms] motion-reduce:transition-none ${pendingId ? "opacity-55" : "opacity-100"}`}>
+        <div className="min-h-dvh bg-nx-bg px-5 py-12 text-nx-text">
             <div className="mx-auto flex min-h-[calc(100dvh-6rem)] max-w-5xl flex-col items-center justify-center">
                 <h1 className="font-display text-[28px] leading-[.95] tracking-[-.03em] sm:text-[34px] lg:text-[40px] xl:text-[44px]">{manage ? "Zarządzaj profilami" : "Kto ogląda?"}</h1>
                 <p className="mt-3 min-h-5 text-center text-[13px] text-nx-text-2" role={error ? "alert" : "status"} aria-live="polite">{error || (manage ? "Zmień nazwę albo usuń wybrany profil." : "Wybierz profil, aby kontynuować.")}</p>
@@ -119,7 +195,7 @@ export default function ProfileSelector({ profiles: initialProfiles }: { profile
                             <button
                                 ref={(node) => { tileRefs.current[index] = node; }}
                                 type="button"
-                                onClick={() => selectProfile(profile)}
+                                onClick={() => selectProfile(profile, index)}
                                 onKeyDown={(event) => moveFocus(event, index)}
                                 disabled={pending}
                                 aria-label={manage ? `Profil ${profile.name}` : `Wybierz profil ${profile.name}`}
@@ -127,9 +203,11 @@ export default function ProfileSelector({ profiles: initialProfiles }: { profile
                                 title={profile.name}
                                 className="group w-full cursor-pointer rounded-2xl text-center outline-none disabled:cursor-wait"
                             >
-                                <span className="grid size-24 place-items-center rounded-2xl border border-nx-border bg-nx-panel font-mono text-[22px] text-nx-text-2 transition-[background-color,border-color,transform] duration-[280ms] group-hover:border-nx-text-2 group-hover:bg-nx-raised group-focus-visible:border-2 group-focus-visible:border-nx-accent group-focus-visible:outline-2 group-focus-visible:outline-offset-3 group-focus-visible:outline-nx-accent motion-reduce:transition-none md:size-[116px] xl:size-[132px]">
-                                    {profile.name.trim().slice(0, 2).toUpperCase()}
-                                </span>
+                                <ProfileAvatarTile
+                                    avatar={profile.avatar}
+                                    name={profile.name}
+                                    className="size-24 rounded-2xl text-[22px] transition-[border-color,transform] duration-[280ms] group-hover:-translate-y-1 group-hover:border-nx-text-2 group-focus-visible:border-2 group-focus-visible:border-nx-accent group-focus-visible:outline-2 group-focus-visible:outline-offset-3 group-focus-visible:outline-nx-accent motion-reduce:transform-none motion-reduce:transition-none md:size-[116px] xl:size-[132px]"
+                                />
                                 <span className="mt-3 block truncate text-sm text-nx-text-2 group-hover:text-nx-text group-focus-visible:text-nx-text">{profile.name}</span>
                             </button>
                             {manage && (
@@ -180,6 +258,8 @@ export default function ProfileSelector({ profiles: initialProfiles }: { profile
                     </div>
                 </div>
             )}
+
+            {handoff && <ProfileHandoff {...handoff} />}
         </div>
     );
 }

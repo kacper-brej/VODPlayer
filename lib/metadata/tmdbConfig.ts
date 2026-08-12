@@ -1,6 +1,6 @@
 import { createRateLimitedClient } from "@/lib/metadata/rateLimitedClient";
-import { validateTmdbConfigurationResponse } from "@/lib/contracts";
-import { dataFailure, dataSuccess, type DataResult } from "@/lib/dataResult";
+import { validateTmdbConfigurationResponse } from "@/lib/core/contracts";
+import { dataFailure, dataSuccess, type DataResult } from "@/lib/core/dataResult";
 
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 const CONFIG_CACHE_TTL_MS = 24 * 60 * 60 * 1000;

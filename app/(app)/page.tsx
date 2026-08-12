@@ -5,14 +5,15 @@ import ContentRowSection from "@/components/series/ContentRowSection";
 import ContentRowSkeleton from "@/components/series/ContentRowSkeleton";
 import SeriesModal from "@/components/series/SeriesModal";
 import { DataErrorState } from "@/components/data/DataState";
-import { getCatalog, type CatalogSeries } from "@/lib/catalog";
-import { collapseSeriesGroups, getNewestSeries } from "@/lib/catalogRows";
-import { getContinueWatching, getLatestResume, getResumeMap } from "@/lib/continueWatching";
-import { getWeeklyRanking, RANKING_MIN_ITEMS } from "@/lib/rankings";
-import { getWatchlist } from "@/lib/watchlist";
-import { toContentCard, toResumeCard } from "@/lib/contentCards";
-import { seriesPath, watchPath } from "@/lib/routes";
-import type { ResumePoint } from "@/lib/contracts";
+import { getCatalog, type CatalogSeries } from "@/lib/catalog/catalog";
+import { collapseSeriesGroups, getNewestSeries } from "@/lib/catalog/catalogRows";
+import { getContinueWatching, getLatestResume, getResumeMap } from "@/lib/progress/continueWatching";
+import { getWeeklyRanking, RANKING_MIN_ITEMS } from "@/lib/rankings/rankings";
+import { getWatchlist } from "@/lib/watchlist/watchlist";
+import { toContentCard, toResumeCard } from "@/lib/catalog/contentCards";
+import { seriesPath, watchPath } from "@/lib/core/routes";
+import type { ResumePoint } from "@/lib/core/contracts";
+import { resolvePreviewSource } from "@/lib/player/videoAccess";
 
 const watchlistKeys = (items: { seriesKey: string }[]) =>
     new Set(items.map((item) => item.seriesKey));
@@ -50,7 +51,11 @@ const heroData = (
             x: series.focalX ?? 0.5,
             y: series.focalY ?? 0.4,
         },
-        video: episode.url,
+        previewSource: resolvePreviewSource(
+            series.key,
+            episode,
+            resume?.positionSeconds ?? null,
+        ),
         description: series.synopsis,
         href: watchPath(series.key, episode.key),
         isResume: Boolean(resume),

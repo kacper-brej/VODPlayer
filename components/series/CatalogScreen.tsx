@@ -4,12 +4,12 @@ import CatalogFilterBar from "@/components/series/CatalogFilterBar";
 import CatalogGrid from "@/components/series/CatalogGrid";
 import SeriesCard from "@/components/series/SeriesCard";
 import { DataErrorState } from "@/components/data/DataState";
-import { getCatalog, type CatalogSeries } from "@/lib/catalog";
-import { collapseSeriesGroups, getCatalogGenres, newestEpisodeAddedAt } from "@/lib/catalogRows";
-import { getResumeMap } from "@/lib/continueWatching";
-import { getWatchlist } from "@/lib/watchlist";
-import { toContentCard } from "@/lib/contentCards";
-import type { ResumePoint } from "@/lib/contracts";
+import { getCatalog, type CatalogSeries } from "@/lib/catalog/catalog";
+import { collapseSeriesGroups, getCatalogGenres, newestEpisodeAddedAt } from "@/lib/catalog/catalogRows";
+import { getResumeMap } from "@/lib/progress/continueWatching";
+import { getWatchlist } from "@/lib/watchlist/watchlist";
+import { toContentCard } from "@/lib/catalog/contentCards";
+import type { ResumePoint } from "@/lib/core/contracts";
 import { prepareSearchEntries, searchEntries } from "@/lib/search";
 
 export type CatalogMode = "all" | "genres" | "collections" | "watchlist";

@@ -7,7 +7,7 @@ import { KeyRound } from "lucide-react";
 import { AuthCardShell, authLinkClass, authPrimaryButtonClass } from "@/components/auth/AuthCardShell";
 import { AuthStatusMessage } from "@/components/auth/AuthStatusMessage";
 import { PasswordField } from "@/components/auth/PasswordField";
-import { resetPasswordAction, type AuthActionResult } from "@/lib/authActions";
+import { resetPasswordAction, type AuthActionResult } from "@/lib/auth/authActions";
 
 export function ResetPasswordCard() {
     const token = useSearchParams().get("token") ?? "";
@@ -39,7 +39,7 @@ export function ResetPasswordCard() {
                 <form action={submit} className="space-y-4">
                     <PasswordField id="reset-password" name="password" label="Nowe hasło" autoComplete="new-password" minLength={8} />
                     <PasswordField id="reset-confirm-password" name="confirmPassword" label="Powtórz nowe hasło" autoComplete="new-password" minLength={8} />
-                    <AuthStatusMessage status={result || !token ? "error" : null} message={result?.message ?? (!token ? "The reset link is missing or invalid." : "")} />
+                    <AuthStatusMessage status={result || !token ? "error" : null} message={result?.message ?? (!token ? "Brakuje linku do zmiany hasła lub link jest nieprawidłowy." : "")} />
                     <button type="submit" disabled={pending || !token} className={authPrimaryButtonClass}>
                         <KeyRound className="size-4" />
                         {pending ? "Zapisywanie…" : "Zmień hasło"}

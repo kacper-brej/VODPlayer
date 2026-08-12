@@ -1,15 +1,16 @@
 import WatchClient from "./WatchClient";
-import { resolveCatalogSeries } from "@/lib/catalog";
-import { getSeriesResume } from "@/lib/continueWatching";
-import { getSeriesProgressAction } from "@/lib/getProgressAction";
-import { resolvePlaybackSource } from "@/lib/videoAccess";
-import { getEpisodeChapters } from "@/lib/chapters";
-import { DEFAULT_PROFILE_SETTINGS, getSettings } from "@/lib/settings";
+import { resolveCatalogSeries } from "@/lib/catalog/catalog";
+import { getSeriesResume } from "@/lib/progress/continueWatching";
+import { getSeriesProgressAction } from "@/lib/progress/getProgressAction";
+import { playbackSourceFromAsset, resolvePlaybackSource } from "@/lib/player/videoAccess";
+import { getDemoAsset } from "@/lib/access/demoAsset";
+import { getEpisodeChapters } from "@/lib/chapters/chapters";
+import { demoChapters } from "@/lib/chapters/demoChapters";
+import { DEFAULT_PROFILE_SETTINGS, getSettings } from "@/lib/settings/settings";
 import { notFound } from "next/navigation";
 import { DataErrorState } from "@/components/data/DataState";
-import PreconnectVideoOrigin from "@/components/layout/PreconnectVideoOrigin";
 
-const RESUME_REWIND_SECONDS = 10;
+const RESUME_REWIND_SECONDS = 5;
 
 const ErrorScreen = ({ message }: { message: string }) => (
     <div className="fixed inset-0 z-[999] bg-black min-h-screen flex items-center justify-center text-foreground">
@@ -23,8 +24,8 @@ const DataErrorScreen = ({ reason }: { reason: Parameters<typeof DataErrorState>
     </div>
 );
 
-const WatchPage = async ({ searchParams }: { searchParams: Promise<{ id?: string; ep?: string }> }) => {
-    const { id: seriesQueryId, ep: epQuery } = await searchParams;
+const WatchPage = async ({ searchParams }: { searchParams: Promise<{ id?: string; ep?: string; party?: string }> }) => {
+    const { id: seriesQueryId, ep: epQuery, party: partyCode } = await searchParams;
 
     if (!seriesQueryId) return <ErrorScreen message="Błędny link" />;
 
@@ -37,6 +38,11 @@ const WatchPage = async ({ searchParams }: { searchParams: Promise<{ id?: string
     if (!seriesResult.data) notFound();
 
     const series = seriesResult.data;
+    const demo = series.access === "full" ? null : await getDemoAsset();
+
+    if (series.access !== "full" && !demo) {
+        return <ErrorScreen message="Brak dostępu do tego materiału" />;
+    }
 
     let episode = null;
     let savedTime = 0;
@@ -90,15 +96,21 @@ const WatchPage = async ({ searchParams }: { searchParams: Promise<{ id?: string
     }
 
     const nextEpisode = series.episodes.find((item) => item.number === episode.number + 1) ?? null;
-    const chapters = chaptersResult.kind === "error" ? [] : chaptersResult.data;
     const settingsResult = await settingsPromise;
     const settings = settingsResult.kind === "error" ? DEFAULT_PROFILE_SETTINGS : settingsResult.data;
 
-    const playback = resolvePlaybackSource(series.key, episode);
+    const resolvedChapters = chaptersResult.kind === "error" ? [] : chaptersResult.data;
+    const chapters = demo ? demoChapters(demo.durationSeconds) : resolvedChapters;
+
+    const playback = demo
+        ? playbackSourceFromAsset(demo.assetId, demo.assetVersion, demo.seriesKey, demo.episodeKey, demo.heights)
+        : resolvePlaybackSource(series.key, episode);
+
+    const rewoundTime = Math.max(0, savedTime - RESUME_REWIND_SECONDS);
+    const startTime = demo?.durationSeconds && rewoundTime >= demo.durationSeconds ? 0 : rewoundTime;
 
     return (
         <>
-            <PreconnectVideoOrigin />
             <WatchClient
                 playback={playback}
                 seriesTitle={series.title}
@@ -110,12 +122,17 @@ const WatchPage = async ({ searchParams }: { searchParams: Promise<{ id?: string
                 currentEpisode={episode.number}
                 totalEpisodes={series.episodeCount}
                 fileName={episode.key}
-                startTime={Math.max(0, savedTime - RESUME_REWIND_SECONDS)}
+                startTime={startTime}
                 nextEpisodeTitle={nextEpisode ? nextEpisode.title ?? `Odcinek ${nextEpisode.number}` : undefined}
                 chapters={chapters}
                 autoplayNext={settings.autoplayNext}
                 skipIntroPrompt={settings.skipIntroPrompt}
                 defaultVolume={settings.defaultVolume}
+                isDemo={demo !== null}
+                partyCode={partyCode}
+                episodeKeys={series.episodes.map((item) => ({ key: item.key, number: item.number }))}
+                nextEpisodeKey={nextEpisode?.key}
+                previousEpisodeKey={series.episodes.find((item) => item.number === episode.number - 1)?.key}
             />
         </>
     );

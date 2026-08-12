@@ -1,14 +1,15 @@
 "use client";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { X, Play, CheckCircle2, FileVideo, ArrowUpRight } from "lucide-react";
+import { X, Play, CheckCircle2, FileVideo, ArrowUpRight, Users } from "lucide-react";
 import Image from "next/image";
-import { imageLoader } from "@/lib/imageDelivery";
-import getSeriesDetailsAction, { SeriesDetails } from "@/lib/getSeriesDetailsAction";
+import { imageLoader } from "@/lib/catalog/imageDelivery";
+import getSeriesDetailsAction, { SeriesDetails } from "@/lib/catalog/getSeriesDetailsAction";
 import { DataErrorState, DataState } from "@/components/data/DataState";
-import type { DataErrorReason } from "@/lib/dataResult";
-import { seriesPath, watchPath } from "@/lib/routes";
-import { useModalFocus } from "@/lib/useModalFocus";
+import type { DataErrorReason } from "@/lib/core/dataResult";
+import { partyWatchPath, seriesPath, watchPath } from "@/lib/core/routes";
+import { useModalFocus } from "@/lib/core/useModalFocus";
+import { startPartyForEpisode } from "@/lib/party/startPartyForEpisode";
 
 const CLOSE_ANIMATION_MS = 200;
 
@@ -24,6 +25,8 @@ const SeriesModal = () => {
     const [missing, setMissing] = useState(false);
     const [retryKey, setRetryKey] = useState(0);
     const [showAnimation, setShowAnimation] = useState(false);
+    const [startingParty, setStartingParty] = useState(false);
+    const [partyError, setPartyError] = useState<string | null>(null);
 
     const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -53,6 +56,23 @@ const SeriesModal = () => {
         if (!details?.seriesKey) return;
         const seriesKey = details.seriesKey;
         scheduleAfterClose(() => router.push(watchPath(seriesKey, episodeKey)));
+    };
+
+    const watchTogether = async () => {
+        const seriesKey = details?.seriesKey;
+        const episodeKey = details?.resumeEpisodeKey ?? details?.episodes[0]?.key;
+        if (!seriesKey || !episodeKey) return;
+
+        setPartyError(null);
+        setStartingParty(true);
+        const result = await startPartyForEpisode(seriesKey, episodeKey);
+        setStartingParty(false);
+
+        if (!result.ok || !result.code) {
+            setPartyError(result.error ?? "Nie udało się utworzyć pokoju.");
+            return;
+        }
+        scheduleAfterClose(() => router.push(partyWatchPath(seriesKey, episodeKey, result.code!)));
     };
 
     useEffect(() => {
@@ -193,13 +213,29 @@ const SeriesModal = () => {
                                 {details.synopsis}
                             </p>
 
-                            <button
-                                onClick={goToSeriesPage}
-                                className="mb-8 flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface-light px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:border-primary hover:bg-primary hover:text-on-accent focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary md:px-5 md:py-2.5 md:text-base"
-                            >
-                                Przejdź do strony serialu
-                                <ArrowUpRight size={18} />
-                            </button>
+                            <div className="mb-8 flex flex-wrap items-center gap-3">
+                                <button
+                                    onClick={goToSeriesPage}
+                                    className="flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface-light px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:border-primary hover:bg-primary hover:text-on-accent focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary md:px-5 md:py-2.5 md:text-base"
+                                >
+                                    Przejdź do strony serialu
+                                    <ArrowUpRight size={18} />
+                                </button>
+                                {details.seriesKey && (
+                                    <button
+                                        type="button"
+                                        onClick={watchTogether}
+                                        disabled={startingParty}
+                                        className={`flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface-light px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:border-primary hover:bg-primary hover:text-on-accent focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary md:px-5 md:py-2.5 md:text-base ${startingParty ? "opacity-70" : ""}`}
+                                    >
+                                        <Users size={18} />
+                                        {startingParty ? "Tworzenie pokoju…" : "Oglądaj razem"}
+                                    </button>
+                                )}
+                            </div>
+                            {partyError && (
+                                <p role="alert" className="-mt-4 mb-6 text-sm text-nx-critical">{partyError}</p>
+                            )}
 
                             <h3 className="mb-4 text-lg font-semibold text-foreground md:text-xl">
                                 Odcinki ({details.episodes.length})
@@ -255,14 +291,14 @@ const SeriesModal = () => {
                                             </span>
                                             <span className="flex items-center gap-1.5 text-xs text-muted mt-1">
                                                 <FileVideo size={12} />
-                                                {episode.key === details.resumeEpisodeKey ? "Wznów oglądanie" : "Wideo MP4"}
+                                                {episode.key === details.resumeEpisodeKey ? "Wznów oglądanie" : "Odtwórz odcinek"}
                                             </span>
                                         </span>
                                     </button>
                                 ))}
 
                                 {details.episodes.length === 0 && (
-                                    <div className="text-muted text-sm py-4">Brak dostępnych odcinków w bazie.</div>
+                                    <div className="text-muted text-sm py-4">Brak dostępnych odcinków.</div>
                                 )}
                             </div>
                         </div>

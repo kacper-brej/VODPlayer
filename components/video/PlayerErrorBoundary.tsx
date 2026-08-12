@@ -43,7 +43,7 @@ class PlayerErrorBoundary extends Component<PlayerErrorBoundaryProps, PlayerErro
                             </button>
                             {this.props.onBack && (
                                 <button type="button" onClick={this.props.onBack} className="np-error-secondary">
-                                    Wróć do serialu
+                                    Wróć do strony głównej
                                 </button>
                             )}
                         </div>

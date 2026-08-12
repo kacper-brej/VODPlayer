@@ -1,15 +1,16 @@
 "use client";
 
 import Image from "next/image";
-import { imageLoader } from "@/lib/imageDelivery";
+import { imageLoader } from "@/lib/catalog/imageDelivery";
 import Link from "next/link";
 import { Play, X } from "lucide-react";
 import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import EpisodeCard, { type EpisodeCardData } from "@/components/episodes/EpisodeCard";
 import SeasonsSelector, { type SeasonOption } from "@/components/series/SeasonsSelector";
-import { watchPath } from "@/lib/routes";
-import { useModalFocus } from "@/lib/useModalFocus";
+import { watchPath } from "@/lib/core/routes";
+import { useModalFocus } from "@/lib/core/useModalFocus";
+import { usePreviewSurface } from "@/components/preview/usePreviewSurface";
 
 export interface SeasonEpisodes extends SeasonOption {
     seriesId: number;
@@ -39,6 +40,7 @@ const EpisodeList = ({ seasons, initialSeason, authRequired }: EpisodeListProps)
             ?? season.episodes[0]
             ?? null;
     }, [season]);
+    const resumePreview = usePreviewSurface(resumeEpisode?.previewSource);
 
     const changeSeason = (id: string) => {
         setActiveSeason(id);
@@ -98,11 +100,13 @@ const EpisodeList = ({ seasons, initialSeason, authRequired }: EpisodeListProps)
 
                 <div className="col-span-4 grid gap-5 lg:col-span-12 lg:grid-cols-12 xl:col-span-10 xl:grid-cols-10">
                     {resumeEpisode && (
-                        <button
-                            type="button"
-                            onClick={() => play(resumeEpisode)}
-                            className="group self-start overflow-hidden rounded-2xl border border-nx-border bg-nx-panel text-left shadow-[0_18px_44px_-24px_rgba(0,0,0,.9)] transition-[border-color,background-color,transform] hover:-translate-y-1 hover:border-nx-accent/35 hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent lg:col-span-6 xl:col-span-4"
-                        >
+                        <article className="group relative self-start overflow-hidden rounded-2xl border border-nx-border bg-nx-panel text-left shadow-[0_18px_44px_-24px_rgba(0,0,0,.9)] transition-[border-color,background-color,transform] hover:-translate-y-1 hover:border-nx-accent/35 hover:bg-nx-raised lg:col-span-6 xl:col-span-4">
+                            <button
+                                type="button"
+                                onClick={() => play(resumeEpisode)}
+                                {...resumePreview.surfaceProps}
+                                className="block w-full text-left focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-nx-accent"
+                            >
                             <span className="relative block aspect-video overflow-hidden bg-nx-panel">
                                 {resumeEpisode.thumbnail ? (
                                     <Image
@@ -115,6 +119,12 @@ const EpisodeList = ({ seasons, initialSeason, authRequired }: EpisodeListProps)
                                     />
                                 ) : (
                                     <span className="absolute inset-0 bg-nx-panel" />
+                                )}
+                                {resumeEpisode.previewSource && (
+                                    <video
+                                        {...resumePreview.videoProps}
+                                        className={`pointer-events-none absolute inset-0 size-full object-cover transition-opacity duration-300 motion-reduce:transition-none ${resumePreview.isPlaying ? "opacity-100" : "opacity-0"}`}
+                                    />
                                 )}
                                 <span className="absolute inset-0 bg-[linear-gradient(0deg,var(--nx-bg),transparent_70%)]" />
                                 <span className="absolute inset-0 flex items-center justify-center">
@@ -142,7 +152,18 @@ const EpisodeList = ({ seasons, initialSeason, authRequired }: EpisodeListProps)
                                     </span>
                                 )}
                             </span>
-                        </button>
+                            </button>
+                            {resumeEpisode.previewSource && (
+                                <button
+                                    type="button"
+                                    onClick={resumePreview.startManual}
+                                    aria-label={`Odtwórz podgląd: ${resumeEpisode.title}`}
+                                    className="absolute bottom-3 right-3 z-20 flex size-10 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text opacity-0 outline-none transition-opacity hover:bg-nx-raised focus:opacity-100 focus-visible:outline-2 focus-visible:outline-nx-accent group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100"
+                                >
+                                    <Play size={15} fill="currentColor" aria-hidden="true" />
+                                </button>
+                            )}
+                        </article>
                     )}
 
                     <div

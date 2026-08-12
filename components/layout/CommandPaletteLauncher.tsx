@@ -2,10 +2,10 @@
 
 import dynamic from "next/dynamic";
 import { Suspense, useEffect, useRef, useState } from "react";
-import getSearchIndexAction from "@/lib/getSearchIndexAction";
-import { COMMAND_PALETTE_OPEN_EVENT } from "@/lib/commandPalette";
-import type { DataResult } from "@/lib/dataResult";
-import type { SearchIndexEntry } from "@/lib/searchIndex";
+import getSearchIndexAction from "@/lib/search/getSearchIndexAction";
+import { COMMAND_PALETTE_OPEN_EVENT } from "@/lib/search/commandPalette";
+import type { DataResult } from "@/lib/core/dataResult";
+import type { SearchIndexEntry } from "@/lib/search/searchIndex";
 
 const CommandPaletteResolver = dynamic(
     () => import("@/components/layout/CommandPaletteResolver"),

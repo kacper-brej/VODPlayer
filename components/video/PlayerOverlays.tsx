@@ -3,7 +3,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { PlayButton, useMediaState } from '@vidstack/react';
-import { Play, RotateCcw, RotateCw, SkipForward, StepForward, Volume1, Volume2, VolumeX } from 'lucide-react';
+import { Crown, Play, RotateCcw, RotateCw, SkipForward, StepForward, Volume1, Volume2, VolumeX } from 'lucide-react';
+import type {
+    WatchPartyBufferingWait,
+    WatchPartyControlMode,
+    WatchPartyLastAction,
+    WatchPartyMember,
+    WatchPartyRole,
+} from '@/lib/core/contracts';
+import type { PartySyncQuality } from '@/lib/party/usePartySync';
+import { ProfileAvatarTile } from '@/components/profiles/ProfileAvatarTile';
 
 const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
@@ -19,6 +28,7 @@ interface OverlaidPlayButtonProps {
     episodeNumber?: number;
     episodeTitle?: string;
     synopsis?: string | null;
+    onPlay?: () => void;
 }
 
 export const OverlaidPlayButton = ({
@@ -27,6 +37,7 @@ export const OverlaidPlayButton = ({
     episodeNumber,
     episodeTitle,
     synopsis,
+    onPlay,
 }: OverlaidPlayButtonProps) => {
     const paused = useMediaState('paused');
     const ended = useMediaState('ended');
@@ -66,9 +77,15 @@ export const OverlaidPlayButton = ({
                             {synopsis && <p>{synopsis}</p>}
                         </motion.div>
                     )}
-                    <PlayButton className="np-overlaid-play" aria-label="Odtwórz">
-                        <Play />
-                    </PlayButton>
+                    {onPlay ? (
+                        <button type="button" className="np-overlaid-play" aria-label="Odtwórz wspólnie" onClick={onPlay}>
+                            <Play />
+                        </button>
+                    ) : (
+                        <PlayButton className="np-overlaid-play" aria-label="Odtwórz">
+                            <Play />
+                        </PlayButton>
+                    )}
                     {started && <span className="np-pause-status">Wstrzymane</span>}
                 </motion.div>
             )}
@@ -189,6 +206,157 @@ export const VolumeHud = () => {
                     </motion.div>
                 )}
             </AnimatePresence>
+        </div>
+    );
+};
+
+interface PartyPlaybackGateProps {
+    visible: boolean;
+    onJoin: () => void;
+}
+
+export const PartyPlaybackGate = ({ visible, onJoin }: PartyPlaybackGateProps) => (
+    <AnimatePresence>
+        {visible && (
+            <motion.div
+                className="np-overlaid-play-layer"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2, ease: EASE_OUT }}
+            >
+                <div className="np-pause-scrim" />
+                <button type="button" className="np-overlaid-play" onClick={onJoin}>
+                    <Play />
+                    <span className="sr-only">Kliknij, żeby dołączyć do odtwarzania</span>
+                </button>
+                <span className="np-pause-status">Kliknij, żeby dołączyć do odtwarzania</span>
+            </motion.div>
+        )}
+    </AnimatePresence>
+);
+
+const MAX_VISIBLE_PARTICIPANTS = 4;
+
+interface PartyParticipantsProps {
+    participants: WatchPartyMember[];
+    viewerProfileId?: number;
+    viewerRole?: WatchPartyRole;
+    onTransferHost?: (profileId: number) => void;
+    controlMode?: WatchPartyControlMode;
+    onControlModeChange?: (controlMode: WatchPartyControlMode) => void;
+    lastAction?: WatchPartyLastAction | null;
+    syncQuality?: PartySyncQuality;
+}
+
+export const PartyParticipants = ({
+    participants,
+    viewerProfileId,
+    viewerRole,
+    onTransferHost,
+    controlMode,
+    onControlModeChange,
+    lastAction,
+    syncQuality,
+}: PartyParticipantsProps) => {
+    if (participants.length === 0) return null;
+
+    const visible = participants.slice(0, MAX_VISIBLE_PARTICIPANTS);
+    const overflow = participants.length - visible.length;
+    const newestHeartbeat = Math.max(...participants.map((participant) => participant.lastSeenAtMs));
+    const actor = lastAction ? participants.find((participant) => participant.profileId === lastAction.profileId) : null;
+    const actionLabel = lastAction?.kind === 'pause' ? 'wstrzymał(a)'
+        : lastAction?.kind === 'play' ? 'wznowił(a)'
+            : lastAction?.kind === 'seek' ? 'przewinął/przewinęła'
+                : lastAction?.kind === 'episode-change' ? 'zmienił(a) odcinek'
+                    : lastAction?.kind === 'control-mode' ? 'zmienił(a) tryb sterowania'
+                        : null;
+
+    return (
+        <div className="np-party-participants" role="group" aria-label={`Uczestnicy pokoju: ${participants.length}`}>
+            {visible.map((participant) => {
+                const canReceiveHost = viewerRole === 'host'
+                    && participant.profileId !== viewerProfileId
+                    && participant.role !== 'host'
+                    && onTransferHost !== undefined;
+                const outOfSync = newestHeartbeat - participant.lastSeenAtMs > 30_000;
+                const participantTitle = participant.isBuffering
+                    ? `${participant.name} — buforuje`
+                    : outOfSync
+                        ? `${participant.name} — poza synchronizacją`
+                        : participant.role === 'host' ? `${participant.name} (host)` : participant.name;
+                const content = (
+                    <>
+                        <ProfileAvatarTile
+                            avatar={participant.avatar}
+                            name={participant.name}
+                            className="np-party-participant-avatar"
+                        />
+                        {participant.role === 'host' && (
+                            <Crown className="np-party-participant-host-badge" aria-hidden="true" />
+                        )}
+                    </>
+                );
+                return canReceiveHost ? (
+                    <button
+                        type="button"
+                        key={participant.profileId}
+                        className="np-party-participant"
+                        title={`${participantTitle}. Przekaż rolę hosta`}
+                        aria-label={`Przekaż rolę hosta uczestnikowi ${participant.name}`}
+                        onClick={() => onTransferHost(participant.profileId)}
+                    >
+                        {content}
+                    </button>
+                ) : (
+                    <span
+                    key={participant.profileId}
+                    className="np-party-participant"
+                    title={participantTitle}
+                    data-buffering={participant.isBuffering || undefined}
+                    data-out-of-sync={outOfSync || undefined}
+                >
+                    {content}
+                </span>
+                );
+            })}
+            {overflow > 0 && <span className="np-party-participant-overflow">+{overflow}</span>}
+            {syncQuality && (
+                <span className="rounded-full bg-black/70 px-2 py-1 text-[10px] text-white" role="status">
+                    {syncQuality === 'synchronized' ? 'Synchronizacja: dobra'
+                        : syncQuality === 'correcting' ? 'Synchronizacja: korekta'
+                            : 'Synchronizacja: poza zakresem'}
+                </span>
+            )}
+            {actor && actionLabel && (
+                <span className="rounded-full bg-black/70 px-2 py-1 text-[10px] text-white" aria-live="polite">
+                    {actor.name} {actionLabel}
+                </span>
+            )}
+            {viewerRole === 'host' && controlMode && onControlModeChange && (
+                <button
+                    type="button"
+                    className="rounded-full bg-black/70 px-2 py-1 text-[10px] text-white"
+                    onClick={() => onControlModeChange(controlMode === 'host' ? 'everyone' : 'host')}
+                >
+                    Sterowanie: {controlMode === 'host' ? 'host' : 'wszyscy'}
+                </button>
+            )}
+        </div>
+    );
+};
+
+interface PartyBufferingNoticeProps {
+    wait: WatchPartyBufferingWait | null;
+    participants: WatchPartyMember[];
+}
+
+export const PartyBufferingNotice = ({ wait, participants }: PartyBufferingNoticeProps) => {
+    if (wait === null) return null;
+    const participant = participants.find((member) => member.profileId === wait.profileId);
+    return (
+        <div className="absolute left-1/2 top-6 z-50 -translate-x-1/2 rounded-full bg-black/80 px-4 py-2 text-sm text-white" role="status">
+            Czekamy na: {participant?.name ?? 'uczestnika'} · pokój wznowi odtwarzanie automatycznie
         </div>
     );
 };

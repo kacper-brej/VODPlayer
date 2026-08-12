@@ -20,7 +20,7 @@ const Error = ({
                 <TriangleAlert size={28} className="text-danger" aria-hidden="true" />
                 <h1 className="mt-4 font-display text-[28px] text-foreground">Nie udało się wczytać strony</h1>
                 <p className="mt-3 text-sm text-muted">
-                    Coś poszło nie tak. Spróbuj ponownie — jeśli problem się powtórzy, wróć na stronę główną.
+                    Coś poszło nie tak. Spróbuj ponownie. Jeśli problem się powtórzy, wróć na stronę główną.
                 </p>
                 <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
                     <button

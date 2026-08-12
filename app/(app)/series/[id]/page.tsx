@@ -4,9 +4,9 @@ import EpisodeList, { type SeasonEpisodes } from "@/components/episodes/EpisodeL
 import { DataErrorState, DataState } from "@/components/data/DataState";
 import SeriesHero from "@/components/series/SeriesHero";
 import SeriesMetadata from "@/components/series/SeriesMetadata";
-import { getCatalog, resolveCatalogSeries } from "@/lib/catalog";
-import { getSeriesProgressAction } from "@/lib/getProgressAction";
-import { seriesPath } from "@/lib/routes";
+import { getCatalog, resolveCatalogSeries } from "@/lib/catalog/catalog";
+import { getProgressSnapshotAction } from "@/lib/progress/getProgressAction";
+import { seriesPath } from "@/lib/core/routes";
 import {
     getSeriesDisplayTitle,
     getSeriesSeasons,
@@ -14,16 +14,14 @@ import {
     formatEpisodeNumber,
     formatRemainingTime,
     getKnownProgressPercent,
-} from "@/lib/seriesPage";
+} from "@/lib/catalog/seriesPage";
+import { resolvePreviewSource } from "@/lib/player/videoAccess";
 
 interface SeriesPageProps {
     params: Promise<{ id: string }>;
     searchParams: Promise<{ season?: string | string[] }>;
 }
 
-// Next.js 16 no longer decodes [id] before it reaches the page component
-// (unlike route handlers, which still do) — multi-word series keys like
-// "Akame ga Kill" arrive as "Akame%20ga%20Kill" and never match the catalog.
 const decodeSeriesId = (id: string): string => {
     try {
         return decodeURIComponent(id);
@@ -90,16 +88,17 @@ const SeriesPage = async ({ params, searchParams }: SeriesPageProps) => {
         ? requestedSeason as string
         : seasons.find((season) => season.seriesId === series.id)?.id ?? seasons[0]?.id ?? "all";
 
-    const progressEntries = await Promise.all(
-        seasons.map(async (season) => ({
-            season,
-            result: await getSeriesProgressAction(season.seriesKey),
-        })),
-    );
+    const progressResult = await getProgressSnapshotAction(seasons.map((season) => season.seriesKey));
+    const progressEntries = seasons.map((season) => {
+        const episodes = progressResult.kind === "error" ? {} : progressResult.data.episodesBySeries[season.seriesKey] ?? {};
+        const resume = progressResult.kind === "error"
+            ? null
+            : progressResult.data.resumes.find((item) => item.seriesKey === season.seriesKey) ?? null;
+        return { season, episodes, resume };
+    });
 
     const now = currentUnixTime();
-    const seasonViews: SeasonEpisodes[] = progressEntries.map(({ season, result }) => {
-        const progress = result.kind === "error" ? {} : result.data.episodes;
+    const seasonViews: SeasonEpisodes[] = progressEntries.map(({ season, episodes: progress, resume }) => {
         const firstNewEpisode = season.episodes.find((episode) =>
             !progress[episode.key] && now - episode.addedAt < 7 * 24 * 60 * 60
         )?.key;
@@ -126,6 +125,11 @@ const SeriesPage = async ({ params, searchParams }: SeriesPageProps) => {
                 started: Boolean(entry && entry.positionSeconds > 0 && !watched),
                 progressKnown: Boolean(entry?.durationSeconds && entry.durationSeconds > 0),
                 isNew: episode.key === firstNewEpisode,
+                previewSource: resolvePreviewSource(
+                    season.seriesKey,
+                    episode,
+                    entry?.positionSeconds ?? null,
+                ),
             };
         });
 
@@ -136,30 +140,28 @@ const SeriesPage = async ({ params, searchParams }: SeriesPageProps) => {
             completed: episodes.length > 0 && episodes.every((episode) => episode.watched),
             seriesId: season.seriesId,
             episodes,
-            resumeEpisodeKey: result.kind === "error" ? null : result.data.resume?.episodeKey ?? null,
+            resumeEpisodeKey: resume?.episodeKey ?? null,
         };
     });
 
-    const activeProgress = progressEntries.find(({ season }) => season.id === initialSeason)?.result;
+    const activeProgress = progressEntries.find(({ season }) => season.id === initialSeason);
     const activeSeason = seasons.find((season) => season.id === initialSeason) ?? seasons[0];
-    const resumeEpisodeKey = activeProgress && activeProgress.kind !== "error"
-        ? activeProgress.data.resume?.episodeKey ?? null
-        : null;
+    const resumeEpisodeKey = activeProgress?.resume?.episodeKey ?? null;
     const resumeEpisodeNumber = activeSeason?.episodes.find((episode) => episode.key === resumeEpisodeKey)?.number ?? null;
     const allEpisodes = seasons.flatMap((season) => season.episodes);
     const addedAt = allEpisodes.length > 0
         ? Math.min(...allEpisodes.map((episode) => episode.addedAt))
         : null;
-    const progressAvailable = progressEntries.every(({ result }) => result.kind !== "error");
-    const authRequired = progressEntries.some(({ result }) =>
-        result.kind === "error" && (result.reason === "unauthorized" || result.reason === "forbidden")
-    );
+    const progressAvailable = progressResult.kind !== "error";
+    const authRequired = progressResult.kind === "error"
+        && (progressResult.reason === "unauthorized" || progressResult.reason === "forbidden");
 
     return (
         <div className="min-h-screen bg-nx-bg text-nx-text">
             <div className="relative">
                 <SeriesHero
                     seriesId={activeSeason?.seriesId ?? series.id}
+                    seriesKey={activeSeason?.seriesKey ?? series.key}
                     title={displayTitle}
                     backdropImage={series.backdropImage}
                     logoImage={series.logoImage}

@@ -16,21 +16,77 @@ import {
 import type { ErrorData as HlsErrorData } from 'hls.js';
 import { AlertTriangle, RotateCcw } from 'lucide-react';
 import { MotionConfig, useReducedMotion } from 'framer-motion';
-import type { EpisodeChapter } from '@/lib/core/contracts';
+import type {
+    EpisodeChapter,
+    WatchPartyAnchor,
+    WatchPartyBufferingWait,
+    WatchPartyCommand,
+    WatchPartyMember,
+    WatchPartyMessage,
+    WatchPartyRole,
+    WatchPartyLastAction,
+    WatchPartyControlMode,
+} from '@/lib/core/contracts';
+import type { DriftCorrectionDecision } from '@/lib/party/driftCorrection';
+import type { PartySyncQuality } from '@/lib/party/usePartySync';
+import {
+    applyPartyAnchor,
+    applyPartyCorrection,
+    resumePartyPlaybackAfterGesture,
+    type PartyPlaybackAdapter,
+} from '@/lib/party/partyPlayerAdapter';
+import { requestPlaybackToggle } from '@/lib/player/controlledPlayback';
 import type { PlaybackSource } from '@/lib/player/videoAccess';
 import { buildHlsConfig } from '@/lib/player/videoPlayerConfig';
+import {
+    HLS_REFRESH_BACKOFF_MS,
+    HLS_REFRESH_MAX_ATTEMPTS,
+    playbackRefreshSnapshot,
+    shouldRefreshHlsAccess,
+} from '@/lib/player/playbackRefresh';
 import refreshPlaybackSourceAction from '@/lib/upload/refreshPlaybackSourceAction';
 import PlayerControls from './PlayerControls';
 import {
     BufferingIndicator,
     NextEpisodePill,
     OverlaidPlayButton,
+    PartyParticipants,
+    PartyBufferingNotice,
     SeekFeedback,
     SkipIntroPill,
     VolumeHud,
+    PartyPlaybackGate,
 } from './PlayerOverlays';
+import { PartyChatPanel } from './PartyChatPanel';
 
-interface VideoPlayerProps {
+export interface VideoPlayerSync {
+    anchor: WatchPartyAnchor;
+    clockOffsetMs: number;
+    role: WatchPartyRole;
+    canControl: boolean;
+    waitingForGesture: boolean;
+    nextEpisodeKey?: string;
+    previousEpisodeKey?: string;
+    sendIntent: (command: WatchPartyCommand) => Promise<unknown>;
+    expectedPosition: (clientNowMs?: number) => number | null;
+    registerPlaybackAdapter: (adapter: PartyPlaybackAdapter | null) => void;
+    onWaitingForGestureChange: (waiting: boolean) => void;
+    participants: WatchPartyMember[];
+    viewerProfileId: number;
+    chatMessages: WatchPartyMessage[];
+    unreadChatCount: number;
+    onChatOpenChange: (open: boolean) => void;
+    sendChatMessage: (body: string) => Promise<boolean>;
+    bufferingWait: WatchPartyBufferingWait | null;
+    reportBuffering: (buffering: boolean) => Promise<boolean>;
+    transferHost: (targetProfileId: number) => Promise<boolean>;
+    controlMode: WatchPartyControlMode;
+    lastAction: WatchPartyLastAction | null;
+    syncQuality: PartySyncQuality;
+    changeControlMode: (controlMode: WatchPartyControlMode) => Promise<boolean>;
+}
+
+export interface VideoPlayerProps {
     playback: PlaybackSource;
     seriesKey: string;
     episodeKey: string;
@@ -52,11 +108,13 @@ interface VideoPlayerProps {
     autoplayNext?: boolean;
     skipIntroPrompt?: boolean;
     defaultVolume?: number;
+    sync?: VideoPlayerSync;
 }
 
 const NEXT_EPISODE_TRIGGER_SECONDS = 60;
 const NEXT_EPISODE_AUTOPLAY_MS = 5000;
 const PROGRESS_SAVE_INTERVAL_SECONDS = 12;
+const PARTY_BUFFERING_DEBOUNCE_MS = 800;
 
 const isEditableTarget = (target: EventTarget | null) => {
     const element = target as HTMLElement | null;
@@ -89,6 +147,7 @@ export const VideoPlayer = ({
     autoplayNext = true,
     skipIntroPrompt = true,
     defaultVolume,
+    sync,
 }: VideoPlayerProps) => {
     const playerRef = useRef<MediaPlayerInstance>(null);
     const prefersReducedMotion = useReducedMotion();
@@ -120,8 +179,70 @@ export const VideoPlayer = ({
     const [activePlayback, setActivePlayback] = useState<PlaybackSource>(playback);
     const [previousPlaybackSrc, setPreviousPlaybackSrc] = useState(playback.src);
     const [manifestUnrecoverable, setManifestUnrecoverable] = useState(false);
+    const [partyNotice, setPartyNotice] = useState<string | null>(null);
     const refreshAttemptsRef = useRef(0);
+    const refreshInFlightRef = useRef(false);
+    const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const bufferingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const bufferingReportedRef = useRef(false);
+    const shouldResumeAfterRefreshRef = useRef(true);
+    const selectedQualityHeightRef = useRef<number | null>(null);
     const desiredStartPositionRef = useRef(startTime);
+    const canPlayRef = useRef(false);
+    const seekingRef = useRef(false);
+    const syncRef = useRef(sync);
+    const registerPlaybackAdapter = sync?.registerPlaybackAdapter;
+    const anchorVersion = sync?.anchor.anchorVersion;
+
+    useEffect(() => {
+        syncRef.current = sync;
+    }, [sync]);
+
+    const showPartyControlDenied = useCallback(() => {
+        setPartyNotice('Tylko prowadzący może sterować odtwarzaniem.');
+        window.setTimeout(() => setPartyNotice(null), 2400);
+    }, []);
+
+    const sendPartyIntent = useCallback((command: WatchPartyCommand) => {
+        const currentSync = syncRef.current;
+        if (!currentSync) return;
+        if (!currentSync.canControl) {
+            showPartyControlDenied();
+            return;
+        }
+        void currentSync.sendIntent(command);
+    }, [showPartyControlDenied]);
+
+    const applyCurrentPartyAnchor = useCallback(async () => {
+        const currentSync = syncRef.current;
+        if (!currentSync || !canPlayRef.current) return;
+        const result = await applyPartyAnchor(playerRef.current, currentSync.anchor.state, currentSync.expectedPosition);
+        currentSync.onWaitingForGestureChange(result === 'gesture-required');
+    }, []);
+
+    useEffect(() => {
+        if (!registerPlaybackAdapter) return;
+        const adapter: PartyPlaybackAdapter = {
+            read: () => {
+                const player = playerRef.current;
+                if (!player || !canPlayRef.current || seekingRef.current) return null;
+                return {
+                    positionSeconds: player.currentTime,
+                    playbackRate: player.playbackRate,
+                    state: player.paused ? 'paused' : 'playing',
+                };
+            },
+            correct: (decision: DriftCorrectionDecision) =>
+                applyPartyCorrection(playerRef.current, decision, canPlayRef.current, seekingRef.current),
+        };
+        registerPlaybackAdapter(adapter);
+        return () => registerPlaybackAdapter(null);
+    }, [registerPlaybackAdapter]);
+
+    useEffect(() => {
+        if (anchorVersion === undefined) return;
+        void applyCurrentPartyAnchor();
+    }, [anchorVersion, applyCurrentPartyAnchor]);
 
     const showSeekFeedback = useCallback((seconds: number) => {
         if (seekFeedbackTimeoutRef.current) clearTimeout(seekFeedbackTimeoutRef.current);
@@ -170,24 +291,57 @@ export const VideoPlayer = ({
         void drainProgressQueue();
     }, [drainProgressQueue, onProgressUpdate]);
 
+    const handleBackWithFlush = useCallback(() => {
+        flushProgress();
+        onBack?.();
+    }, [flushProgress, onBack]);
+
     const attemptPlaybackRefresh = useCallback(() => {
-        if (refreshAttemptsRef.current >= 1) {
+        if (refreshInFlightRef.current) return;
+        if (refreshAttemptsRef.current >= HLS_REFRESH_MAX_ATTEMPTS) {
             setManifestUnrecoverable(true);
             return;
         }
 
-        refreshAttemptsRef.current += 1;
-        desiredStartPositionRef.current = currentTimeRef.current;
+        const snapshot = playbackRefreshSnapshot(
+            currentTimeRef.current,
+            playerRef.current?.paused ?? false,
+            playerRef.current?.qualities.selected?.height ?? null,
+        );
+        const partyPosition = syncRef.current?.expectedPosition() ?? null;
+        desiredStartPositionRef.current = partyPosition ?? snapshot.positionSeconds;
+        shouldResumeAfterRefreshRef.current = syncRef.current ? true : !snapshot.paused;
+        selectedQualityHeightRef.current = snapshot.qualityHeight;
+        refreshInFlightRef.current = true;
 
-        void refreshPlaybackSourceAction(seriesKey, episodeKey).then((result) => {
-            if (result.kind !== 'success') {
-                setManifestUnrecoverable(true);
-                return;
+        const refresh = async () => {
+            while (refreshAttemptsRef.current < HLS_REFRESH_MAX_ATTEMPTS) {
+                const attempt = refreshAttemptsRef.current++;
+                await new Promise<void>((resolve) => {
+                    refreshTimerRef.current = setTimeout(
+                        resolve,
+                        HLS_REFRESH_BACKOFF_MS[attempt] ?? HLS_REFRESH_BACKOFF_MS.at(-1),
+                    );
+                });
+                if (!refreshInFlightRef.current) return;
+
+                try {
+                    const result = await refreshPlaybackSourceAction(seriesKey, episodeKey);
+                    if (result.kind !== 'success') continue;
+
+                    hasSeekedToStart.current = false;
+                    setManifestUnrecoverable(false);
+                    setActivePlayback(result.data);
+                    return;
+                } catch {
+                }
             }
 
-            hasSeekedToStart.current = false;
-            setActivePlayback(result.data);
-        });
+            refreshInFlightRef.current = false;
+            setManifestUnrecoverable(true);
+        };
+
+        void refresh();
     }, [seriesKey, episodeKey]);
 
     const handleProviderChange = useCallback((provider: MediaProviderAdapter | null) => {
@@ -202,41 +356,53 @@ export const VideoPlayer = ({
     }, []);
 
     const handleHlsError = useCallback((detail: HlsErrorData) => {
-        if (!detail.fatal) return;
-
         const statusCode = detail.response?.code;
 
-        if (statusCode === 403) {
-            setManifestUnrecoverable(true);
-            return;
-        }
-
-        if (statusCode === 410) {
+        if (shouldRefreshHlsAccess(detail.fatal, statusCode, refreshAttemptsRef.current)) {
             attemptPlaybackRefresh();
+        } else if (detail.fatal && (statusCode === 403 || statusCode === 410)) {
+            setManifestUnrecoverable(true);
         }
     }, [attemptPlaybackRefresh]);
 
     const handleError = (detail: MediaErrorDetail) => {
-        if (activePlayback.kind === 'mp4' && refreshAttemptsRef.current < 1) {
-            attemptPlaybackRefresh();
-            return;
-        }
-
         setMediaError(detail);
     };
 
-    const handleCanPlay = () => {
-        setMediaError(null);
+    const clearBufferingReport = useCallback(() => {
+        if (bufferingTimerRef.current) clearTimeout(bufferingTimerRef.current);
+        bufferingTimerRef.current = null;
+        if (!bufferingReportedRef.current) return;
+        bufferingReportedRef.current = false;
+        void syncRef.current?.reportBuffering(false);
+    }, []);
 
-        if (
-            activePlayback.kind === 'mp4'
-            && !hasSeekedToStart.current
-            && desiredStartPositionRef.current > 0
-            && playerRef.current
-        ) {
-            playerRef.current.currentTime = desiredStartPositionRef.current;
-            hasSeekedToStart.current = true;
+    const reportWaiting = useCallback(() => {
+        if (!syncRef.current || refreshInFlightRef.current || bufferingTimerRef.current || bufferingReportedRef.current) return;
+        bufferingTimerRef.current = setTimeout(() => {
+            bufferingTimerRef.current = null;
+            if (!syncRef.current || refreshInFlightRef.current) return;
+            bufferingReportedRef.current = true;
+            void syncRef.current.reportBuffering(true);
+        }, PARTY_BUFFERING_DEBOUNCE_MS);
+    }, []);
+
+    const handleCanPlay = () => {
+        clearBufferingReport();
+        canPlayRef.current = true;
+        setMediaError(null);
+        refreshInFlightRef.current = false;
+        refreshAttemptsRef.current = 0;
+
+        const selectedHeight = selectedQualityHeightRef.current;
+        if (selectedHeight !== null && playerRef.current) {
+            const selectedQuality = Array.from(playerRef.current.qualities)
+                .find((quality) => quality?.height === selectedHeight);
+            if (selectedQuality) selectedQuality.selected = true;
+            selectedQualityHeightRef.current = null;
         }
+        if (syncRef.current) void applyCurrentPartyAnchor();
+        else if (!shouldResumeAfterRefreshRef.current) playerRef.current?.pause();
 
         if (!hasAppliedDefaultVolume.current && defaultVolume !== undefined && playerRef.current) {
             playerRef.current.volume = Math.min(1, Math.max(0, defaultVolume / 100));
@@ -253,7 +419,15 @@ export const VideoPlayer = ({
         lastUiSecondRef.current = -1;
         refreshAttemptsRef.current = 0;
         desiredStartPositionRef.current = startTime;
+        canPlayRef.current = false;
     }, [playback.src, startTime]);
+
+    useEffect(() => () => {
+        if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+        if (bufferingTimerRef.current) clearTimeout(bufferingTimerRef.current);
+        if (bufferingReportedRef.current) void syncRef.current?.reportBuffering(false);
+        refreshInFlightRef.current = false;
+    }, []);
 
     if (playback.src !== previousPlaybackSrc) {
         setPreviousPlaybackSrc(playback.src);
@@ -283,7 +457,19 @@ export const VideoPlayer = ({
 
     useEffect(() => {
         const handleVisibilityChange = () => {
-            if (document.visibilityState === 'hidden') flushProgress();
+            if (document.visibilityState === 'hidden') {
+                flushProgress();
+                return;
+            }
+            const expectedPosition = syncRef.current?.expectedPosition();
+            if (expectedPosition !== null && expectedPosition !== undefined) {
+                applyPartyCorrection(
+                    playerRef.current,
+                    { kind: 'seek', positionSeconds: expectedPosition },
+                    canPlayRef.current,
+                    seekingRef.current,
+                );
+            }
         };
         const handlePageHide = () => flushProgress();
 
@@ -315,8 +501,32 @@ export const VideoPlayer = ({
         !!onNextEpisode && hasNextEpisode && duration > 0 && duration - currentTime <= NEXT_EPISODE_TRIGGER_SECONDS;
     const autoAdvanceCancelled = cancelledAutoAdvanceEpisode === episodeKey;
     const nextEpisodeCountdownActive = Boolean(
-        showNextEpisode && !autoAdvanceCancelled && !prefersReducedMotion && autoplayNext
+        showNextEpisode && !autoAdvanceCancelled && !prefersReducedMotion && autoplayNext && (!sync || sync.role === 'host')
     );
+
+    const requestSeekTo = useCallback((positionSeconds: number) => {
+        if (sync) sendPartyIntent({ kind: 'seek', positionSeconds });
+        else if (playerRef.current) playerRef.current.currentTime = positionSeconds;
+    }, [sendPartyIntent, sync]);
+
+    const requestSeekBy = useCallback((seconds: number) => {
+        const player = playerRef.current;
+        if (!player) return;
+        const positionSeconds = Math.min(
+            durationRef.current || Number.POSITIVE_INFINITY,
+            Math.max(0, player.currentTime + seconds),
+        );
+        requestSeekTo(positionSeconds);
+        showSeekFeedback(seconds);
+    }, [requestSeekTo, showSeekFeedback]);
+
+    const requestPartyEpisode = useCallback((episodeKey: string | undefined, fallback?: () => void) => {
+        if (sync) {
+            if (episodeKey) sendPartyIntent({ kind: 'episode-change', episodeKey });
+            return;
+        }
+        fallback?.();
+    }, [sendPartyIntent, sync]);
 
     const handleNextEpisodeRequest = useCallback(() => {
         if (nextEpisodeCountdownActive) {
@@ -324,14 +534,18 @@ export const VideoPlayer = ({
             return;
         }
 
-        onNextEpisode?.();
-    }, [episodeKey, nextEpisodeCountdownActive, onNextEpisode]);
+        flushProgress();
+        requestPartyEpisode(sync?.nextEpisodeKey, onNextEpisode);
+    }, [episodeKey, flushProgress, nextEpisodeCountdownActive, onNextEpisode, requestPartyEpisode, sync?.nextEpisodeKey]);
+
+    const handlePreviousEpisodeWithFlush = useCallback(() => {
+        flushProgress();
+        requestPartyEpisode(sync?.previousEpisodeKey, onPreviousEpisode);
+    }, [flushProgress, onPreviousEpisode, requestPartyEpisode, sync?.previousEpisodeKey]);
 
     const handleSkipIntro = useCallback(() => {
-        if (playerRef.current && introEndSeconds !== null) {
-            playerRef.current.currentTime = introEndSeconds;
-        }
-    }, [introEndSeconds]);
+        if (introEndSeconds !== null) requestSeekTo(introEndSeconds);
+    }, [introEndSeconds, requestSeekTo]);
 
     useEffect(() => {
         if (!showSkipIntro || mediaError) return;
@@ -369,32 +583,24 @@ export const VideoPlayer = ({
 
             if (interruptedCountdown) setCancelledAutoAdvanceEpisode(episodeKey);
 
-            const seek = (seconds: number) => {
-                player.currentTime = Math.min(
-                    durationRef.current || Number.POSITIVE_INFINITY,
-                    Math.max(0, player.currentTime + seconds),
-                );
-                showSeekFeedback(seconds);
-            };
-
             if (key === 's' && showSkipIntro) return;
 
             if (key === ' ' || key === 'k') {
                 event.preventDefault();
-                if (player.paused) void player.play().catch(() => undefined);
-                else void player.pause().catch(() => undefined);
+                if (syncRef.current && !syncRef.current.canControl) showPartyControlDenied();
+                else void requestPlaybackToggle(player, syncRef.current?.sendIntent).catch(() => undefined);
             } else if (key === 'arrowleft') {
                 event.preventDefault();
-                seek(-5);
+                requestSeekBy(-5);
             } else if (key === 'arrowright') {
                 event.preventDefault();
-                seek(5);
+                requestSeekBy(5);
             } else if (key === 'j') {
                 event.preventDefault();
-                seek(-10);
+                requestSeekBy(-10);
             } else if (key === 'l') {
                 event.preventDefault();
-                seek(10);
+                requestSeekBy(10);
             } else if (key === 'arrowup') {
                 event.preventDefault();
                 player.volume = Math.min(1, player.volume + 0.05);
@@ -414,22 +620,22 @@ export const VideoPlayer = ({
             } else if (key === 'n' && onNextEpisode) {
                 event.preventDefault();
                 if (interruptedCountdown) return;
-                onNextEpisode();
+                handleNextEpisodeRequest();
             } else if (key === 'p' && onPreviousEpisode) {
                 event.preventDefault();
-                onPreviousEpisode();
+                handlePreviousEpisodeWithFlush();
             } else if (/^[0-9]$/.test(key) && durationRef.current > 0) {
                 event.preventDefault();
-                player.currentTime = durationRef.current * Number(key) / 10;
+                requestSeekTo(durationRef.current * Number(key) / 10);
             } else if (key === 'escape' && !document.fullscreenElement && onBack) {
                 event.preventDefault();
-                onBack();
+                handleBackWithFlush();
             }
         };
 
         document.addEventListener('keydown', handleKeyboard);
         return () => document.removeEventListener('keydown', handleKeyboard);
-    }, [episodeKey, nextEpisodeCountdownActive, onBack, onNextEpisode, onPreviousEpisode, showSeekFeedback, showSkipIntro]);
+    }, [episodeKey, handleBackWithFlush, handleNextEpisodeRequest, handlePreviousEpisodeWithFlush, nextEpisodeCountdownActive, onBack, onNextEpisode, onPreviousEpisode, requestSeekBy, requestSeekTo, showPartyControlDenied, showSkipIntro]);
 
     useEffect(() => {
         if (!nextEpisodeCountdownActive) return;
@@ -450,8 +656,13 @@ export const VideoPlayer = ({
     }, [episodeKey, nextEpisodeCountdownActive]);
 
     useEffect(() => {
-        nextEpisodeRef.current = onNextEpisode;
-    }, [onNextEpisode]);
+        nextEpisodeRef.current = onNextEpisode
+            ? () => {
+                flushProgress();
+                requestPartyEpisode(sync?.nextEpisodeKey, onNextEpisode);
+            }
+            : undefined;
+    }, [flushProgress, onNextEpisode, requestPartyEpisode, sync?.nextEpisodeKey]);
 
     useEffect(() => {
         if (!nextEpisodeCountdownActive) return;
@@ -474,9 +685,7 @@ export const VideoPlayer = ({
         setMediaInstanceKey((value) => value + 1);
     };
 
-    const mediaSrc = activePlayback.kind === 'hls'
-        ? { src: activePlayback.src, type: 'application/vnd.apple.mpegurl' as const }
-        : { src: activePlayback.src, type: 'video/mp4' as const };
+    const mediaSrc = { src: activePlayback.src, type: 'application/vnd.apple.mpegurl' as const };
 
     return (
         <MotionConfig reducedMotion="user">
@@ -495,31 +704,57 @@ export const VideoPlayer = ({
                 fullscreenOrientation="landscape"
                 onEnded={handleEnded}
                 onCanPlay={handleCanPlay}
+                onPlaying={clearBufferingReport}
+                onWaiting={reportWaiting}
+                onStalled={reportWaiting}
                 onTimeUpdate={handleTimeUpdate}
                 onDurationChange={handleDurationChange}
                 onError={handleError}
                 onPause={flushProgress}
+                onSeeking={() => { seekingRef.current = true; }}
+                onSeeked={() => { seekingRef.current = false; }}
                 playsInline
             >
                 <MediaProvider>
                     {posterUrl && <Poster className="np-poster" src={posterUrl} alt={title} />}
                 </MediaProvider>
 
-                <Gesture className="np-gesture np-gesture-fine" event="pointerup" action="toggle:paused" />
+                {sync ? (
+                    <>
+                        <div className="np-gesture np-gesture-fine" onPointerUp={() => {
+                            const player = playerRef.current;
+                            if (!player) return;
+                            if (!sync.canControl) showPartyControlDenied();
+                            else void requestPlaybackToggle(player, sync.sendIntent);
+                        }} />
+                        <div className="np-gesture np-gesture-coarse np-gesture-center" onPointerUp={() => {
+                            const player = playerRef.current;
+                            if (!player) return;
+                            if (!sync.canControl) showPartyControlDenied();
+                            else void requestPlaybackToggle(player, sync.sendIntent);
+                        }} />
+                        <div className="np-gesture np-gesture-coarse np-gesture-left" onDoubleClick={() => requestSeekBy(-10)} />
+                        <div className="np-gesture np-gesture-coarse np-gesture-right" onDoubleClick={() => requestSeekBy(10)} />
+                    </>
+                ) : (
+                    <>
+                        <Gesture className="np-gesture np-gesture-fine" event="pointerup" action="toggle:paused" />
+                        <Gesture className="np-gesture np-gesture-coarse np-gesture-center" event="pointerup" action="toggle:paused" />
+                        <Gesture
+                            className="np-gesture np-gesture-coarse np-gesture-left"
+                            event="dblpointerup"
+                            action="seek:-10"
+                            onTrigger={() => showSeekFeedback(-10)}
+                        />
+                        <Gesture
+                            className="np-gesture np-gesture-coarse np-gesture-right"
+                            event="dblpointerup"
+                            action="seek:10"
+                            onTrigger={() => showSeekFeedback(10)}
+                        />
+                    </>
+                )}
                 <Gesture className="np-gesture np-gesture-fine" event="dblpointerup" action="toggle:fullscreen" />
-                <Gesture className="np-gesture np-gesture-coarse np-gesture-center" event="pointerup" action="toggle:paused" />
-                <Gesture
-                    className="np-gesture np-gesture-coarse np-gesture-left"
-                    event="dblpointerup"
-                    action="seek:-10"
-                    onTrigger={() => showSeekFeedback(-10)}
-                />
-                <Gesture
-                    className="np-gesture np-gesture-coarse np-gesture-right"
-                    event="dblpointerup"
-                    action="seek:10"
-                    onTrigger={() => showSeekFeedback(10)}
-                />
 
                 <BufferingIndicator />
                 <OverlaidPlayButton
@@ -528,20 +763,77 @@ export const VideoPlayer = ({
                     episodeNumber={episodeNumber}
                     episodeTitle={subtitle}
                     synopsis={episodeSynopsis}
+                    onPlay={sync ? () => {
+                        const player = playerRef.current;
+                        if (!player) return;
+                        if (!sync.canControl) showPartyControlDenied();
+                        else void requestPlaybackToggle(player, sync.sendIntent);
+                    } : undefined}
                 />
+                {sync && (
+                    <PartyPlaybackGate
+                        visible={sync.waitingForGesture}
+                        onJoin={() => {
+                            void resumePartyPlaybackAfterGesture(playerRef.current, sync.expectedPosition)
+                                .then((joined) => sync.onWaitingForGestureChange(!joined));
+                        }}
+                    />
+                )}
+                {partyNotice && (
+                    <div role="status" aria-live="polite" className="absolute bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full bg-black/80 px-4 py-2 text-sm text-white">
+                        {partyNotice}
+                    </div>
+                )}
                 <SeekFeedback feedback={seekFeedback} />
                 <VolumeHud />
+
+                {sync && (
+                    <>
+                        <PartyBufferingNotice wait={sync.bufferingWait} participants={sync.participants} />
+                        <PartyParticipants
+                            participants={sync.participants}
+                            viewerProfileId={sync.viewerProfileId}
+                            viewerRole={sync.role}
+                            onTransferHost={(profileId) => { void sync.transferHost(profileId); }}
+                            controlMode={sync.controlMode}
+                            onControlModeChange={(controlMode) => { void sync.changeControlMode(controlMode); }}
+                            lastAction={sync.lastAction}
+                            syncQuality={sync.syncQuality}
+                        />
+                    </>
+                )}
+
+                {sync && (
+                    <PartyChatPanel
+                        messages={sync.chatMessages}
+                        participants={sync.participants}
+                        viewerProfileId={sync.viewerProfileId}
+                        unreadCount={sync.unreadChatCount}
+                        onSend={sync.sendChatMessage}
+                        onOpenChange={sync.onChatOpenChange}
+                    />
+                )}
 
                 <PlayerControls
                     heading={title}
                     kicker={kicker}
                     subheading={subtitle}
                     episodeNumber={episodeNumber}
-                    onBack={onBack}
+                    onBack={onBack ? handleBackWithFlush : undefined}
                     onNextEpisode={onNextEpisode ? handleNextEpisodeRequest : undefined}
-                    onPreviousEpisode={onPreviousEpisode}
+                    onPreviousEpisode={onPreviousEpisode ? handlePreviousEpisodeWithFlush : undefined}
                     onSeekFeedback={showSeekFeedback}
                     chapters={chapters}
+                    partyControl={sync ? {
+                        canControl: sync.canControl,
+                        onToggle: () => {
+                            const player = playerRef.current;
+                            if (player) void requestPlaybackToggle(player, sync.sendIntent);
+                        },
+                        onSeekBy: requestSeekBy,
+                        onSeekTo: requestSeekTo,
+                        onControlDenied: showPartyControlDenied,
+                    } : undefined}
                 />
 
                 <SkipIntroPill
@@ -559,7 +851,7 @@ export const VideoPlayer = ({
                         episodesLeft={episodesLeft}
                         nextEpisodeTitle={nextEpisodeTitle}
                         onCancelCountdown={() => setCancelledAutoAdvanceEpisode(episodeKey)}
-                        onNextEpisode={onNextEpisode}
+                        onNextEpisode={handleNextEpisodeRequest}
                     />
                 )}
 
@@ -582,7 +874,7 @@ export const VideoPlayer = ({
                                 </button>
                                 {onBack && (
                                     <button type="button" onClick={onBack} className="np-error-secondary">
-                                        Wróć do serialu
+                                        Wróć do strony głównej
                                     </button>
                                 )}
                             </div>
