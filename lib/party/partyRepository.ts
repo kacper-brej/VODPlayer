@@ -52,6 +52,10 @@ interface MessageRow extends RowDataPacket {
     id: DbInteger;
     profile_id: DbInteger;
     body: string;
+    attachment_url: string | null;
+    attachment_kind: "image" | "gif" | null;
+    author_name: string;
+    author_avatar: string | null;
     created_at_ms: DbInteger;
 }
 
@@ -134,16 +138,20 @@ export const createParty = async (
         hostProfileId: number;
         seriesKey: string;
         episodeKey: string;
+        positionSeconds?: number;
         ttlSeconds?: number;
     },
     db: Executor = getDbPool(),
 ): Promise<number> => {
     const ttl = safeSeconds(input.ttlSeconds ?? PARTY_TTL_SECONDS, "ttlSeconds");
+    const position = Number.isFinite(input.positionSeconds) && (input.positionSeconds ?? 0) > 0
+        ? Math.min(input.positionSeconds as number, 86_400)
+        : 0;
     try {
         const [result] = await db.execute<ResultSetHeader>(
-            `INSERT INTO watch_parties (room_code, host_profile_id, series_key, episode_key, expires_at)
-             VALUES (?, ?, ?, ?, DATE_ADD(CURRENT_TIMESTAMP(3), INTERVAL ${ttl} SECOND))`,
-            [input.roomCode, input.hostProfileId, input.seriesKey, input.episodeKey],
+            `INSERT INTO watch_parties (room_code, host_profile_id, series_key, episode_key, position_seconds, expires_at)
+             VALUES (?, ?, ?, ?, ?, DATE_ADD(CURRENT_TIMESTAMP(3), INTERVAL ${ttl} SECOND))`,
+            [input.roomCode, input.hostProfileId, input.seriesKey, input.episodeKey, position],
         );
         return result.insertId;
     } catch (error) {
@@ -575,16 +583,35 @@ export const findMemberRole = async (
     }
 };
 
+const MESSAGE_COLUMNS = `m.id, m.profile_id, m.body, m.attachment_url, m.attachment_kind,
+             pr.name AS author_name, pr.avatar AS author_avatar,
+             ROUND(UNIX_TIMESTAMP(m.created_at) * 1000) AS created_at_ms`;
+
+const MESSAGE_SOURCE = `watch_party_messages m INNER JOIN profiles pr ON pr.id = m.profile_id`;
+
+const mapMessage = (row: MessageRow): WatchPartyMessage => ({
+    id: parseSafeDbInteger(row.id, "watch_party_messages.id"),
+    profileId: parseSafeDbInteger(row.profile_id, "watch_party_messages.profile_id"),
+    body: row.body,
+    authorName: row.author_name,
+    authorAvatar: row.author_avatar,
+    attachmentUrl: row.attachment_url,
+    attachmentKind: row.attachment_kind,
+    createdAtMs: parseSafeDbInteger(row.created_at_ms, "watch_party_messages.created_at"),
+});
+
 export const insertMessage = async (
     partyId: number,
     profileId: number,
     body: string,
+    attachment: { url: string; kind: "image" | "gif" } | null = null,
     db: Executor = getDbPool(),
 ): Promise<number> => {
     try {
         const [result] = await db.execute<ResultSetHeader>(
-            "INSERT INTO watch_party_messages (party_id, profile_id, body) VALUES (?, ?, ?)",
-            [partyId, profileId, body],
+            `INSERT INTO watch_party_messages (party_id, profile_id, body, attachment_url, attachment_kind)
+             VALUES (?, ?, ?, ?, ?)`,
+            [partyId, profileId, body, attachment?.url ?? null, attachment?.kind ?? null],
         );
         return result.insertId;
     } catch (error) {
@@ -598,17 +625,12 @@ export const findMessageById = async (
 ): Promise<WatchPartyMessage | null> => {
     try {
         const [rows] = await db.execute<MessageRow[]>(
-            `SELECT id, profile_id, body, ROUND(UNIX_TIMESTAMP(created_at) * 1000) AS created_at_ms
-             FROM watch_party_messages WHERE id = ? LIMIT 1`,
+            `SELECT ${MESSAGE_COLUMNS}
+             FROM ${MESSAGE_SOURCE} WHERE m.id = ? LIMIT 1`,
             [messageId],
         );
         const row = rows[0];
-        return row === undefined ? null : {
-            id: parseSafeDbInteger(row.id, "watch_party_messages.id"),
-            profileId: parseSafeDbInteger(row.profile_id, "watch_party_messages.profile_id"),
-            body: row.body,
-            createdAtMs: parseSafeDbInteger(row.created_at_ms, "watch_party_messages.created_at"),
-        };
+        return row === undefined ? null : mapMessage(row);
     } catch (error) {
         throw mapDatabaseError(error);
     }
@@ -624,21 +646,14 @@ export const listRecentMessages = async (
     }
     try {
         const [rows] = await db.execute<MessageRow[]>(
-            `SELECT id, profile_id, body, ROUND(UNIX_TIMESTAMP(created_at) * 1000) AS created_at_ms
-             FROM watch_party_messages
-             WHERE party_id = ?
-             ORDER BY id DESC
+            `SELECT ${MESSAGE_COLUMNS}
+             FROM ${MESSAGE_SOURCE}
+             WHERE m.party_id = ?
+             ORDER BY m.id DESC
              LIMIT ${limit}`,
             [partyId],
         );
-        return rows
-            .map((row) => ({
-                id: parseSafeDbInteger(row.id, "watch_party_messages.id"),
-                profileId: parseSafeDbInteger(row.profile_id, "watch_party_messages.profile_id"),
-                body: row.body,
-                createdAtMs: parseSafeDbInteger(row.created_at_ms, "watch_party_messages.created_at"),
-            }))
-            .reverse();
+        return rows.map(mapMessage).reverse();
     } catch (error) {
         throw mapDatabaseError(error);
     }

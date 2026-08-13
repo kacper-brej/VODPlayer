@@ -369,6 +369,10 @@ export interface WatchPartyMessage {
     profileId: number;
     body: string;
     createdAtMs: number;
+    authorName?: string;
+    authorAvatar?: string | null;
+    attachmentUrl?: string | null;
+    attachmentKind?: "image" | "gif" | null;
 }
 
 export type WatchPartyCommand =

@@ -21,7 +21,7 @@ export const POST = async (request: Request, context: { params: Promise<{ code: 
     if (code === null || payload === null) return partyFailureResponse("invalid");
 
     try {
-        const result = await postPartyMessage(gate.user, code, payload.body);
+        const result = await postPartyMessage(gate.user, code, payload.body, payload.attachment ?? null);
         if (!result.ok) return partyFailureResponse(result.code);
         return noStoreJson({ event: result.event });
     } catch {

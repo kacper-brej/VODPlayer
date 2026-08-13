@@ -9,11 +9,20 @@ export interface TogglePlaybackPort {
 export const requestPlaybackToggle = async (
     player: TogglePlaybackPort,
     sendIntent?: (command: WatchPartyCommand) => Promise<unknown>,
+    onIntentRejected?: () => void,
 ): Promise<void> => {
-    if (sendIntent) {
-        await sendIntent({ kind: player.paused ? "play" : "pause" });
+    const shouldPlay = player.paused;
+
+    if (!sendIntent) {
+        if (shouldPlay) await player.play();
+        else await player.pause();
         return;
     }
-    if (player.paused) await player.play();
-    else await player.pause();
+
+    const [, accepted] = await Promise.all([
+        shouldPlay ? player.play().catch(() => undefined) : player.pause().catch(() => undefined),
+        sendIntent({ kind: shouldPlay ? "play" : "pause" }),
+    ]);
+
+    if (accepted === null || accepted === undefined || accepted === false) onIntentRejected?.();
 };

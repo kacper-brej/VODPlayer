@@ -3,16 +3,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { PlayButton, useMediaState } from '@vidstack/react';
-import { Crown, Play, RotateCcw, RotateCw, SkipForward, StepForward, Volume1, Volume2, VolumeX } from 'lucide-react';
+import { Copy, Play, RotateCcw, RotateCw, SkipForward, StepForward, Volume1, Volume2, VolumeX } from 'lucide-react';
 import type {
     WatchPartyBufferingWait,
-    WatchPartyControlMode,
-    WatchPartyLastAction,
     WatchPartyMember,
-    WatchPartyRole,
 } from '@/lib/core/contracts';
-import type { PartySyncQuality } from '@/lib/party/usePartySync';
+import { groupPartyFeed, type PartyFeedEntry } from '@/lib/party/partyFeed';
 import { ProfileAvatarTile } from '@/components/profiles/ProfileAvatarTile';
+import { PartyFloatMessage, PartyTypingBubble } from './PartyMessageBubble';
 
 const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
@@ -78,7 +76,7 @@ export const OverlaidPlayButton = ({
                         </motion.div>
                     )}
                     {onPlay ? (
-                        <button type="button" className="np-overlaid-play" aria-label="Odtwórz wspólnie" onClick={onPlay}>
+                        <button type="button" className="np-overlaid-play" aria-label="Odtwórz dla całego pokoju" onClick={onPlay}>
                             <Play />
                         </button>
                     ) : (
@@ -236,113 +234,192 @@ export const PartyPlaybackGate = ({ visible, onJoin }: PartyPlaybackGateProps) =
     </AnimatePresence>
 );
 
-const MAX_VISIBLE_PARTICIPANTS = 4;
+const OVERLAY_MESSAGE_TTL_MS = 7000;
+const OVERLAY_MESSAGE_LIMIT = 4;
 
-interface PartyParticipantsProps {
+interface PartyChatOverlayProps {
+    enabled: boolean;
+    roomCode: string;
+    feed: PartyFeedEntry[];
     participants: WatchPartyMember[];
-    viewerProfileId?: number;
-    viewerRole?: WatchPartyRole;
-    onTransferHost?: (profileId: number) => void;
-    controlMode?: WatchPartyControlMode;
-    onControlModeChange?: (controlMode: WatchPartyControlMode) => void;
-    lastAction?: WatchPartyLastAction | null;
-    syncQuality?: PartySyncQuality;
+    viewerProfileId: number;
+    typingProfileIds: number[];
 }
 
-export const PartyParticipants = ({
+export const PartyChatOverlay = ({
+    enabled,
+    roomCode,
+    feed,
     participants,
     viewerProfileId,
-    viewerRole,
-    onTransferHost,
-    controlMode,
-    onControlModeChange,
-    lastAction,
-    syncQuality,
-}: PartyParticipantsProps) => {
-    if (participants.length === 0) return null;
+    typingProfileIds,
+}: PartyChatOverlayProps) => {
+    const [visibleIds, setVisibleIds] = useState<string[]>([]);
+    const seenRef = useRef<Set<string>>(new Set());
+    const primedRef = useRef(false);
+    const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-    const visible = participants.slice(0, MAX_VISIBLE_PARTICIPANTS);
-    const overflow = participants.length - visible.length;
-    const newestHeartbeat = Math.max(...participants.map((participant) => participant.lastSeenAtMs));
-    const actor = lastAction ? participants.find((participant) => participant.profileId === lastAction.profileId) : null;
-    const actionLabel = lastAction?.kind === 'pause' ? 'wstrzymał(a)'
-        : lastAction?.kind === 'play' ? 'wznowił(a)'
-            : lastAction?.kind === 'seek' ? 'przewinął/przewinęła'
-                : lastAction?.kind === 'episode-change' ? 'zmienił(a) odcinek'
-                    : lastAction?.kind === 'control-mode' ? 'zmienił(a) tryb sterowania'
-                        : null;
+    useEffect(() => () => timeoutsRef.current.forEach((timeout) => clearTimeout(timeout)), []);
+
+    useEffect(() => {
+        const fresh = feed.filter((entry) => !seenRef.current.has(entry.id));
+        fresh.forEach((entry) => seenRef.current.add(entry.id));
+
+        if (!primedRef.current) {
+            primedRef.current = true;
+            return;
+        }
+        if (!enabled || fresh.length === 0) return;
+
+        setVisibleIds((previous) => [...previous, ...fresh.map((entry) => entry.id)].slice(-OVERLAY_MESSAGE_LIMIT));
+        fresh.forEach((entry) => {
+            timeoutsRef.current.push(setTimeout(() => {
+                setVisibleIds((previous) => previous.filter((id) => id !== entry.id));
+            }, OVERLAY_MESSAGE_TTL_MS));
+        });
+    }, [enabled, feed]);
+
+    const visibleGroups = enabled
+        ? groupPartyFeed(feed.filter((entry) => visibleIds.includes(entry.id)), viewerProfileId)
+        : [];
+    const typingAuthors = enabled
+        ? typingProfileIds
+            .filter((profileId) => profileId !== viewerProfileId)
+            .map((profileId) => participants.find((member) => member.profileId === profileId) ?? null)
+        : [];
 
     return (
-        <div className="np-party-participants" role="group" aria-label={`Uczestnicy pokoju: ${participants.length}`}>
-            {visible.map((participant) => {
-                const canReceiveHost = viewerRole === 'host'
-                    && participant.profileId !== viewerProfileId
-                    && participant.role !== 'host'
-                    && onTransferHost !== undefined;
-                const outOfSync = newestHeartbeat - participant.lastSeenAtMs > 30_000;
-                const participantTitle = participant.isBuffering
-                    ? `${participant.name} — buforuje`
-                    : outOfSync
-                        ? `${participant.name} — poza synchronizacją`
-                        : participant.role === 'host' ? `${participant.name} (host)` : participant.name;
-                const content = (
-                    <>
-                        <ProfileAvatarTile
-                            avatar={participant.avatar}
-                            name={participant.name}
-                            className="np-party-participant-avatar"
-                        />
-                        {participant.role === 'host' && (
-                            <Crown className="np-party-participant-host-badge" aria-hidden="true" />
-                        )}
-                    </>
-                );
-                return canReceiveHost ? (
-                    <button
-                        type="button"
-                        key={participant.profileId}
-                        className="np-party-participant"
-                        title={`${participantTitle}. Przekaż rolę hosta`}
-                        aria-label={`Przekaż rolę hosta uczestnikowi ${participant.name}`}
-                        onClick={() => onTransferHost(participant.profileId)}
+        <div className="np-party-overlay-feed" aria-live="polite">
+            <AnimatePresence initial={false}>
+                {visibleGroups.map((group) => (
+                    <motion.div
+                        key={group.id}
+                        layout
+                        initial={{ opacity: 0, y: 12, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                        transition={{ duration: 0.26, ease: EASE_OUT }}
                     >
-                        {content}
-                    </button>
-                ) : (
-                    <span
-                    key={participant.profileId}
-                    className="np-party-participant"
-                    title={participantTitle}
-                    data-buffering={participant.isBuffering || undefined}
-                    data-out-of-sync={outOfSync || undefined}
-                >
-                    {content}
-                </span>
-                );
-            })}
-            {overflow > 0 && <span className="np-party-participant-overflow">+{overflow}</span>}
-            {syncQuality && (
-                <span className="rounded-full bg-black/70 px-2 py-1 text-[10px] text-white" role="status">
-                    {syncQuality === 'synchronized' ? 'Synchronizacja: dobra'
-                        : syncQuality === 'correcting' ? 'Synchronizacja: korekta'
-                            : 'Synchronizacja: poza zakresem'}
-                </span>
-            )}
-            {actor && actionLabel && (
-                <span className="rounded-full bg-black/70 px-2 py-1 text-[10px] text-white" aria-live="polite">
-                    {actor.name} {actionLabel}
-                </span>
-            )}
-            {viewerRole === 'host' && controlMode && onControlModeChange && (
-                <button
-                    type="button"
-                    className="rounded-full bg-black/70 px-2 py-1 text-[10px] text-white"
-                    onClick={() => onControlModeChange(controlMode === 'host' ? 'everyone' : 'host')}
-                >
-                    Sterowanie: {controlMode === 'host' ? 'host' : 'wszyscy'}
-                </button>
-            )}
+                        {group.kind === 'notice' ? (
+                            <p className="np-party-float-notice">{group.text}</p>
+                        ) : (
+                            <PartyFloatMessage
+                                roomCode={roomCode}
+                                group={group}
+                                avatar={participants.find((member) => member.profileId === group.profileId)?.avatar ?? null}
+                            />
+                        )}
+                    </motion.div>
+                ))}
+                {typingAuthors.map((author, index) => (
+                    <motion.div
+                        key={`typing-${author?.profileId ?? index}`}
+                        layout
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{ duration: 0.2, ease: EASE_OUT }}
+                    >
+                        <PartyTypingBubble name={author?.name ?? 'Widz'} avatar={author?.avatar ?? null} />
+                    </motion.div>
+                ))}
+            </AnimatePresence>
         </div>
+    );
+};
+
+interface PartyLobbyOverlayProps {
+    visible: boolean;
+    roomCode: string;
+    participants: WatchPartyMember[];
+    isHost: boolean;
+    starting: boolean;
+    onStart: () => void;
+}
+
+export const PartyLobbyOverlay = ({
+    visible,
+    roomCode,
+    participants,
+    isHost,
+    starting,
+    onStart,
+}: PartyLobbyOverlayProps) => {
+    const [copied, setCopied] = useState(false);
+
+    const copyInvite = async () => {
+        try {
+            await navigator.clipboard.writeText(window.location.href);
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 2000);
+        } catch {
+            setCopied(false);
+        }
+    };
+
+    return (
+        <AnimatePresence>
+            {visible && (
+                <motion.div
+                    className="np-party-lobby"
+                    role="dialog"
+                    aria-label="Poczekalnia Watch Party"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.24, ease: EASE_OUT }}
+                >
+                    <div className="np-party-lobby-panel">
+                        <p className="np-party-lobby-kicker">Watch Party · poczekalnia</p>
+                        <h2>{isHost ? 'Włącz, kiedy będą już wszyscy' : 'Czekamy na hosta'}</h2>
+                        <p className="np-party-lobby-copy">
+                            {isHost
+                                ? 'Odcinek włączasz Ty. U każdego w pokoju ruszy w tej samej sekundzie.'
+                                : 'Host włączy odcinek, kiedy uzna, że są już wszyscy. U Ciebie ruszy sam.'}
+                        </p>
+
+                        <button type="button" className="np-party-lobby-code" onClick={() => void copyInvite()}>
+                            <span>{roomCode.toUpperCase()}</span>
+                            <Copy />
+                            <small>{copied ? 'Skopiowano link' : 'Kopiuj link'}</small>
+                        </button>
+
+                        <ul className="np-party-lobby-members">
+                            {participants.map((participant) => (
+                                <li key={participant.profileId}>
+                                    <ProfileAvatarTile
+                                        avatar={participant.avatar}
+                                        name={participant.name}
+                                        className="np-party-lobby-avatar"
+                                    />
+                                    <strong>{participant.name}</strong>
+                                    <span>{participant.role === 'host' ? 'Host' : 'W pokoju'}</span>
+                                </li>
+                            ))}
+                        </ul>
+
+                        <p className="np-party-lobby-count">W pokoju: {participants.length}</p>
+
+                        {isHost ? (
+                            <button
+                                type="button"
+                                className="np-party-lobby-start"
+                                onClick={onStart}
+                                disabled={starting}
+                            >
+                                <Play />
+                                {starting ? 'Włączam…' : 'Włącz odcinek'}
+                            </button>
+                        ) : (
+                            <p className="np-party-lobby-waiting">
+                                <span className="np-player-loading-ring" />
+                                Odcinek ruszy sam, kiedy host go włączy
+                            </p>
+                        )}
+                    </div>
+                </motion.div>
+            )}
+        </AnimatePresence>
     );
 };
 

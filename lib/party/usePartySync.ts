@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { WatchPartyCommand, WatchPartyRoomState, WatchPartyState } from "@/lib/core/contracts";
 import { estimateClockOffset, type ClockSample } from "@/lib/party/clockSync";
 import { decideDriftCorrection, type DriftCorrectionDecision } from "@/lib/party/driftCorrection";
+import { governDriftCorrection, initialDriftGovernorState } from "@/lib/party/driftGovernor";
 import {
     applyPartyEventToRoom,
     initialPartyEventCursor,
@@ -28,6 +29,7 @@ export interface PartyPlaybackSnapshot {
     positionSeconds: number;
     state: WatchPartyState;
     playbackRate: number;
+    buffering?: boolean;
 }
 
 export interface UsePartySyncOptions {
@@ -81,6 +83,8 @@ export const usePartySync = (code: string, options: UsePartySyncOptions = {}) =>
     const readPlaybackRef = useRef(options.readPlayback);
     const onCorrectionRef = useRef(options.onCorrection);
     const pendingCommandRef = useRef(false);
+    const governorRef = useRef(initialDriftGovernorState());
+    const syncQualityRef = useRef<PartySyncQuality>("out-of-sync");
     const telemetryRef = useRef({
         sessionId: "",
         joinedAtMs: 0,
@@ -172,15 +176,29 @@ export const usePartySync = (code: string, options: UsePartySyncOptions = {}) =>
         if (bucket === 0 && telemetry.timeToSyncMs === null && telemetry.joinedAtMs > 0) {
             telemetry.timeToSyncMs = Date.now() - telemetry.joinedAtMs;
         }
-        setSyncQuality(absoluteDrift < 0.25 ? "synchronized" : absoluteDrift <= 2 ? "correcting" : "out-of-sync");
-        const decision = decideDriftCorrection({
-            expectedPositionSeconds: expected,
-            actualPositionSeconds: playback.positionSeconds,
-            playbackState: roomRef.current?.anchor.state ?? playback.state,
-            currentPlaybackRate: playback.playbackRate,
+        const aloneInRoom = (roomRef.current?.participants.length ?? 0) < 2;
+        const nextQuality: PartySyncQuality = aloneInRoom || absoluteDrift < 0.25
+            ? "synchronized"
+            : absoluteDrift <= 2 ? "correcting" : "out-of-sync";
+        if (nextQuality !== syncQualityRef.current) {
+            syncQualityRef.current = nextQuality;
+            setSyncQuality(nextQuality);
+        }
+        const governed = governDriftCorrection({
+            decision: decideDriftCorrection({
+                expectedPositionSeconds: expected,
+                actualPositionSeconds: playback.positionSeconds,
+                playbackState: roomRef.current?.anchor.state ?? playback.state,
+                currentPlaybackRate: playback.playbackRate,
+            }),
+            state: governorRef.current,
+            nowMs: Date.now(),
+            playerBusy: playback.buffering === true,
+            aloneInRoom,
         });
-        if (decision.kind === "seek") telemetry.hardSeeks += 1;
-        return decision;
+        governorRef.current = governed.state;
+        if (governed.decision.kind === "seek") telemetry.hardSeeks += 1;
+        return governed.decision;
     }, [expectedPosition]);
 
     const sendIntent = useCallback(async (command: WatchPartyCommand): Promise<PartyControlEvent | null> => {
@@ -248,8 +266,18 @@ export const usePartySync = (code: string, options: UsePartySyncOptions = {}) =>
         }
     }, [applyEvent, code, resync, soloMode]);
 
-    const reportBuffering = useCallback((buffering: boolean): Promise<boolean> =>
-        postCoordination("buffering", { buffering }), [postCoordination]);
+    const reportBuffering = useCallback((buffering: boolean): Promise<boolean> => {
+        if ((roomRef.current?.participants.length ?? 0) < 2) return Promise.resolve(false);
+        return postCoordination("buffering", { buffering });
+    }, [postCoordination]);
+
+    const sendTyping = useCallback(async (): Promise<void> => {
+        if (soloMode || roomRef.current === null || roomRef.current.participants.length < 2) return;
+        try {
+            await fetch(`/api/party/${encodeURIComponent(code)}/typing`, { method: "POST" });
+        } catch {
+        }
+    }, [code, soloMode]);
 
     const transferHost = useCallback((targetProfileId: number): Promise<boolean> =>
         postCoordination("host", { targetProfileId }), [postCoordination]);
@@ -466,6 +494,7 @@ export const usePartySync = (code: string, options: UsePartySyncOptions = {}) =>
         correctionFor,
         retryConnection,
         continueAlone,
+        sendTyping,
         soloMode,
         syncQuality,
     };

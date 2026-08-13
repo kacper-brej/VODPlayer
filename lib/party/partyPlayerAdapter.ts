@@ -9,14 +9,25 @@ export interface PartyPlayerPort {
     pause: () => Promise<void>;
 }
 
+export interface PartyPlaybackReading {
+    positionSeconds: number;
+    state: WatchPartyState;
+    playbackRate: number;
+    buffering: boolean;
+}
+
 export interface PartyPlaybackAdapter {
-    read: () => {
-        positionSeconds: number;
-        state: WatchPartyState;
-        playbackRate: number;
-    } | null;
+    read: () => PartyPlaybackReading | null;
     correct: (decision: DriftCorrectionDecision) => boolean;
 }
+
+export const PARTY_ANCHOR_SEEK_TOLERANCE_SECONDS = 0.5;
+
+const alignPartyPosition = (player: PartyPlayerPort, position: number | null) => {
+    if (position === null || !Number.isFinite(position)) return;
+    if (Math.abs(player.currentTime - position) < PARTY_ANCHOR_SEEK_TOLERANCE_SECONDS) return;
+    player.currentTime = position;
+};
 
 export const applyPartyCorrection = (
     player: PartyPlayerPort | null,
@@ -37,12 +48,13 @@ export const applyPartyAnchor = async (
 ): Promise<"applied" | "gesture-required" | "unavailable"> => {
     if (player === null) return "unavailable";
     const position = expectedPosition();
-    if (position !== null) player.currentTime = position;
-    player.playbackRate = 1;
+    alignPartyPosition(player, position);
+    if (player.playbackRate !== 1) player.playbackRate = 1;
     if (state === "paused") {
-        await player.pause().catch(() => undefined);
+        if (!player.paused) await player.pause().catch(() => undefined);
         return "applied";
     }
+    if (!player.paused) return "applied";
     try {
         await player.play();
         return "applied";
@@ -57,7 +69,7 @@ export const resumePartyPlaybackAfterGesture = async (
 ): Promise<boolean> => {
     if (player === null) return false;
     const position = expectedPosition();
-    if (position !== null) player.currentTime = position;
+    alignPartyPosition(player, position);
     try {
         await player.play();
         return true;
