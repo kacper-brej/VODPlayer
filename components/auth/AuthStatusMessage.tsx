@@ -7,10 +7,15 @@ type AuthStatusMessageProps = {
 
 export function AuthStatusMessage({ status, message }: AuthStatusMessageProps) {
     return (
-        <div className="min-h-12" aria-live={status === "error" ? "assertive" : "polite"}>
+        <div aria-live={status === "error" ? "assertive" : "polite"} className={status && message ? "mt-2.5" : undefined}>
             {status && message && (
-                <div role={status === "error" ? "alert" : "status"} className={`flex gap-3 rounded-xl border bg-nx-raised px-3 py-3 text-[13px] leading-5 ${status === "error" ? "border-nx-critical/45 text-nx-critical" : "border-nx-border text-nx-text-2"}`}>
-                    {status === "error" ? <CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" /> : <CircleCheck aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-nx-accent" />}
+                <div
+                    role={status === "error" ? "alert" : "status"}
+                    className={`flex gap-2.5 rounded-xl border px-3 py-2.5 text-[12.5px] leading-[1.5] ${status === "error" ? "border-nx-critical/35 bg-nx-critical/10 text-nx-critical-soft" : "border-nx-border bg-nx-raised text-nx-text-2"}`}
+                >
+                    {status === "error"
+                        ? <CircleAlert aria-hidden="true" className="mt-px size-[15px] shrink-0" />
+                        : <CircleCheck aria-hidden="true" className="mt-px size-[15px] shrink-0 text-nx-accent" />}
                     <span>{message}</span>
                 </div>
             )}

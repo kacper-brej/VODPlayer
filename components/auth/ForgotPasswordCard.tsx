@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { ArrowLeft, Send } from "lucide-react";
-import { AuthCardShell, authInputClass, authLinkClass, authPrimaryButtonClass } from "@/components/auth/AuthCardShell";
+import { AuthCardShell, authInputClass, authLabelClass, authLinkClass, authPrimaryButtonClass } from "@/components/auth/AuthCardShell";
 import { AuthStatusMessage } from "@/components/auth/AuthStatusMessage";
 import { forgotPasswordAction, type AuthActionResult } from "@/lib/auth/authActions";
 
@@ -26,17 +26,17 @@ export function ForgotPasswordCard() {
 
     return (
         <AuthCardShell title="Reset hasła" description="Podaj adres email przypisany do konta. Link będzie ważny przez godzinę.">
-            <form action={submit} className="space-y-4">
+            <form action={submit}>
                 <div>
-                    <label htmlFor="forgot-email" className="mb-2 block text-sm font-medium text-nx-text">Adres email</label>
+                    <label htmlFor="forgot-email" className={authLabelClass}>Adres email</label>
                     <input id="forgot-email" name="email" type="email" autoComplete="email" required autoFocus className={authInputClass} />
                 </div>
                 <AuthStatusMessage status={result ? result.ok ? "success" : "error" : null} message={result?.message ?? ""} />
-                <button type="submit" disabled={pending} className={authPrimaryButtonClass}>
+                <button type="submit" disabled={pending} className={`${authPrimaryButtonClass} mt-[26px]`}>
                     <Send className="size-4" />
                     {pending ? "Wysyłanie…" : "Wyślij link"}
                 </button>
-                <div className="text-center">
+                <div className="mt-2 text-center">
                     <Link href="/login" className={authLinkClass}><ArrowLeft className="mr-2 size-4" />Wróć do logowania</Link>
                 </div>
             </form>

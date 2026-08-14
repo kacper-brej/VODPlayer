@@ -31,20 +31,22 @@ export function ResetPasswordCard() {
     return (
         <AuthCardShell title="Nowe hasło" description="Ustaw nowe hasło do swojego konta.">
             {result?.ok ? (
-                <div className="space-y-5">
+                <div>
                     <AuthStatusMessage status="success" message={result.message} />
-                    <Link href="/login" className={authPrimaryButtonClass}>Zaloguj się</Link>
+                    <Link href="/login" className={`${authPrimaryButtonClass} mt-[26px]`}>Zaloguj się</Link>
                 </div>
             ) : (
-                <form action={submit} className="space-y-4">
+                <form action={submit}>
                     <PasswordField id="reset-password" name="password" label="Nowe hasło" autoComplete="new-password" minLength={8} />
-                    <PasswordField id="reset-confirm-password" name="confirmPassword" label="Powtórz nowe hasło" autoComplete="new-password" minLength={8} />
+                    <div className="mt-3">
+                        <PasswordField id="reset-confirm-password" name="confirmPassword" label="Powtórz nowe hasło" autoComplete="new-password" minLength={8} />
+                    </div>
                     <AuthStatusMessage status={result || !token ? "error" : null} message={result?.message ?? (!token ? "Brakuje linku do zmiany hasła lub link jest nieprawidłowy." : "")} />
-                    <button type="submit" disabled={pending || !token} className={authPrimaryButtonClass}>
+                    <button type="submit" disabled={pending || !token} className={`${authPrimaryButtonClass} mt-[26px]`}>
                         <KeyRound className="size-4" />
                         {pending ? "Zapisywanie…" : "Zmień hasło"}
                     </button>
-                    <div className="text-center"><Link href="/login" className={authLinkClass}>Wróć do logowania</Link></div>
+                    <div className="mt-2 text-center"><Link href="/login" className={authLinkClass}>Wróć do logowania</Link></div>
                 </form>
             )}
         </AuthCardShell>

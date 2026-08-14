@@ -3,19 +3,22 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
-import { ArrowLeft, CircleCheck, RefreshCw } from "lucide-react";
+import { CircleCheck, RefreshCw } from "lucide-react";
 import { authSecondaryButtonClass } from "@/components/auth/AuthCardShell";
 import { checkQrSessionAction, createQrSessionAction } from "@/lib/auth/authActions";
 import { useAuth } from "@/lib/auth/AuthContext";
 
 type QrStatus = "loading" | "pending" | "approved" | "expired" | "error";
 
+const formatRemaining = (milliseconds: number): string => {
+    const total = Math.max(0, Math.ceil(milliseconds / 1000));
+    return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+};
+
 export function QrLoginPanel({
-    onBack,
     mode = "login",
     returnTo = "/profiles",
 }: {
-    onBack: () => void;
     mode?: "login" | "register";
     returnTo?: string;
 }) {
@@ -24,6 +27,9 @@ export function QrLoginPanel({
     const [token, setToken] = useState<string | null>(null);
     const [status, setStatus] = useState<QrStatus>("loading");
     const [awaitingVerification, setAwaitingVerification] = useState(false);
+    const [lifetimeMs, setLifetimeMs] = useState(0);
+    const [expiresAt, setExpiresAt] = useState(0);
+    const [remainingMs, setRemainingMs] = useState(0);
 
     const createSession = useCallback(async () => {
         setStatus("loading");
@@ -33,7 +39,11 @@ export function QrLoginPanel({
             setStatus("error");
             return;
         }
+        const lifetime = session.expiresIn * 1000;
         setToken(session.token);
+        setLifetimeMs(lifetime);
+        setExpiresAt(Date.now() + lifetime);
+        setRemainingMs(lifetime);
         setStatus("pending");
     }, [mode]);
 
@@ -43,14 +53,21 @@ export function QrLoginPanel({
     }, [createSession]);
 
     useEffect(() => {
-        if (!token || status !== "pending") return;
+        if (status !== "pending" || !expiresAt) return;
+        const tick = () => setRemainingMs(Math.max(0, expiresAt - Date.now()));
+        tick();
+        const timer = window.setInterval(tick, 1000);
+        return () => window.clearInterval(timer);
+    }, [expiresAt, status]);
+
+    useEffect(() => {
+        if (!token || status !== "pending" || !expiresAt) return;
         let active = true;
         let timer: ReturnType<typeof setTimeout> | null = null;
-        const startedAt = Date.now();
 
         const poll = async () => {
             if (!active) return;
-            if (Date.now() - startedAt >= 180_000) {
+            if (Date.now() >= expiresAt) {
                 setStatus("expired");
                 return;
             }
@@ -79,7 +96,7 @@ export function QrLoginPanel({
             active = false;
             if (timer) clearTimeout(timer);
         };
-    }, [returnTo, router, status, token, setAuthenticatedUser]);
+    }, [expiresAt, returnTo, router, status, token, setAuthenticatedUser]);
 
     const qrUrl = token && typeof window !== "undefined"
         ? mode === "register"
@@ -89,13 +106,11 @@ export function QrLoginPanel({
 
     const pendingMessage = awaitingVerification
         ? "Konto utworzone. Potwierdź adres email na telefonie…"
-        : mode === "register"
-            ? "Zeskanuj kod i utwórz konto na telefonie. Kod jest ważny przez 3 minuty."
-            : "Kod jest ważny przez 3 minuty. Oczekiwanie na potwierdzenie…";
+        : `Kod wygaśnie za ${formatRemaining(remainingMs)}. Czekam na potwierdzenie.`;
 
     return (
-        <div className="space-y-5">
-            <div className="mx-auto grid aspect-square w-full max-w-[280px] place-items-center rounded-2xl bg-white p-4 text-center text-zinc-700">
+        <div>
+            <div className="mx-auto grid aspect-square w-full max-w-[190px] place-items-center rounded-2xl bg-white p-3 text-center text-zinc-700 shadow-[0_0_0_1px_var(--nx-border),0_14px_34px_-18px_color-mix(in_srgb,var(--nx-accent)_60%,transparent)]">
                 {status === "pending" && qrUrl && <QRCodeSVG value={qrUrl} level="M" className="size-full" />}
                 {status === "loading" && <span className="text-sm">Generowanie kodu…</span>}
                 {status === "approved" && (
@@ -105,20 +120,26 @@ export function QrLoginPanel({
                     </div>
                 )}
                 {(status === "expired" || status === "error") && (
-                    <div className="space-y-4 px-4">
-                        <p className="text-sm">{status === "expired" ? "Kod wygasł." : "Nie udało się wygenerować kodu."}</p>
-                        <button type="button" onClick={createSession} className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg px-3 text-sm font-semibold text-violet-700 focus-visible:outline-2 focus-visible:outline-violet-700">
-                            <RefreshCw className="size-4" />Wygeneruj nowy
-                        </button>
-                    </div>
+                    <p className="px-3 text-sm">{status === "expired" ? "Kod wygasł." : "Nie udało się wygenerować kodu."}</p>
                 )}
             </div>
-            <p className="min-h-10 text-center text-[13px] leading-5 text-nx-text-2" aria-live="polite">
+            {status === "pending" && lifetimeMs > 0 && (
+                <div aria-hidden="true" className="mx-[34px] mt-3.5 h-[3px] overflow-hidden rounded-sm bg-nx-border">
+                    <div
+                        className="h-full rounded-sm bg-[linear-gradient(90deg,var(--nx-accent),var(--nx-accent-2))] transition-[width] duration-1000 ease-linear"
+                        style={{ width: `${Math.round((remainingMs / lifetimeMs) * 100)}%` }}
+                    />
+                </div>
+            )}
+            <p className="mt-3.5 min-h-10 text-center text-[12.5px] leading-5 text-nx-text-2" aria-live="polite">
                 {status === "pending" ? pendingMessage : ""}
             </p>
-            <button type="button" onClick={onBack} className={authSecondaryButtonClass}>
-                <ArrowLeft className="size-4" />{mode === "register" ? "Wróć do formularza" : "Wróć do hasła"}
-            </button>
+            {status !== "approved" && (
+                <button type="button" onClick={createSession} disabled={status === "loading"} className={`${authSecondaryButtonClass} mt-[24px]`}>
+                    <RefreshCw className="size-4" />
+                    Wygeneruj nowy kod
+                </button>
+            )}
         </div>
     );
 }
