@@ -4,9 +4,10 @@ import type { KeyboardEvent, ReactNode } from "react";
 
 interface CatalogGridProps {
     children: ReactNode;
+    ariaLabel?: string;
 }
 
-const CatalogGrid = ({ children }: CatalogGridProps) => {
+const CatalogGrid = ({ children, ariaLabel = "Tytuły w katalogu" }: CatalogGridProps) => {
     const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
         if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
 
@@ -35,7 +36,7 @@ const CatalogGrid = ({ children }: CatalogGridProps) => {
     return (
         <div
             role="grid"
-            aria-label="Tytuły w katalogu"
+            aria-label={ariaLabel}
             onKeyDown={handleKeyDown}
             className="grid grid-cols-1 gap-x-4 gap-y-8 lg:grid-cols-12 lg:gap-x-5 lg:gap-y-10 xl:gap-x-6 xl:gap-y-12"
         >
