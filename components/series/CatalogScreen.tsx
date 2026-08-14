@@ -11,6 +11,7 @@ import { getWatchlist } from "@/lib/watchlist/watchlist";
 import { toContentCard } from "@/lib/catalog/contentCards";
 import type { ResumePoint } from "@/lib/core/contracts";
 import { prepareSearchEntries, searchEntries } from "@/lib/search";
+import { getSessionUser } from "@/lib/auth/session";
 
 export type CatalogMode = "all" | "genres" | "collections" | "watchlist";
 
@@ -84,12 +85,19 @@ const EmptyCatalog = ({
     mode,
     filtered,
     basePath,
+    canManageLibrary,
 }: {
     mode: CatalogMode;
     filtered: boolean;
     basePath: string;
+    canManageLibrary: boolean;
 }) => {
     const copy = screenCopy[mode];
+    const action = mode === "watchlist"
+        ? { href: "/explore", label: "Przejdź do katalogu" }
+        : canManageLibrary
+            ? { href: "/admin/upload", label: "Otwórz panel mediów" }
+            : null;
 
     if (filtered) {
         return (
@@ -121,12 +129,14 @@ const EmptyCatalog = ({
             <p className="mt-4 max-w-[40ch] text-[15px] leading-[1.65] text-nx-text-2">
                 {copy.emptyDescription}
             </p>
-            <Link
-                href={mode === "watchlist" ? "/explore" : "/upload"}
-                className="mt-6 flex min-h-12 items-center rounded-full bg-nx-accent px-6 text-[15px] font-semibold text-nx-on-accent outline-none transition-colors duration-140 hover:bg-[color-mix(in_srgb,var(--nx-accent)_88%,var(--nx-text))] focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent"
-            >
-                {mode === "watchlist" ? "Przejdź do katalogu" : "Wyślij plik"}
-            </Link>
+            {action && (
+                <Link
+                    href={action.href}
+                    className="mt-6 flex min-h-12 items-center rounded-full bg-nx-accent px-6 text-[15px] font-semibold text-nx-on-accent outline-none transition-colors duration-140 hover:bg-[color-mix(in_srgb,var(--nx-accent)_88%,var(--nx-text))] focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent"
+                >
+                    {action.label}
+                </Link>
+            )}
         </div>
     );
 };
@@ -216,13 +226,15 @@ const CatalogScreen = async ({
     basePath,
     searchParams,
 }: CatalogScreenProps) => {
-    const [params, catalogResult, resumeResult, watchlistResult] = await Promise.all([
+    const [params, catalogResult, resumeResult, watchlistResult, user] = await Promise.all([
         searchParams,
         getCatalog(),
         getResumeMap(),
         getWatchlist(),
+        getSessionUser(),
     ]);
     const copy = screenCopy[mode];
+    const canManageLibrary = user?.role === "admin";
 
     if (catalogResult.kind === "error") {
         return (
@@ -311,7 +323,12 @@ const CatalogScreen = async ({
 
             {catalogResult.kind === "empty" || source.length === 0 ? (
                 <div className="mt-10">
-                    <EmptyCatalog mode={mode} filtered={false} basePath={basePath} />
+                    <EmptyCatalog
+                        mode={mode}
+                        filtered={false}
+                        basePath={basePath}
+                        canManageLibrary={canManageLibrary}
+                    />
                 </div>
             ) : (
                 <>
@@ -333,7 +350,12 @@ const CatalogScreen = async ({
                             </div>
                         )}
                         {sorted.length === 0 ? (
-                            <EmptyCatalog mode={mode} filtered={filtersActive} basePath={basePath} />
+                            <EmptyCatalog
+                                mode={mode}
+                                filtered={filtersActive}
+                                basePath={basePath}
+                                canManageLibrary={canManageLibrary}
+                            />
                         ) : (
                             <CatalogGrid>
                                 {visible.map((series, index) => {

@@ -14,6 +14,7 @@ import { toContentCard, toResumeCard } from "@/lib/catalog/contentCards";
 import { seriesPath, watchPath } from "@/lib/core/routes";
 import type { ResumePoint } from "@/lib/core/contracts";
 import { resolvePreviewSource } from "@/lib/player/videoAccess";
+import { getSessionUser } from "@/lib/auth/session";
 
 const watchlistKeys = (items: { seriesKey: string }[]) =>
     new Set(items.map((item) => item.seriesKey));
@@ -227,7 +228,7 @@ const LibrarySection = async ({ catalog }: { catalog: CatalogSeries[] }) => {
     );
 };
 
-const EmptyArchive = () => (
+const EmptyArchive = ({ canManageLibrary }: { canManageLibrary: boolean }) => (
     <div className="mx-auto flex min-h-[70vh] w-full max-w-3xl flex-col items-start justify-center px-5 sm:px-8">
         <span className="font-mono text-[11px] tracking-[0.22em] text-nx-text-2">
             ARCHIWUM / 0 TYTUŁÓW
@@ -236,19 +237,26 @@ const EmptyArchive = () => (
             Archiwum jest puste
         </h1>
         <p className="mt-5 max-w-[40ch] text-[15px] leading-[1.65] text-nx-text-2">
-            Wyślij pierwszy plik, a pojawi się tutaj wraz z odcinkami.
+            {canManageLibrary
+                ? "Uruchom transkoder, aby opublikować pierwszy tytuł wraz z odcinkami."
+                : "Administrator nie opublikował jeszcze żadnych tytułów."}
         </p>
-        <Link
-            href="/upload"
-            className="mt-7 flex min-h-12 items-center rounded-full bg-nx-accent px-6 text-[15px] font-semibold text-nx-on-accent outline-none transition-colors duration-140 hover:bg-[color-mix(in_srgb,var(--nx-accent)_88%,var(--nx-text))] focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent"
-        >
-            Wyślij plik
-        </Link>
+        {canManageLibrary && (
+            <Link
+                href="/admin/upload"
+                className="mt-7 flex min-h-12 items-center rounded-full bg-nx-accent px-6 text-[15px] font-semibold text-nx-on-accent outline-none transition-colors duration-140 hover:bg-[color-mix(in_srgb,var(--nx-accent)_88%,var(--nx-text))] focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent"
+            >
+                Otwórz panel mediów
+            </Link>
+        )}
     </div>
 );
 
 const HomeDashboard = async () => {
-    const catalogResult = await getCatalog();
+    const [catalogResult, user] = await Promise.all([
+        getCatalog(),
+        getSessionUser(),
+    ]);
 
     if (catalogResult.kind === "error") {
         return (
@@ -258,7 +266,9 @@ const HomeDashboard = async () => {
         );
     }
 
-    if (catalogResult.kind === "empty") return <EmptyArchive />;
+    if (catalogResult.kind === "empty") {
+        return <EmptyArchive canManageLibrary={user?.role === "admin"} />;
+    }
 
     const catalog = catalogResult.data;
 

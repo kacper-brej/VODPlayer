@@ -36,10 +36,10 @@ const UploadWorkflow = ({ initialSetup }: { initialSetup: UploadWorkflowSetup })
 
                 <div className="mt-4 rounded-xl border border-nx-border bg-nx-bg p-3 xl:flex xl:items-center xl:gap-5">
                     <div className="flex shrink-0 items-center gap-2 font-mono text-xs uppercase tracking-[0.14em] text-nx-text-2">
-                        <Terminal size={15} /> Polecenie
+                        <Terminal size={15} /> Z katalogu głównego
                     </div>
                     <code className="mt-2 block overflow-x-auto whitespace-nowrap font-mono text-xs text-nx-text xl:mt-0 xl:text-sm">
-                        npm run transcode -- --input &lt;plik.mp4&gt; --series &quot;Nazwa serii&quot; --episode &lt;numer&gt;
+                        npm --prefix tools/transcode run transcode -- --input &lt;plik.mp4&gt; --series &quot;Nazwa serii&quot; --episode &lt;numer&gt;
                     </code>
                 </div>
 
