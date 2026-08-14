@@ -19,9 +19,12 @@ export const POST = async (request: Request) => {
     const payload = await readPartyObjectBody(request);
     const seriesKey = typeof payload?.series_key === "string" ? payload.series_key : "";
     const episodeKey = typeof payload?.episode_key === "string" ? payload.episode_key : "";
+    const positionSeconds = typeof payload?.position_seconds === "number" && Number.isFinite(payload.position_seconds)
+        ? payload.position_seconds
+        : 0;
 
     try {
-        const result = await createPartyRoom(user, { seriesKey, episodeKey });
+        const result = await createPartyRoom(user, { seriesKey, episodeKey, positionSeconds });
         if (!result.ok) return partyFailureResponse(result.code);
         return noStoreJson({ code: result.value.code, room: result.value }, 201);
     } catch {

@@ -5,6 +5,7 @@ import type {
     WatchPartyRoomState,
     WatchPartyBufferingWait,
 } from "@/lib/core/contracts";
+import { normalizePartyAttachment } from "@/lib/party/partyAttachment";
 
 export type PartyControlEventType = "play" | "pause" | "seek" | "episode-change";
 
@@ -21,6 +22,7 @@ export const PARTY_EVENT_TYPES = [
     "buffering",
     "host-changed",
     "control-mode",
+    "typing",
 ] as const;
 
 export interface PartyControlEvent {
@@ -87,6 +89,13 @@ export interface PartyBufferingEvent {
     participants: WatchPartyMember[];
 }
 
+export interface PartyTypingEvent {
+    type: "typing";
+    roomCode: string;
+    eventAtMs: number;
+    profileId: number;
+}
+
 export interface PartyHostChangedEvent {
     type: "host-changed";
     roomCode: string;
@@ -104,7 +113,8 @@ export type PartyEvent =
     | PartyHeartbeatEvent
     | PartyBufferingEvent
     | PartyHostChangedEvent
-    | PartyControlModeEvent;
+    | PartyControlModeEvent
+    | PartyTypingEvent;
 
 export const isPartyControlEvent = (event: PartyEvent): event is PartyControlEvent =>
     event.type === "play"
@@ -161,12 +171,22 @@ const isBufferingWait = (value: unknown): value is WatchPartyBufferingWait =>
     && isFiniteNumber(value.timeoutAtMs)
     && value.timeoutAtMs >= value.startedAtMs;
 
+const isAttachmentUrl = (value: unknown): boolean =>
+    value === undefined || value === null || normalizePartyAttachment(value) !== null;
+
+const isAttachmentKind = (value: unknown): boolean =>
+    value === undefined || value === null || value === "image" || value === "gif";
+
 const isMessage = (value: unknown): value is WatchPartyMessage =>
     isObject(value)
     && isSafePositiveInteger(value.id)
     && isSafePositiveInteger(value.profileId)
     && isString(value.body)
-    && isFiniteNumber(value.createdAtMs);
+    && isFiniteNumber(value.createdAtMs)
+    && (value.authorName === undefined || isString(value.authorName))
+    && (value.authorAvatar === undefined || value.authorAvatar === null || isString(value.authorAvatar))
+    && isAttachmentUrl(value.attachmentUrl)
+    && isAttachmentKind(value.attachmentKind);
 
 export const validatePartyRoomState = (value: unknown): WatchPartyRoomState | null => {
     if (!isObject(value) || !isObject(value.currentEpisode)) return null;
@@ -234,6 +254,8 @@ export const validatePartyEvent = (value: unknown): PartyEvent | null => {
                 && (value.controlMode === "host" || value.controlMode === "everyone")
                 ? value as unknown as PartyControlModeEvent
                 : null;
+        case "typing":
+            return isSafePositiveInteger(value.profileId) ? value as unknown as PartyTypingEvent : null;
         default:
             return null;
     }
@@ -364,5 +386,7 @@ export const applyPartyEventToRoom = (
                 cursor: { ...cursor, lastChatMessageId: event.message.id },
                 applied: true,
             };
+        case "typing":
+            return { room, cursor, applied: true };
     }
 };

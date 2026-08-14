@@ -56,7 +56,7 @@ const readOrigin = (env: EnvSource, name: string, fallback: string): string =>
 const readConfig = (env: EnvSource): ChannelConfig => {
     const key = env.PARTY_REALTIME_KEY?.trim();
     if (!key) {
-        throw new PartyChannelError("disabled", "Wspólne oglądanie jest wyłączone.");
+        throw new PartyChannelError("disabled", "Watch Party jest wyłączone.");
     }
 
     const separator = key.indexOf(":");

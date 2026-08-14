@@ -21,6 +21,7 @@ import {
     Check,
     Gauge,
     Maximize,
+    MessageCircle,
     Minimize,
     Monitor,
     Pause,
@@ -31,6 +32,7 @@ import {
     Settings,
     SkipBack,
     SkipForward,
+    Users,
     Volume1,
     Volume2,
     VolumeX,
@@ -56,6 +58,12 @@ interface PlayerControlsProps {
         onSeekTo: (seconds: number) => void;
         onControlDenied: () => void;
     };
+    partyPanelControl?: {
+        open: boolean;
+        unreadCount: number;
+        onToggle: () => void;
+    };
+    onStartParty?: () => void;
 }
 
 interface PlayerOptionsMenuProps {
@@ -222,6 +230,8 @@ const PlayerControls = ({
     onSeekFeedback,
     chapters = [],
     partyControl,
+    partyPanelControl,
+    onStartParty,
 }: PlayerControlsProps) => {
     const paused = useMediaState("paused");
     const ended = useMediaState("ended");
@@ -302,7 +312,7 @@ const PlayerControls = ({
                             max={duration}
                             step={0.1}
                             value={partySeekTarget ?? currentTime}
-                            aria-label="Wspólna pozycja odtwarzania"
+                            aria-label="Pozycja odtwarzania w Watch Party"
                             onPointerDown={(event) => event.stopPropagation()}
                             onChange={(event) => setPartySeekTarget(Number(event.currentTarget.value))}
                             onPointerUp={(event) => {
@@ -327,7 +337,7 @@ const PlayerControls = ({
                             <button
                                 type="button"
                                 className="np-control np-control--play"
-                                aria-label={paused ? "Odtwórz wspólnie" : "Wstrzymaj wspólnie"}
+                                aria-label={paused ? "Odtwórz dla całego pokoju" : "Wstrzymaj dla całego pokoju"}
                                 onClick={() => runPartyControl(partyControl.onToggle)}
                             >
                                 {ended ? <RotateCcw /> : paused ? <Play /> : <Pause />}
@@ -342,7 +352,7 @@ const PlayerControls = ({
                             <button
                                 type="button"
                                 className="np-control np-control--seek"
-                                aria-label="Cofnij wspólnie o 10 sekund"
+                                aria-label="Cofnij pokój o 10 sekund"
                                 onClick={() => runPartyControl(() => partyControl.onSeekBy(-10))}
                             >
                                 <span className="np-seek-icon" aria-hidden="true"><RotateCcw /><span>10</span></span>
@@ -363,7 +373,7 @@ const PlayerControls = ({
                             <button
                                 type="button"
                                 className="np-control np-control--seek"
-                                aria-label="Przewiń wspólnie o 10 sekund"
+                                aria-label="Przewiń pokój o 10 sekund"
                                 onClick={() => runPartyControl(() => partyControl.onSeekBy(10))}
                             >
                                 <span className="np-seek-icon" aria-hidden="true"><RotateCw /><span>10</span></span>
@@ -407,6 +417,38 @@ const PlayerControls = ({
                     </div>
 
                     <div className="np-controls-group np-controls-group--right">
+                        {partyPanelControl && (
+                            <button
+                                type="button"
+                                className="np-control np-control--party-chat"
+                                data-open={partyPanelControl.open ? "" : undefined}
+                                aria-label={partyPanelControl.open ? "Zwiń panel Watch Party" : "Otwórz panel Watch Party"}
+                                aria-expanded={partyPanelControl.open}
+                                onPointerDown={(event) => event.stopPropagation()}
+                                onClick={partyPanelControl.onToggle}
+                            >
+                                <MessageCircle />
+                                {partyPanelControl.unreadCount > 0 && (
+                                    <span className="np-party-control-badge" aria-hidden="true">
+                                        {partyPanelControl.unreadCount > 9 ? "9+" : partyPanelControl.unreadCount}
+                                    </span>
+                                )}
+                            </button>
+                        )}
+
+                        {!partyPanelControl && onStartParty && (
+                            <button
+                                type="button"
+                                className="np-control np-control--party-start"
+                                aria-label="Rozpocznij Watch Party od tego momentu"
+                                title="Watch Party — oglądaj razem od tego momentu"
+                                onPointerDown={(event) => event.stopPropagation()}
+                                onClick={onStartParty}
+                            >
+                                <Users />
+                            </button>
+                        )}
+
                         <button
                             type="button"
                             onPointerDown={(event) => event.stopPropagation()}

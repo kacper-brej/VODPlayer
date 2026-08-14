@@ -68,7 +68,7 @@ const hasFullAccess = async (user: AuthUser, seriesKey: string): Promise<boolean
 
 export const createPartyRoom = async (
     user: AuthUser,
-    input: { seriesKey: string; episodeKey: string },
+    input: { seriesKey: string; episodeKey: string; positionSeconds?: number },
     generateCode: () => string = generatePartyCode,
 ): Promise<PartyLifecycleResult<WatchPartyRoomState>> => {
     const seriesKey = normalizeKey(input.seriesKey);
@@ -90,6 +90,7 @@ export const createPartyRoom = async (
                     hostProfileId: profileId,
                     seriesKey,
                     episodeKey,
+                    positionSeconds: input.positionSeconds,
                 }, connection);
                 await repo.joinParty(partyId, profileId, "host", connection);
                 const snapshot = await repo.findPartyById(partyId, connection);

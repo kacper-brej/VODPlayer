@@ -22,12 +22,11 @@ import type {
     WatchPartyBufferingWait,
     WatchPartyCommand,
     WatchPartyMember,
-    WatchPartyMessage,
     WatchPartyRole,
-    WatchPartyLastAction,
     WatchPartyControlMode,
 } from '@/lib/core/contracts';
 import type { DriftCorrectionDecision } from '@/lib/party/driftCorrection';
+import type { PartyFeedEntry, PartyUploadResult } from '@/lib/party/partyFeed';
 import type { PartySyncQuality } from '@/lib/party/usePartySync';
 import {
     applyPartyAnchor,
@@ -50,8 +49,9 @@ import {
     BufferingIndicator,
     NextEpisodePill,
     OverlaidPlayButton,
-    PartyParticipants,
     PartyBufferingNotice,
+    PartyChatOverlay,
+    PartyLobbyOverlay,
     SeekFeedback,
     SkipIntroPill,
     VolumeHud,
@@ -60,6 +60,7 @@ import {
 import { PartyChatPanel } from './PartyChatPanel';
 
 export interface VideoPlayerSync {
+    roomCode: string;
     anchor: WatchPartyAnchor;
     clockOffsetMs: number;
     role: WatchPartyRole;
@@ -73,15 +74,20 @@ export interface VideoPlayerSync {
     onWaitingForGestureChange: (waiting: boolean) => void;
     participants: WatchPartyMember[];
     viewerProfileId: number;
-    chatMessages: WatchPartyMessage[];
+    chatFeed: PartyFeedEntry[];
     unreadChatCount: number;
+    typingProfileIds: number[];
+    partyStarted: boolean;
+    starting: boolean;
+    onStartParty: () => void;
     onChatOpenChange: (open: boolean) => void;
-    sendChatMessage: (body: string) => Promise<boolean>;
+    sendChatMessage: (body: string, attachmentUrl: string | null) => Promise<boolean>;
+    uploadChatImage: (file: File) => Promise<PartyUploadResult>;
+    sendTyping: () => void;
     bufferingWait: WatchPartyBufferingWait | null;
     reportBuffering: (buffering: boolean) => Promise<boolean>;
     transferHost: (targetProfileId: number) => Promise<boolean>;
     controlMode: WatchPartyControlMode;
-    lastAction: WatchPartyLastAction | null;
     syncQuality: PartySyncQuality;
     changeControlMode: (controlMode: WatchPartyControlMode) => Promise<boolean>;
 }
@@ -109,6 +115,7 @@ export interface VideoPlayerProps {
     skipIntroPrompt?: boolean;
     defaultVolume?: number;
     sync?: VideoPlayerSync;
+    onStartParty?: (positionSeconds: number) => void;
 }
 
 const NEXT_EPISODE_TRIGGER_SECONDS = 60;
@@ -148,6 +155,7 @@ export const VideoPlayer = ({
     skipIntroPrompt = true,
     defaultVolume,
     sync,
+    onStartParty,
 }: VideoPlayerProps) => {
     const playerRef = useRef<MediaPlayerInstance>(null);
     const prefersReducedMotion = useReducedMotion();
@@ -180,6 +188,8 @@ export const VideoPlayer = ({
     const [previousPlaybackSrc, setPreviousPlaybackSrc] = useState(playback.src);
     const [manifestUnrecoverable, setManifestUnrecoverable] = useState(false);
     const [partyNotice, setPartyNotice] = useState<string | null>(null);
+    const [partyPanelOpen, setPartyPanelOpen] = useState(true);
+    const [overlayMessages, setOverlayMessages] = useState(true);
     const refreshAttemptsRef = useRef(0);
     const refreshInFlightRef = useRef(false);
     const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -190,8 +200,10 @@ export const VideoPlayer = ({
     const desiredStartPositionRef = useRef(startTime);
     const canPlayRef = useRef(false);
     const seekingRef = useRef(false);
+    const playerBusyRef = useRef(false);
     const syncRef = useRef(sync);
     const registerPlaybackAdapter = sync?.registerPlaybackAdapter;
+    const onChatOpenChange = sync?.onChatOpenChange;
     const anchorVersion = sync?.anchor.anchorVersion;
 
     useEffect(() => {
@@ -213,6 +225,14 @@ export const VideoPlayer = ({
         void currentSync.sendIntent(command);
     }, [showPartyControlDenied]);
 
+    const handlePartyPanelOpenChange = useCallback((open: boolean) => {
+        setPartyPanelOpen(open);
+    }, []);
+
+    useEffect(() => {
+        onChatOpenChange?.(partyPanelOpen);
+    }, [onChatOpenChange, partyPanelOpen]);
+
     const applyCurrentPartyAnchor = useCallback(async () => {
         const currentSync = syncRef.current;
         if (!currentSync || !canPlayRef.current) return;
@@ -230,6 +250,7 @@ export const VideoPlayer = ({
                     positionSeconds: player.currentTime,
                     playbackRate: player.playbackRate,
                     state: player.paused ? 'paused' : 'playing',
+                    buffering: playerBusyRef.current || refreshInFlightRef.current,
                 };
             },
             correct: (decision: DriftCorrectionDecision) =>
@@ -243,6 +264,21 @@ export const VideoPlayer = ({
         if (anchorVersion === undefined) return;
         void applyCurrentPartyAnchor();
     }, [anchorVersion, applyCurrentPartyAnchor]);
+
+    const togglePartyPlayback = useCallback(() => {
+        const player = playerRef.current;
+        const currentSync = syncRef.current;
+        if (!player) return;
+        if (currentSync && !currentSync.canControl) {
+            showPartyControlDenied();
+            return;
+        }
+        void requestPlaybackToggle(
+            player,
+            currentSync?.sendIntent,
+            () => { void applyCurrentPartyAnchor(); },
+        ).catch(() => undefined);
+    }, [applyCurrentPartyAnchor, showPartyControlDenied]);
 
     const showSeekFeedback = useCallback((seconds: number) => {
         if (seekFeedbackTimeoutRef.current) clearTimeout(seekFeedbackTimeoutRef.current);
@@ -370,6 +406,7 @@ export const VideoPlayer = ({
     };
 
     const clearBufferingReport = useCallback(() => {
+        playerBusyRef.current = false;
         if (bufferingTimerRef.current) clearTimeout(bufferingTimerRef.current);
         bufferingTimerRef.current = null;
         if (!bufferingReportedRef.current) return;
@@ -378,6 +415,7 @@ export const VideoPlayer = ({
     }, []);
 
     const reportWaiting = useCallback(() => {
+        playerBusyRef.current = true;
         if (!syncRef.current || refreshInFlightRef.current || bufferingTimerRef.current || bufferingReportedRef.current) return;
         bufferingTimerRef.current = setTimeout(() => {
             bufferingTimerRef.current = null;
@@ -587,8 +625,7 @@ export const VideoPlayer = ({
 
             if (key === ' ' || key === 'k') {
                 event.preventDefault();
-                if (syncRef.current && !syncRef.current.canControl) showPartyControlDenied();
-                else void requestPlaybackToggle(player, syncRef.current?.sendIntent).catch(() => undefined);
+                togglePartyPlayback();
             } else if (key === 'arrowleft') {
                 event.preventDefault();
                 requestSeekBy(-5);
@@ -635,7 +672,7 @@ export const VideoPlayer = ({
 
         document.addEventListener('keydown', handleKeyboard);
         return () => document.removeEventListener('keydown', handleKeyboard);
-    }, [episodeKey, handleBackWithFlush, handleNextEpisodeRequest, handlePreviousEpisodeWithFlush, nextEpisodeCountdownActive, onBack, onNextEpisode, onPreviousEpisode, requestSeekBy, requestSeekTo, showPartyControlDenied, showSkipIntro]);
+    }, [episodeKey, handleBackWithFlush, handleNextEpisodeRequest, handlePreviousEpisodeWithFlush, nextEpisodeCountdownActive, onBack, onNextEpisode, onPreviousEpisode, requestSeekBy, requestSeekTo, showSkipIntro, togglePartyPlayback]);
 
     useEffect(() => {
         if (!nextEpisodeCountdownActive) return;
@@ -697,7 +734,7 @@ export const VideoPlayer = ({
                 src={mediaSrc}
                 onProviderChange={handleProviderChange}
                 onHlsError={handleHlsError}
-                autoPlay
+                autoPlay={!sync}
                 keyTarget="document"
                 keyDisabled
                 className="np-player"
@@ -711,8 +748,8 @@ export const VideoPlayer = ({
                 onDurationChange={handleDurationChange}
                 onError={handleError}
                 onPause={flushProgress}
-                onSeeking={() => { seekingRef.current = true; }}
-                onSeeked={() => { seekingRef.current = false; }}
+                onSeeking={() => { seekingRef.current = true; playerBusyRef.current = true; }}
+                onSeeked={() => { seekingRef.current = false; playerBusyRef.current = false; }}
                 playsInline
             >
                 <MediaProvider>
@@ -721,18 +758,8 @@ export const VideoPlayer = ({
 
                 {sync ? (
                     <>
-                        <div className="np-gesture np-gesture-fine" onPointerUp={() => {
-                            const player = playerRef.current;
-                            if (!player) return;
-                            if (!sync.canControl) showPartyControlDenied();
-                            else void requestPlaybackToggle(player, sync.sendIntent);
-                        }} />
-                        <div className="np-gesture np-gesture-coarse np-gesture-center" onPointerUp={() => {
-                            const player = playerRef.current;
-                            if (!player) return;
-                            if (!sync.canControl) showPartyControlDenied();
-                            else void requestPlaybackToggle(player, sync.sendIntent);
-                        }} />
+                        <div className="np-gesture np-gesture-fine" onPointerUp={togglePartyPlayback} />
+                        <div className="np-gesture np-gesture-coarse np-gesture-center" onPointerUp={togglePartyPlayback} />
                         <div className="np-gesture np-gesture-coarse np-gesture-left" onDoubleClick={() => requestSeekBy(-10)} />
                         <div className="np-gesture np-gesture-coarse np-gesture-right" onDoubleClick={() => requestSeekBy(10)} />
                     </>
@@ -763,16 +790,11 @@ export const VideoPlayer = ({
                     episodeNumber={episodeNumber}
                     episodeTitle={subtitle}
                     synopsis={episodeSynopsis}
-                    onPlay={sync ? () => {
-                        const player = playerRef.current;
-                        if (!player) return;
-                        if (!sync.canControl) showPartyControlDenied();
-                        else void requestPlaybackToggle(player, sync.sendIntent);
-                    } : undefined}
+                    onPlay={sync ? togglePartyPlayback : undefined}
                 />
                 {sync && (
                     <PartyPlaybackGate
-                        visible={sync.waitingForGesture}
+                        visible={sync.waitingForGesture && sync.partyStarted}
                         onJoin={() => {
                             void resumePartyPlaybackAfterGesture(playerRef.current, sync.expectedPosition)
                                 .then((joined) => sync.onWaitingForGestureChange(!joined));
@@ -788,30 +810,47 @@ export const VideoPlayer = ({
                 <VolumeHud />
 
                 {sync && (
-                    <>
-                        <PartyBufferingNotice wait={sync.bufferingWait} participants={sync.participants} />
-                        <PartyParticipants
-                            participants={sync.participants}
-                            viewerProfileId={sync.viewerProfileId}
-                            viewerRole={sync.role}
-                            onTransferHost={(profileId) => { void sync.transferHost(profileId); }}
-                            controlMode={sync.controlMode}
-                            onControlModeChange={(controlMode) => { void sync.changeControlMode(controlMode); }}
-                            lastAction={sync.lastAction}
-                            syncQuality={sync.syncQuality}
-                        />
-                    </>
+                    <PartyBufferingNotice wait={sync.bufferingWait} participants={sync.participants} />
                 )}
 
                 {sync && (
-                    <PartyChatPanel
-                        messages={sync.chatMessages}
-                        participants={sync.participants}
-                        viewerProfileId={sync.viewerProfileId}
-                        unreadCount={sync.unreadChatCount}
-                        onSend={sync.sendChatMessage}
-                        onOpenChange={sync.onChatOpenChange}
-                    />
+                    <>
+                        <PartyChatOverlay
+                            enabled={overlayMessages && !partyPanelOpen}
+                            roomCode={sync.roomCode}
+                            feed={sync.chatFeed}
+                            participants={sync.participants}
+                            viewerProfileId={sync.viewerProfileId}
+                            typingProfileIds={sync.typingProfileIds}
+                        />
+                        <PartyChatPanel
+                            open={partyPanelOpen}
+                            roomCode={sync.roomCode}
+                            feed={sync.chatFeed}
+                            participants={sync.participants}
+                            viewerProfileId={sync.viewerProfileId}
+                            viewerRole={sync.role}
+                            controlMode={sync.controlMode}
+                            syncQuality={sync.syncQuality}
+                            typingProfileIds={sync.typingProfileIds}
+                            overlayMessages={overlayMessages}
+                            onSend={sync.sendChatMessage}
+                            onUploadImage={sync.uploadChatImage}
+                            onTyping={sync.sendTyping}
+                            onOverlayMessagesChange={setOverlayMessages}
+                            onTransferHost={sync.transferHost}
+                            onControlModeChange={sync.changeControlMode}
+                            onOpenChange={handlePartyPanelOpenChange}
+                        />
+                        <PartyLobbyOverlay
+                            visible={!sync.partyStarted}
+                            roomCode={sync.roomCode}
+                            participants={sync.participants}
+                            isHost={sync.role === 'host'}
+                            starting={sync.starting}
+                            onStart={sync.onStartParty}
+                        />
+                    </>
                 )}
 
                 <PlayerControls
@@ -826,14 +865,19 @@ export const VideoPlayer = ({
                     chapters={chapters}
                     partyControl={sync ? {
                         canControl: sync.canControl,
-                        onToggle: () => {
-                            const player = playerRef.current;
-                            if (player) void requestPlaybackToggle(player, sync.sendIntent);
-                        },
+                        onToggle: togglePartyPlayback,
                         onSeekBy: requestSeekBy,
                         onSeekTo: requestSeekTo,
                         onControlDenied: showPartyControlDenied,
                     } : undefined}
+                    partyPanelControl={sync ? {
+                        open: partyPanelOpen,
+                        unreadCount: sync.unreadChatCount,
+                        onToggle: () => handlePartyPanelOpenChange(!partyPanelOpen),
+                    } : undefined}
+                    onStartParty={!sync && onStartParty
+                        ? () => onStartParty(currentTimeRef.current)
+                        : undefined}
                 />
 
                 <SkipIntroPill
