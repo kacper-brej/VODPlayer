@@ -18,20 +18,20 @@ export const loginAction = async (formData: FormData): Promise<AuthActionResult>
     const password = String(formData.get("password") ?? "");
     const rememberMe = formData.get("rememberMe") === "on";
 
-    if (!email || !password) return { ok: false, code: "invalid", message: "Enter your email and password." };
+    if (!email || !password) return { ok: false, code: "invalid", message: "Podaj adres email i hasło." };
 
     const result = await loginService(email, password, rememberMe);
 
     if (!result.ok) {
         const messages: Record<typeof result.code, string> = {
-            invalid: "Incorrect email or password.",
-            rate_limited: "Too many attempts. Try again later.",
-            server: "The server is temporarily unavailable.",
+            invalid: "Nieprawidłowy email lub hasło. Sprawdź dane i spróbuj ponownie.",
+            rate_limited: "Zbyt wiele prób logowania. Spróbuj ponownie za chwilę.",
+            server: "Serwer jest chwilowo niedostępny.",
         };
         return { ok: false, code: result.code, message: messages[result.code] };
     }
 
-    return { ok: true, message: "Signed in successfully.", user: result.user };
+    return { ok: true, message: "Zalogowano.", user: result.user };
 };
 
 export const logoutAction = async () => logoutService();
@@ -44,49 +44,49 @@ export const registerAction = async (formData: FormData): Promise<AuthActionResu
     const qrToken = String(formData.get("qrToken") ?? "").trim();
 
     if (!username || !email || password.length < 8) {
-        return { ok: false, code: "invalid", message: "Complete all fields and use at least 8 characters for the password." };
+        return { ok: false, code: "invalid", message: "Uzupełnij wszystkie pola. Hasło musi mieć co najmniej 8 znaków." };
     }
-    if (password !== confirmPassword) return { ok: false, code: "invalid", message: "Passwords do not match." };
+    if (password !== confirmPassword) return { ok: false, code: "invalid", message: "Hasła nie są takie same." };
 
     const result = await accountService.register(username, email, password, qrToken);
 
     if (!result.ok) {
         const messages: Record<typeof result.code, string> = {
-            invalid: "Check the form fields and try again.",
-            conflict: "An account with this email or username already exists.",
-            qr_invalid: "The registration code has expired or is invalid.",
-            server: "Could not create the account.",
+            invalid: "Sprawdź pola formularza i spróbuj ponownie.",
+            conflict: "Konto z tym adresem email lub nazwą użytkownika już istnieje.",
+            qr_invalid: "Kod rejestracyjny wygasł lub jest nieprawidłowy.",
+            server: "Nie udało się utworzyć konta.",
         };
         return { ok: false, code: result.code === "conflict" ? "invalid" : result.code === "qr_invalid" ? "expired" : result.code, message: messages[result.code] };
     }
 
-    return { ok: true, message: "Account created. Check your inbox to confirm your email address." };
+    return { ok: true, message: "Konto utworzone. Sprawdź skrzynkę i potwierdź adres email." };
 };
 
 export const forgotPasswordAction = async (formData: FormData): Promise<AuthActionResult> => {
     const email = String(formData.get("email") ?? "").trim();
-    if (!email) return { ok: false, code: "invalid", message: "Enter a valid email address." };
+    if (!email) return { ok: false, code: "invalid", message: "Podaj poprawny adres email." };
 
     const result = await accountService.requestPasswordReset(email);
 
     if (!result.ok) {
         const messages: Record<typeof result.code, string> = {
-            invalid: "Enter a valid email address.",
-            rate_limited: "Too many attempts. Try again later.",
-            server: "The server is temporarily unavailable.",
+            invalid: "Podaj poprawny adres email.",
+            rate_limited: "Zbyt wiele prób. Spróbuj ponownie za chwilę.",
+            server: "Serwer jest chwilowo niedostępny.",
         };
         return { ok: false, code: result.code, message: messages[result.code] };
     }
 
-    return { ok: true, message: "If the account exists, a password reset link has been sent." };
+    return { ok: true, message: "Jeśli konto istnieje, link do zmiany hasła został wysłany." };
 };
 
 export const resendVerificationAction = async (email: string): Promise<AuthActionResult> => {
-    if (!email) return { ok: false, code: "invalid", message: "Enter your email address first." };
+    if (!email) return { ok: false, code: "invalid", message: "Najpierw podaj adres email." };
 
     await accountService.resendVerification(email);
 
-    return { ok: true, message: "If the account still requires confirmation, a new link has been sent." };
+    return { ok: true, message: "Jeśli konto wciąż czeka na potwierdzenie, nowy link został wysłany." };
 };
 
 export const resetPasswordAction = async (formData: FormData): Promise<AuthActionResult> => {
@@ -94,21 +94,21 @@ export const resetPasswordAction = async (formData: FormData): Promise<AuthActio
     const password = String(formData.get("password") ?? "");
     const confirmPassword = String(formData.get("confirmPassword") ?? "");
 
-    if (!token) return { ok: false, code: "expired", message: "The reset link is missing or invalid." };
-    if (password.length < 8) return { ok: false, code: "invalid", message: "Use at least 8 characters for the password." };
-    if (password !== confirmPassword) return { ok: false, code: "invalid", message: "Passwords do not match." };
+    if (!token) return { ok: false, code: "expired", message: "Brakuje linku do zmiany hasła lub link jest nieprawidłowy." };
+    if (password.length < 8) return { ok: false, code: "invalid", message: "Hasło musi mieć co najmniej 8 znaków." };
+    if (password !== confirmPassword) return { ok: false, code: "invalid", message: "Hasła nie są takie same." };
 
     const result = await accountService.resetPassword(token, password);
 
     if (!result.ok) {
         const messages: Record<typeof result.code, string> = {
-            invalid: "The reset link has expired or is invalid.",
-            server: "Could not reset the password.",
+            invalid: "Link do zmiany hasła wygasł lub jest nieprawidłowy.",
+            server: "Nie udało się zmienić hasła.",
         };
         return { ok: false, code: result.code === "invalid" ? "expired" : result.code, message: messages[result.code] };
     }
 
-    return { ok: true, message: "Password changed. You can now sign in." };
+    return { ok: true, message: "Hasło zmienione. Możesz się zalogować." };
 };
 
 export const getCurrentUserAction = async (): Promise<AuthUser | null> => getSessionUser();
@@ -145,13 +145,13 @@ export const checkQrSessionAction = async (token: string): Promise<QrCheckResult
 
 export const approveQrSessionAction = async (token: string): Promise<AuthActionResult> => {
     const user = await getSessionUser();
-    if (!user) return { ok: false, code: "invalid", message: "Sign in before approving this device." };
+    if (!user) return { ok: false, code: "invalid", message: "Zaloguj się, zanim zatwierdzisz to urządzenie." };
 
     const result = await qrService.approveQrSession(token, user.id);
 
     if (result === "invalid") {
-        return { ok: false, code: "expired", message: "This QR code has expired or is invalid." };
+        return { ok: false, code: "expired", message: "Ten kod QR wygasł lub jest nieprawidłowy." };
     }
 
-    return { ok: true, message: "Device approved." };
+    return { ok: true, message: "Urządzenie zatwierdzone." };
 };
