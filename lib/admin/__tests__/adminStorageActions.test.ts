@@ -3,8 +3,12 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 const getSessionUser = vi.fn();
 vi.mock("@/lib/auth/session", () => ({ getSessionUser }));
 
+const captureStorageUsageSnapshot = vi.fn();
 const getStorageUsage = vi.fn();
-vi.mock("@/lib/admin/storageUsageService", () => ({ getStorageUsage }));
+vi.mock("@/lib/admin/storageUsageService", () => ({
+    captureStorageUsageSnapshot,
+    getStorageUsage,
+}));
 
 const deleteMedia = vi.fn();
 vi.mock("@/lib/admin/mediaDeleteService", () => ({ deleteMedia }));
@@ -20,18 +24,35 @@ describe("getStorageUsageAction — RBAC egzekwowane blisko operacji", () => {
     it("niezalogowany -> unauthorized", async () => {
         getSessionUser.mockResolvedValue(null);
         await expect(getStorageUsageAction()).resolves.toMatchObject({ kind: "error", reason: "unauthorized" });
+        expect(captureStorageUsageSnapshot).not.toHaveBeenCalled();
+        expect(getStorageUsage).not.toHaveBeenCalled();
     });
 
     it("widz -> forbidden", async () => {
         getSessionUser.mockResolvedValue({ id: 1, username: "Widz", email: "w@example.com", role: "viewer" });
         await expect(getStorageUsageAction()).resolves.toMatchObject({ kind: "error", reason: "forbidden" });
+        expect(captureStorageUsageSnapshot).not.toHaveBeenCalled();
         expect(getStorageUsage).not.toHaveBeenCalled();
     });
 
-    it("admin -> dostaje dane", async () => {
+    it("admin -> zapisuje dzienną migawkę i dostaje dane", async () => {
         getSessionUser.mockResolvedValue({ id: 1, username: "Kacper", email: "k@example.com", role: "admin" });
+        captureStorageUsageSnapshot.mockResolvedValue(undefined);
         getStorageUsage.mockResolvedValue({ currentTotalBytes: 1, currentMonthAverageBytes: 1, history: [] });
         await expect(getStorageUsageAction()).resolves.toMatchObject({ kind: "success" });
+        expect(captureStorageUsageSnapshot).toHaveBeenCalledOnce();
+        expect(getStorageUsage).toHaveBeenCalledOnce();
+        expect(captureStorageUsageSnapshot.mock.invocationCallOrder[0])
+            .toBeLessThan(getStorageUsage.mock.invocationCallOrder[0]);
+    });
+
+    it("błąd zapisu migawki nie blokuje odczytu panelu", async () => {
+        getSessionUser.mockResolvedValue({ id: 1, username: "Kacper", email: "k@example.com", role: "admin" });
+        captureStorageUsageSnapshot.mockRejectedValueOnce(new Error("snapshot unavailable"));
+        getStorageUsage.mockResolvedValue({ currentTotalBytes: 1, currentMonthAverageBytes: 1, history: [] });
+
+        await expect(getStorageUsageAction()).resolves.toMatchObject({ kind: "success" });
+        expect(getStorageUsage).toHaveBeenCalledOnce();
     });
 });
 

@@ -2,7 +2,10 @@
 
 import { revalidateTag } from "next/cache";
 import { getSessionUser } from "@/lib/auth/session";
-import { getStorageUsage } from "@/lib/admin/storageUsageService";
+import {
+    captureStorageUsageSnapshot,
+    getStorageUsage,
+} from "@/lib/admin/storageUsageService";
 import { deleteMedia } from "@/lib/admin/mediaDeleteService";
 import { DeleteB2ConfigError } from "@/lib/admin/b2AdminStorage";
 import { CATALOG_TAG } from "@/lib/core/vodConfig";
@@ -16,6 +19,12 @@ export const getStorageUsageAction = async (): Promise<DataResult<StorageUsageRe
     const user = await getSessionUser();
     if (!user) return dataFailure("unauthorized", 401);
     if (user.role !== "admin") return dataFailure("forbidden", 403);
+
+    try {
+        await captureStorageUsageSnapshot();
+    } catch (error) {
+        console.error("captureStorageUsageSnapshot failed:", error);
+    }
 
     try {
         const usage = await getStorageUsage();
