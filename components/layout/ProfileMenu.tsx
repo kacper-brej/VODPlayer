@@ -2,9 +2,10 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LogOut, Settings, User } from "lucide-react";
+import { Bell, LogOut, Settings, User } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { getUnreadNotificationsCountAction } from "@/lib/notifications/notificationsActions";
+import { NOTIFICATIONS_CHANGED_EVENT } from "@/lib/notifications/notificationEvents";
 
 const initialsFrom = (username: string) => {
     const trimmed = username.trim();
@@ -30,13 +31,22 @@ const ProfileMenu = () => {
         if (!user) return;
 
         let active = true;
+        const refreshCount = () => {
+            getUnreadNotificationsCountAction().then((count) => {
+                if (active) setUnreadCount(count);
+            });
+        };
+        const handleCountChange = (event: Event) => {
+            const count = (event as CustomEvent<number>).detail;
+            if (Number.isSafeInteger(count) && count >= 0) setUnreadCount(count);
+        };
 
-        getUnreadNotificationsCountAction().then((count) => {
-            if (active) setUnreadCount(count);
-        });
+        refreshCount();
+        window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, handleCountChange);
 
         return () => {
             active = false;
+            window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, handleCountChange);
         };
     }, [user]);
 
@@ -111,6 +121,20 @@ const ProfileMenu = () => {
                     className="absolute bottom-0 left-full z-[90] ml-3 flex min-w-48 flex-col gap-0.5 rounded-xl border border-border bg-surface p-1.5 shadow-[0_16px_50px_rgba(0,0,0,.72)]"
                     style={{ backgroundColor: "rgba(12,10,17,0.96)", backdropFilter: "blur(22px)" }}
                 >
+                    <Link
+                        role="menuitem"
+                        href="/notifications"
+                        onClick={() => setIsOpen(false)}
+                        className="flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-foreground outline-none transition-colors hover:bg-surface-light focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
+                    >
+                        <Bell size={16} aria-hidden="true" />
+                        <span className="flex-1">Powiadomienia</span>
+                        {displayedUnreadCount > 0 && (
+                            <span className="rounded-full bg-danger px-2 py-0.5 font-mono text-[9px] text-white">
+                                {displayedUnreadCount > 99 ? "99+" : displayedUnreadCount}
+                            </span>
+                        )}
+                    </Link>
                     <Link
                         role="menuitem"
                         href="/settings"

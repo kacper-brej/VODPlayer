@@ -1,4 +1,5 @@
 "use server";
+import { revalidatePath } from "next/cache";
 import { getSessionUser } from "@/lib/auth/session";
 import * as service from "@/lib/collections/collectionService";
 import {
@@ -23,6 +24,7 @@ export const createCollectionAction = async (name: string): Promise<DataResult<C
         );
     }
 
+    revalidatePath("/collections");
     return dataSuccess({ id: result.id, name: result.name, createdAt: result.createdAt });
 };
 
@@ -38,6 +40,7 @@ export const renameCollectionAction = async (
         return dataFailure(result.code === "forbidden" ? "forbidden" : "invalid_response");
     }
 
+    revalidatePath("/collections");
     return dataSuccess({ id: result.id, name: result.name });
 };
 
@@ -50,6 +53,7 @@ export const deleteCollectionAction = async (collectionId: number): Promise<Data
         return dataFailure(result.code === "forbidden" ? "forbidden" : "invalid_response");
     }
 
+    revalidatePath("/collections");
     return dataSuccess({ success: true });
 };
 
@@ -65,6 +69,7 @@ export const addToCollectionAction = async (
         return dataFailure(result.code === "forbidden" ? "forbidden" : "invalid_response");
     }
 
+    revalidatePath("/collections");
     return dataSuccess({ success: true, seriesKey: result.seriesKey });
 };
 
@@ -80,5 +85,6 @@ export const removeFromCollectionAction = async (
         return dataFailure(result.code === "forbidden" ? "forbidden" : "invalid_response");
     }
 
+    revalidatePath("/collections");
     return dataSuccess({ success: true });
 };

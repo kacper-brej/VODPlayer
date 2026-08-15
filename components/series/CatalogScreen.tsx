@@ -13,7 +13,7 @@ import type { ResumePoint } from "@/lib/core/contracts";
 import { prepareSearchEntries, searchEntries } from "@/lib/search";
 import { getSessionUser } from "@/lib/auth/session";
 
-export type CatalogMode = "all" | "recent" | "genres" | "collections" | "watchlist";
+export type CatalogMode = "all" | "recent" | "genres" | "watchlist";
 
 export type CatalogSearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -29,7 +29,6 @@ const spanPatterns: Record<CatalogMode, readonly number[]> = {
     all: [6, 6, 4, 4, 4, 6, 6, 3, 3, 3, 3],
     recent: [6, 6, 4, 4, 4, 6, 6, 3, 3, 3, 3],
     genres: [4, 4, 4, 4, 4, 4],
-    collections: [6, 6, 4, 4, 4],
     watchlist: [4, 4, 4, 4, 4, 4],
 };
 
@@ -73,12 +72,6 @@ const screenCopy: Record<CatalogMode, {
         title: "Znajdź historię po nastroju",
         emptyTitle: "Brak opisanych gatunków",
         emptyDescription: "Gatunki pojawią się tutaj wraz z metadanymi tytułów.",
-    },
-    collections: {
-        kicker: "KOLEKCJE",
-        title: "Sezony zebrane w całość",
-        emptyTitle: "Brak kolekcji",
-        emptyDescription: "Kolekcje pojawią się, gdy katalog połączy sezony jednego tytułu.",
     },
     watchlist: {
         kicker: "MOJA LISTA",
@@ -279,9 +272,7 @@ const CatalogScreen = async ({
 
     let source = collapsed;
 
-    if (mode === "collections") {
-        source = collapseSeriesGroups(catalogResult.data.filter((series) => series.groupId !== null));
-    } else if (mode === "watchlist") {
+    if (mode === "watchlist") {
         const order = new Map(listedItems.map((item, index) => [item.seriesKey, index]));
         source = collapsed
             .filter((series) => listedKeys.has(series.key))

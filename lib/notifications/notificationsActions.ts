@@ -1,4 +1,5 @@
 "use server";
+import { revalidatePath } from "next/cache";
 import { getSessionUser } from "@/lib/auth/session";
 import { getNotifications } from "@/lib/notifications/notifications";
 import {
@@ -19,6 +20,7 @@ export const markAllNotificationsReadAction = async (): Promise<DataResult<MarkN
     const result = await markAllNotificationsReadInService(user.id, user.username);
     if (!result.ok) return dataFailure("server");
 
+    revalidatePath("/notifications");
     return dataSuccess({ success: true });
 };
 
@@ -31,6 +33,7 @@ export const markNotificationReadAction = async (
     const result = await markNotificationReadInService(user.id, user.username, notificationId);
     if (!result.ok) return dataFailure(result.code === "invalid" ? "invalid_response" : "server");
 
+    revalidatePath("/notifications");
     return dataSuccess({ success: true });
 };
 

@@ -57,6 +57,13 @@ describe("mediaRegistryRepository", () => {
         expect(transactionExecute).toHaveBeenCalledWith(expect.stringMatching(/FOR UPDATE/), ["Test", "01.mp4"]);
         expect(transactionExecute).toHaveBeenCalledWith(expect.stringMatching(/DELETE FROM media_renditions/), [9]);
         expect(transactionExecute).toHaveBeenCalledWith(expect.stringMatching(/SET status = 'ready'/), [500, "media/Test/01.mp4/preview.mp4", 9]);
+        expect(transactionExecute).toHaveBeenCalledWith(
+            expect.stringMatching(/INSERT IGNORE INTO notifications[\s\S]*FROM watchlist/),
+            ["01.mp4", "Test"],
+        );
+        expect(transactionExecute).toHaveBeenCalledWith(
+            expect.stringMatching(/DELETE FROM notifications WHERE created_at/),
+        );
     });
 
     it("duplicate complete jest idempotentny", async () => {

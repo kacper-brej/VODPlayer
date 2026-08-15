@@ -102,6 +102,16 @@ export const registerComplete = async (input: CompleteRegistration): Promise<Reg
              WHERE id = ?`,
             [input.totalSizeBytes, input.previewClipKey, current.id],
         );
+        await connection.execute(
+            `INSERT IGNORE INTO notifications (profile_id, series_key, episode_key, created_at)
+             SELECT profile_id, series_key, ?, NOW()
+             FROM watchlist
+             WHERE series_key = ?`,
+            [input.episodeKey, input.seriesKey],
+        );
+        await connection.execute(
+            "DELETE FROM notifications WHERE created_at < NOW() - INTERVAL 30 DAY",
+        );
         return { assetId: current.id, status: "ready" };
     });
 
