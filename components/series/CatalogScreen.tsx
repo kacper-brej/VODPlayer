@@ -13,7 +13,7 @@ import type { ResumePoint } from "@/lib/core/contracts";
 import { prepareSearchEntries, searchEntries } from "@/lib/search";
 import { getSessionUser } from "@/lib/auth/session";
 
-export type CatalogMode = "all" | "genres" | "collections" | "watchlist";
+export type CatalogMode = "all" | "recent" | "genres" | "collections" | "watchlist";
 
 export type CatalogSearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -24,9 +24,10 @@ interface CatalogScreenProps {
 }
 
 const PAGE_SIZE = 24;
-const CATALOG_SORTS = new Set(["newest", "title", "year", "score"]);
+const CATALOG_SORTS = new Set(["featured", "newest", "title", "year", "score"]);
 const spanPatterns: Record<CatalogMode, readonly number[]> = {
     all: [6, 6, 4, 4, 4, 6, 6, 3, 3, 3, 3],
+    recent: [6, 6, 4, 4, 4, 6, 6, 3, 3, 3, 3],
     genres: [4, 4, 4, 4, 4, 4],
     collections: [6, 6, 4, 4, 4],
     watchlist: [4, 4, 4, 4, 4, 4],
@@ -60,6 +61,12 @@ const screenCopy: Record<CatalogMode, {
         title: "Czego szukasz tej nocy?",
         emptyTitle: "Archiwum jest puste",
         emptyDescription: "Wyślij pierwszy plik, aby rozpocząć budowanie katalogu.",
+    },
+    recent: {
+        kicker: "OSTATNIO DODANE",
+        title: "Nowe historie w archiwum",
+        emptyTitle: "Brak nowych tytułów",
+        emptyDescription: "Najnowsze tytuły i odcinki pojawią się tutaj po opublikowaniu.",
     },
     genres: {
         kicker: "GATUNKI",
@@ -253,9 +260,10 @@ const CatalogScreen = async ({
     }
 
     const query = firstValue(params.q).trim();
+    const defaultSort = mode === "recent" ? "newest" : "featured";
     const sort = CATALOG_SORTS.has(firstValue(params.sort))
         ? firstValue(params.sort)
-        : "featured";
+        : defaultSort;
     const genre = firstValue(params.genre);
     const requestedPage = Number.parseInt(firstValue(params.page), 10);
     const page = Number.isFinite(requestedPage) && requestedPage > 0
@@ -298,11 +306,11 @@ const CatalogScreen = async ({
     const sorted = sortCatalog(filtered, sort);
     const visible = sorted.slice(0, page * PAGE_SIZE);
     const hasMore = visible.length < sorted.length;
-    const filtersActive = Boolean(query || genre || sort !== "featured");
+    const filtersActive = Boolean(query || genre || sort !== defaultSort);
     const nextParams = new URLSearchParams();
 
     if (query) nextParams.set("q", query);
-    if (sort !== "featured") nextParams.set("sort", sort);
+    if (sort !== defaultSort) nextParams.set("sort", sort);
     if (genre) nextParams.set("genre", genre);
     nextParams.set("page", String(page + 1));
 
@@ -337,6 +345,7 @@ const CatalogScreen = async ({
                             basePath={basePath}
                             query={query}
                             sort={sort}
+                            defaultSort={defaultSort}
                             genre={genre}
                             genres={genres}
                             showGenres={mode !== "genres"}

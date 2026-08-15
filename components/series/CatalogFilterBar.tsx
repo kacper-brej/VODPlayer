@@ -21,6 +21,7 @@ interface CatalogFilterBarProps {
     basePath: string;
     query: string;
     sort: string;
+    defaultSort?: string;
     genre: string;
     genres: CatalogGenre[];
     showGenres?: boolean;
@@ -77,6 +78,7 @@ const CatalogFilterBar = ({
     basePath,
     query,
     sort,
+    defaultSort = "featured",
     genre,
     genres,
     showGenres = true,
@@ -88,7 +90,7 @@ const CatalogFilterBar = ({
         const nextGenre = next.genre ?? genre;
 
         if (nextQuery) params.set("q", nextQuery);
-        if (nextSort && nextSort !== "featured") params.set("sort", nextSort);
+        if (nextSort && nextSort !== defaultSort) params.set("sort", nextSort);
         if (nextGenre) params.set("genre", nextGenre);
 
         const value = params.toString();
@@ -115,7 +117,7 @@ const CatalogFilterBar = ({
     return (
         <div className="max-lg:sticky max-lg:top-[72px] max-lg:z-20 max-lg:-mx-5 max-lg:border-y max-lg:border-nx-border max-lg:bg-nx-bg max-lg:px-5 max-lg:py-4 sm:max-lg:-mx-8 sm:max-lg:px-8">
             <form action={basePath} className="mb-3 flex w-full max-w-xl items-center gap-2">
-                {sort !== "featured" && <input type="hidden" name="sort" value={sort} />}
+                {sort !== defaultSort && <input type="hidden" name="sort" value={sort} />}
                 {genre && <input type="hidden" name="genre" value={genre} />}
                 <label className="relative flex-1">
                     <span className="sr-only">Szukaj w katalogu</span>
