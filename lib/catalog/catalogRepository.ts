@@ -14,6 +14,7 @@ export interface CatalogAssetRow extends RowDataPacket {
     asset_version: DbInteger;
     series_key: string;
     episode_key: string;
+    delivery: "hls" | "file";
     asset_duration_seconds: number | null;
     total_size_bytes: DbInteger | null;
     preview_start_seconds: number | null;
@@ -83,6 +84,7 @@ export const loadCatalogRows = async (db: Executor = getDbPool()): Promise<Catal
         const tasks: Array<() => Promise<unknown>> = [
             () => executeCatalogQuery<CatalogAssetRow[]>(db, "catalog.assets",
                 `SELECT a.id AS asset_id, a.asset_version, a.series_key, a.episode_key,
+                        a.delivery,
                         a.duration_seconds AS asset_duration_seconds, a.total_size_bytes,
                         a.preview_start_seconds, a.preview_clip_key,
                         UNIX_TIMESTAMP(a.created_at) AS added_at, UNIX_TIMESTAMP(a.updated_at) AS updated_at,

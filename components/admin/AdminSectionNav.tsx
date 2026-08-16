@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useRef, type KeyboardEvent } from "react";
-import { FolderOpen, HardDrive, LayoutDashboard, ListVideo, ShieldCheck, UploadCloud, Users } from "lucide-react";
+import { FolderOpen, HardDrive, HardDriveDownload, LayoutDashboard, ListVideo, ShieldCheck, UploadCloud, Users } from "lucide-react";
 
 const ADMIN_ITEMS = [
     { label: "Przegląd", href: "/admin", icon: LayoutDashboard },
     { label: "Biblioteka", href: "/admin/library", icon: FolderOpen },
+    { label: "Pliki na serwerze", href: "/admin/library-scan", icon: HardDriveDownload },
     { label: "Rozdziały", href: "/admin/chapters", icon: ListVideo },
     { label: "Magazyn B2", href: "/admin/storage", icon: HardDrive },
     { label: "Wyślij plik", href: "/admin/upload", icon: UploadCloud },
@@ -68,7 +69,7 @@ const AdminSectionNav = () => {
                                 href={href}
                                 aria-current={isActive ? "page" : undefined}
                                 onKeyDown={(event) => handleKeyDown(event, index)}
-                                className={`relative flex min-h-11 shrink-0 items-center gap-2 rounded-[var(--r-s)] px-4 text-sm font-medium outline-none transition-opacity duration-[var(--dur-fast)] ease-[var(--ease)] motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent ${
+                                className={`relative flex min-h-11 shrink-0 cursor-pointer items-center gap-2 rounded-[var(--r-s)] px-4 text-sm font-medium outline-none transition-[background-color,color,opacity] duration-[var(--dur-fast)] ease-[var(--ease)] motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent ${
                                     isActive
                                         ? "bg-nx-raised text-nx-text opacity-100"
                                         : "text-nx-text-2 opacity-80 hover:bg-nx-raised hover:text-nx-text hover:opacity-100"

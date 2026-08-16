@@ -60,7 +60,7 @@ const SeriesVisibilityControl = ({ seriesKey, visibility }: SeriesVisibilityCont
                 value={value}
                 disabled={isPending}
                 onChange={(event) => handleChange(event.target.value)}
-                className="min-h-9 rounded-full border border-nx-border bg-nx-raised px-3 text-xs text-nx-text outline-none transition-colors duration-140 hover:border-nx-accent disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent"
+                className="min-h-9 cursor-pointer rounded-full border border-nx-border bg-nx-raised px-3 text-xs text-nx-text outline-none transition-colors duration-140 hover:border-nx-accent hover:bg-nx-panel disabled:cursor-wait disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent"
             >
                 {OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>

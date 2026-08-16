@@ -19,7 +19,7 @@ const StatTile = ({ label, value }: { label: string; value: string | number | nu
             {label}
         </p>
         <p className="mt-2 truncate font-display text-[clamp(1.75rem,3vw,2.25rem)] leading-none tracking-[-0.025em] text-nx-text [font-variant-numeric:tabular-nums]">
-            {value ?? "—"}
+            {value ?? "Brak"}
         </p>
     </article>
 );
@@ -116,8 +116,8 @@ const AdminOverviewPage = async () => {
                     Stan magazynu B2
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-nx-text-2">
-                    Stan aktywnych assetów HLS w B2 — narzędzia operatora:{" "}
-                    <code className="text-nx-text">tools/transcode</code> po stronie operatora.
+                    Aktywne assety HLS zapisane w B2. Do obsługi transkodowania służy{" "}
+                    <code className="text-nx-text">tools/transcode</code>.
                 </p>
             </div>
 
@@ -134,14 +134,14 @@ const AdminOverviewPage = async () => {
                 />
                 <StatTile
                     label="Wynik ostatniej weryfikacji"
-                    value={lastVerification ? `${lastVerification.checkedCount - lastVerification.failedCount}/${lastVerification.checkedCount} OK` : "—"}
+                    value={lastVerification ? `${lastVerification.checkedCount - lastVerification.failedCount}/${lastVerification.checkedCount} OK` : "Brak"}
                 />
             </div>
 
             {failedAssets.length > 0 && (
                 <div className="max-w-3xl">
                     <h3 className="font-display text-[18px] leading-[1.1] tracking-[-0.02em] text-nx-text">
-                        Assety failed
+                        Assety z błędami
                     </h3>
                     <ul className="mt-3 grid gap-2 text-sm leading-6 text-nx-text-2">
                         {failedAssets.map((asset) => (

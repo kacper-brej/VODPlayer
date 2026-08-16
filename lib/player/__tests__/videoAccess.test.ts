@@ -26,10 +26,33 @@ describe("resolvePlaybackSource", () => {
         const { resolvePlaybackSource } = await import("../videoAccess");
         const source = resolvePlaybackSource("Frieren", {
             ...baseEpisode,
-            media: { assetId: 42, assetVersion: 7, status: "ready", heights: [480, 720], previewStartSeconds: null, hasPreviewClip: false },
+            media: { assetId: 42, assetVersion: 7, status: "ready", delivery: "hls", heights: [480, 720], previewStartSeconds: null, hasPreviewClip: false },
         });
         expect(source).toMatchObject({ kind: "hls", heights: [480, 720] });
         expect(source.src).toContain("/api/hls?");
+    });
+
+    it("odcinek z pliku dostaje podpisany adres do stream.php zamiast manifestu", async () => {
+        process.env.MEDIA_FILE_ORIGIN = "https://pliki.example.test";
+        const { resolvePlaybackSource } = await import("../videoAccess");
+        const source = resolvePlaybackSource("Tokyo Ghoul √A", {
+            ...baseEpisode,
+            media: { assetId: 42, assetVersion: 7, status: "ready", delivery: "file", heights: [], previewStartSeconds: null, hasPreviewClip: false },
+        });
+
+        expect(source.kind).toBe("file");
+        expect(source.src).toContain("https://pliki.example.test/stream.php?");
+        expect(source.src).not.toContain("/api/hls");
+        expect(source).not.toHaveProperty("heights");
+    });
+
+    it("brak wariantow jakosci nie blokuje odcinka z pliku", async () => {
+        process.env.MEDIA_FILE_ORIGIN = "https://pliki.example.test";
+        const { resolvePlaybackSource } = await import("../videoAccess");
+        expect(() => resolvePlaybackSource("Frieren", {
+            ...baseEpisode,
+            media: { assetId: 0, assetVersion: 0, status: "ready", delivery: "file", heights: [], previewStartSeconds: null, hasPreviewClip: false },
+        })).not.toThrow();
     });
 });
 
@@ -38,7 +61,7 @@ describe("resolvePreviewSource", () => {
         const { resolvePreviewSource } = await import("../videoAccess");
         const source = resolvePreviewSource("Frieren", {
             ...baseEpisode,
-            media: { assetId: 42, assetVersion: 7, status: "ready", heights: [480, 720], previewStartSeconds: 30, hasPreviewClip: true },
+            media: { assetId: 42, assetVersion: 7, status: "ready", delivery: "hls", heights: [480, 720], previewStartSeconds: 30, hasPreviewClip: true },
         }, 125);
         expect(source).toMatchObject({ kind: "session", startSeconds: 0 });
         expect(source?.src).toContain("/api/preview?");
@@ -50,7 +73,7 @@ describe("resolvePreviewSource", () => {
         const { resolvePreviewSource } = await import("../videoAccess");
         expect(resolvePreviewSource("Frieren", {
             ...baseEpisode,
-            media: { assetId: 42, assetVersion: 7, status: "ready", heights: [], previewStartSeconds: null, hasPreviewClip: false },
+            media: { assetId: 42, assetVersion: 7, status: "ready", delivery: "hls", heights: [], previewStartSeconds: null, hasPreviewClip: false },
         }, 6)).toBeNull();
     });
 });

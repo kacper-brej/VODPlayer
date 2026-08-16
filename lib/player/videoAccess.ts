@@ -1,4 +1,6 @@
 import type { CatalogEpisode } from "@/lib/catalog/catalog";
+import { fileStreamOrigin } from "@/lib/player/fileOrigin";
+import { FILE_STREAM_URL_TTL_SECONDS, signFileStreamRequest } from "@/lib/player/fileSigning";
 import { signHlsManifestRequest, type HlsVariant } from "@/lib/player/hlsSigning";
 import { HLS_MANIFEST_PATH } from "@/lib/player/hlsService";
 
@@ -29,7 +31,29 @@ export const signedManifestUrl = (
     return `${HLS_MANIFEST_PATH}?${query.toString()}`;
 };
 
-export type PlaybackSource = { kind: "hls"; src: string; heights: number[]; expiresAt: number };
+export type PlaybackSource =
+    | { kind: "hls"; src: string; heights: number[]; expiresAt: number }
+    | { kind: "file"; src: string; expiresAt: number };
+
+export const signedFileStreamUrl = (
+    seriesKey: string,
+    episodeKey: string,
+    expiresAt = Math.floor(Date.now() / 1000) + FILE_STREAM_URL_TTL_SECONDS,
+): string => {
+    const query = new URLSearchParams({
+        s: seriesKey,
+        e: episodeKey,
+        exp: String(expiresAt),
+        sig: signFileStreamRequest(seriesKey, episodeKey, expiresAt),
+    });
+
+    return `${fileStreamOrigin()}/stream.php?${query.toString()}`;
+};
+
+export const filePlaybackSource = (seriesKey: string, episodeKey: string): PlaybackSource => {
+    const expiresAt = Math.floor(Date.now() / 1000) + FILE_STREAM_URL_TTL_SECONDS;
+    return { kind: "file", src: signedFileStreamUrl(seriesKey, episodeKey, expiresAt), expiresAt };
+};
 
 export const playbackSourceFromAsset = (
     assetId: number,
@@ -48,6 +72,10 @@ export const playbackSourceFromAsset = (
 };
 
 export const resolvePlaybackSource = (seriesKey: string, episode: CatalogEpisode): PlaybackSource => {
+    if (episode.media?.delivery === "file") {
+        return filePlaybackSource(seriesKey, episode.key);
+    }
+
     const assetId = episode.media?.assetId;
     const assetVersion = episode.media?.assetVersion;
     if (!Number.isSafeInteger(assetId) || !Number.isSafeInteger(assetVersion)) {

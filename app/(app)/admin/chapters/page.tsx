@@ -20,7 +20,7 @@ const AdminChaptersPage = async () => {
             <div className="max-w-3xl">
                 <p className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-nx-accent">Odtwarzacz</p>
                 <h1 className="mt-2 font-display text-[36px] leading-[1.05] tracking-[-0.03em] text-nx-text sm:text-[42px]">Rozdziały odcinków</h1>
-                <p className="mt-3 text-sm leading-6 text-nx-text-2">Ustaw zakresy intro, recap i outro używane przez przyciski pomijania w odtwarzaczu.</p>
+                <p className="mt-3 text-sm leading-6 text-nx-text-2">Ustaw zakresy intro, recap i outro dla przycisków pomijania w odtwarzaczu.</p>
             </div>
 
             {series.length === 0 ? (

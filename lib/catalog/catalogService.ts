@@ -126,6 +126,7 @@ export const buildCatalog = async (): Promise<CatalogResponse> => {
                 assetId: parseSafeDbInteger(row.asset_id, "asset_id"),
                 assetVersion: parseSafeDbInteger(row.asset_version, "asset_version"),
                 status: "ready",
+                delivery: row.delivery === "file" ? "file" : "hls",
                 heights: heights.get(String(row.asset_id)) ?? [],
                 previewStartSeconds: row.preview_start_seconds === null ? null : Number(row.preview_start_seconds),
                 hasPreviewClip: row.preview_clip_key !== null,

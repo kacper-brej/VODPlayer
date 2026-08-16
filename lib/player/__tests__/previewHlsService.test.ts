@@ -29,7 +29,7 @@ const playlist = `#EXTM3U
 #EXT-X-ENDLIST
 `;
 const asset = {
-    id: 42, version: 7, seriesKey: "Test", episodeKey: "01.mp4", durationSeconds: 24,
+    id: 42, version: 7, seriesKey: "Test", episodeKey: "01.mp4", delivery: "hls" as const, durationSeconds: 24,
     previewStartSeconds: 6, previewClipKey: null, progress: null,
     renditions: [
         { height: 480, playlistKey: "media/Test/01/480/index.m3u8" },

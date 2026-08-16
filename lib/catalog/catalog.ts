@@ -7,7 +7,7 @@ import {
     type CatalogSeriesPayload,
     type SeriesAccessLevel,
 } from "@/lib/core/contracts";
-import { signedManifestUrl } from "@/lib/player/videoAccess";
+import { signedFileStreamUrl, signedManifestUrl } from "@/lib/player/videoAccess";
 import { getViewerEntitlements, type ViewerEntitlements } from "@/lib/access/entitlements";
 import { getDemoAsset, type DemoAsset } from "@/lib/access/demoAsset";
 import { buildCatalog } from "@/lib/catalog/catalogService";
@@ -47,6 +47,9 @@ const episodeUrl = (
     demo: DemoAsset | null,
 ): string | null => {
     if (access === "full") {
+        if (episode.media!.delivery === "file") {
+            return signedFileStreamUrl(seriesKey, episode.key);
+        }
         return signedManifestUrl(
             episode.media!.assetId,
             episode.media!.assetVersion,
