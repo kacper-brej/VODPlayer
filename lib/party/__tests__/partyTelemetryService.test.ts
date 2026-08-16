@@ -57,7 +57,11 @@ describe("telemetria synchronizacji", () => {
             buffering_cycles: 4, buffering_recovered: 3, buffering_timed_out: 1,
         });
         await expect(loadPartyTelemetryOverview()).resolves.toMatchObject({
+            sessions: 2,
+            syncedSessions: 2,
+            driftSamples: 17,
             driftBuckets: [10, 2, 1, 1, 3],
+            hardSeeks: 3,
             hardSeeksPerSession: 1.5,
             averageTimeToSyncMs: 1500,
             buffering: { cycles: 4, recovered: 3, timedOut: 1 },

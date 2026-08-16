@@ -17,6 +17,7 @@ describe("buildCatalog", () => {
                 synopsis: null, rating: null, age_rating: null, year: null, focal_x: null, focal_y: null,
                 safe_left: null, safe_bottom: null, dominant_color: null, placeholder: null, studio: null,
                 audio_languages: null, subtitle_languages: null, metadata_provider: null, external_id: null,
+                tmdb_external_id: "tv:1399",
                 episode_title: null, episode_synopsis: null, episode_duration_seconds: null,
                 thumbnail_path: "legacy/still.jpg", thumbnail_source: "local",
             }],
@@ -29,6 +30,7 @@ describe("buildCatalog", () => {
         const catalog = await buildCatalog();
         expect(catalog.series).toHaveLength(1);
         expect(catalog.series[0]?.posterImage).toBe("https://img/poster.jpg");
+        expect(catalog.series[0]?.tmdbExternalId).toBe(1399);
         expect(catalog.series[0]?.episodes[0]).toMatchObject({
             key: "01.mp4", number: 1, sizeBytes: 900, durationSeconds: 1200,
             thumbnail: null,

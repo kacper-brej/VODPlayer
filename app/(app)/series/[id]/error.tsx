@@ -4,10 +4,10 @@ import { useEffect } from "react";
 
 const SeriesError = ({
     error,
-    unstable_retry,
+    retry,
 }: {
     error: Error & { digest?: string };
-    unstable_retry: () => void;
+    retry: () => void;
 }) => {
     useEffect(() => {
         console.error(error);
@@ -22,7 +22,7 @@ const SeriesError = ({
                 </p>
                 <button
                     type="button"
-                    onClick={() => unstable_retry()}
+                    onClick={() => retry()}
                     className="mt-6 min-h-12 rounded-xl bg-nx-accent px-5 text-sm font-semibold text-nx-on-accent focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent"
                 >
                     Spróbuj ponownie

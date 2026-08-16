@@ -78,6 +78,7 @@ export interface CatalogSeriesPayload {
     subtitleLanguages: string[];
     metadataProvider: string | null;
     externalId: number | null;
+    tmdbExternalId: number | null;
     genres: CatalogGenre[];
     altTitles: string[];
     hasMetadata: boolean;
@@ -546,6 +547,7 @@ const isCatalogSeries = (value: unknown): value is CatalogSeriesPayload =>
     && isOptionalStringArray(value.subtitleLanguages)
     && isOptionalNullableString(value.metadataProvider)
     && isOptionalNullableNumber(value.externalId)
+    && isOptionalNullableNumber(value.tmdbExternalId)
     && isOptionalGenreArray(value.genres)
     && isOptionalStringArray(value.altTitles)
     && isBoolean(value.hasMetadata)
@@ -830,6 +832,7 @@ const normalizeCatalogSeries = (series: CatalogSeriesPayload): CatalogSeriesPayl
     subtitleLanguages: series.subtitleLanguages ?? [],
     metadataProvider: series.metadataProvider ?? null,
     externalId: series.externalId ?? null,
+    tmdbExternalId: series.tmdbExternalId ?? null,
     genres: series.genres ?? [],
     altTitles: series.altTitles ?? [],
     visibility: series.visibility ?? "restricted",
@@ -1334,6 +1337,23 @@ export interface TmdbTvSearchResponse {
     results: TmdbTvSearchResult[];
 }
 
+export interface TmdbTvListItem {
+    id: number;
+    name: string;
+    popularity: number;
+    vote_average: number;
+    vote_count: number;
+    first_air_date: string | null;
+    genre_ids: number[];
+}
+
+export interface TmdbTvListResponse {
+    page: number;
+    results: TmdbTvListItem[];
+    total_pages: number;
+    total_results: number;
+}
+
 const isTmdbConfigurationResponse = (value: unknown): value is TmdbConfigurationResponse =>
     isObject(value)
     && isObject(value.images)
@@ -1407,6 +1427,31 @@ const isTmdbTvSearchResponse = (value: unknown): value is TmdbTvSearchResponse =
     && Array.isArray(value.results)
     && value.results.every(isTmdbTvSearchResult);
 
+const isPositiveInteger = (value: unknown): value is number =>
+    isNumber(value) && Number.isSafeInteger(value) && value > 0;
+
+const isTmdbTvListItem = (value: unknown): value is TmdbTvListItem =>
+    isObject(value)
+    && isPositiveInteger(value.id)
+    && isString(value.name)
+    && isNumber(value.popularity)
+    && value.popularity >= 0
+    && isNumber(value.vote_average)
+    && value.vote_average >= 0
+    && value.vote_average <= 10
+    && isNonNegativeInteger(value.vote_count)
+    && isNullableString(value.first_air_date)
+    && Array.isArray(value.genre_ids)
+    && value.genre_ids.every(isPositiveInteger);
+
+const isTmdbTvListResponse = (value: unknown): value is TmdbTvListResponse =>
+    isObject(value)
+    && isPositiveInteger(value.page)
+    && Array.isArray(value.results)
+    && value.results.every(isTmdbTvListItem)
+    && isNonNegativeInteger(value.total_pages)
+    && isNonNegativeInteger(value.total_results);
+
 export const validateTmdbConfigurationResponse = (value: unknown): ContractResult<TmdbConfigurationResponse> =>
     isTmdbConfigurationResponse(value)
         ? valid(value)
@@ -1447,6 +1492,11 @@ export const validateTmdbTvSearchResponse = (value: unknown): ContractResult<Tmd
     isTmdbTvSearchResponse(value)
         ? valid(value)
         : invalid("TMDB tv search response");
+
+export const validateTmdbTvListResponse = (value: unknown): ContractResult<TmdbTvListResponse> =>
+    isTmdbTvListResponse(value)
+        ? valid(value)
+        : invalid("TMDB tv list response");
 
 export interface TmdbSeasonEpisode {
     episode_number: number;
@@ -1532,6 +1582,7 @@ export interface MediaStatusAsset {
     seriesKey: string;
     episodeKey: string;
     status: string;
+    delivery: "hls" | "file";
     durationSeconds: number | null;
     totalSizeBytes: number | null;
     previewClipKey: string | null;
@@ -1565,6 +1616,7 @@ const isMediaStatusAsset = (value: unknown): value is MediaStatusAsset =>
     && isString(value.seriesKey)
     && isString(value.episodeKey)
     && isString(value.status)
+    && (value.delivery === "hls" || value.delivery === "file")
     && isNullableNumber(value.durationSeconds)
     && isNullableNumber(value.totalSizeBytes)
     && isNullableString(value.previewClipKey)

@@ -64,6 +64,37 @@ describe("fresh hit — wpis trwaly mlodszy niz TTL", () => {
         expect(fetch).toHaveBeenCalledOnce();
         expect(getCachedResponse).toHaveBeenCalledOnce();
     });
+
+    it("respektuje krotszy TTL ustawiony dla konkretnego endpointu", async () => {
+        getCachedResponse.mockResolvedValue({ data: { title: "stary" }, fetchedAtMs: Date.now() - 45_000 });
+        vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ title: "nowy" }));
+        const client = createRateLimitedClient(baseConfig);
+
+        const result = await client.fetchResult(
+            "/tv/1",
+            undefined,
+            undefined,
+            { cacheTtlMs: 30_000 },
+        );
+
+        expect(fetch).toHaveBeenCalledOnce();
+        expect(result).toEqual({ kind: "success", data: { title: "nowy" } });
+    });
+
+    it("respektuje dluzszy TTL ustawiony dla konkretnego endpointu", async () => {
+        getCachedResponse.mockResolvedValue({ data: { title: "z cache" }, fetchedAtMs: Date.now() - 90_000 });
+        const client = createRateLimitedClient(baseConfig);
+
+        const result = await client.fetchResult(
+            "/tv/1",
+            undefined,
+            undefined,
+            { cacheTtlMs: 120_000 },
+        );
+
+        expect(fetch).not.toHaveBeenCalled();
+        expect(result).toEqual({ kind: "success", data: { title: "z cache" } });
+    });
 });
 
 describe("stale hit — wpis trwaly starszy niz TTL, provider odpowiada", () => {

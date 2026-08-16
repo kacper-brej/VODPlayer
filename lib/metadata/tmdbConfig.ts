@@ -1,4 +1,8 @@
-import { createRateLimitedClient } from "@/lib/metadata/rateLimitedClient";
+import "server-only";
+import {
+    createRateLimitedClient,
+    type RateLimitedRequestConfig,
+} from "@/lib/metadata/rateLimitedClient";
 import { validateTmdbConfigurationResponse } from "@/lib/core/contracts";
 import { dataFailure, dataSuccess, type DataResult } from "@/lib/core/dataResult";
 
@@ -34,14 +38,16 @@ export const tmdbToken = (): string | null => {
 export const fetchTmdbResult = async (
     path: string,
     validator: (value: unknown) => boolean,
+    requestConfig?: RateLimitedRequestConfig,
 ): Promise<DataResult<unknown>> => {
     const token = tmdbToken();
-    if (!token) return dataFailure("server");
+    if (!token) return dataFailure("not_configured");
 
     return client.fetchResult(
         path,
         { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
         validator,
+        requestConfig,
     );
 };
 

@@ -16,11 +16,16 @@ export interface RateLimitedClientConfig {
     maxRetries: number;
 }
 
+export interface RateLimitedRequestConfig {
+    cacheTtlMs?: number;
+}
+
 export interface RateLimitedClient {
     fetchResult: (
         path: string,
         options?: RequestInit,
         validator?: (value: unknown) => boolean,
+        requestConfig?: RateLimitedRequestConfig,
     ) => Promise<DataResult<unknown>>;
 }
 
@@ -59,18 +64,14 @@ const writePersistentCache = async (providerId: string, path: string, data: unkn
 };
 
 export const createRateLimitedClient = (config: RateLimitedClientConfig): RateLimitedClient => {
-    const cache = new Map<string, { data: unknown; expiresAt: number }>();
+    const cache = new Map<string, { data: unknown; fetchedAt: number }>();
     const pending = new Map<string, Promise<DataResult<unknown>>>();
     let schedule: Promise<void> = Promise.resolve();
     let lastRequestAt = 0;
     let consecutiveFailures = 0;
     let circuitOpenUntil = 0;
 
-    const pruneCache = (now: number) => {
-        for (const [key, entry] of cache) {
-            if (entry.expiresAt <= now) cache.delete(key);
-        }
-
+    const pruneCache = () => {
         while (cache.size >= config.cacheMaxEntries) {
             const oldestKey = cache.keys().next().value;
             if (oldestKey === undefined) break;
@@ -78,11 +79,11 @@ export const createRateLimitedClient = (config: RateLimitedClientConfig): RateLi
         }
     };
 
-    const readLocalCache = (path: string) => {
+    const readLocalCache = (path: string, cacheTtlMs: number) => {
         const entry = cache.get(path);
 
         if (!entry) return null;
-        if (entry.expiresAt <= Date.now()) {
+        if (Date.now() - entry.fetchedAt >= cacheTtlMs) {
             cache.delete(path);
             return null;
         }
@@ -92,9 +93,9 @@ export const createRateLimitedClient = (config: RateLimitedClientConfig): RateLi
         return entry.data;
     };
 
-    const writeLocalCache = (path: string, data: unknown) => {
-        pruneCache(Date.now());
-        cache.set(path, { data, expiresAt: Date.now() + config.cacheTtlMs });
+    const writeLocalCache = (path: string, data: unknown, fetchedAt = Date.now()) => {
+        pruneCache();
+        cache.set(path, { data, fetchedAt });
     };
 
     const scheduleStart = () => {
@@ -197,8 +198,10 @@ export const createRateLimitedClient = (config: RateLimitedClientConfig): RateLi
         path: string,
         options?: RequestInit,
         validator?: (value: unknown) => boolean,
+        requestConfig?: RateLimitedRequestConfig,
     ): Promise<DataResult<unknown>> => {
-        const cachedLocal = readLocalCache(path);
+        const cacheTtlMs = requestConfig?.cacheTtlMs ?? config.cacheTtlMs;
+        const cachedLocal = readLocalCache(path, cacheTtlMs);
         if (cachedLocal !== null) {
             return dataSuccess(cachedLocal);
         }
@@ -212,8 +215,8 @@ export const createRateLimitedClient = (config: RateLimitedClientConfig): RateLi
             const persisted = await readPersistentCache(config.providerId, path);
             const now = Date.now();
 
-            if (persisted !== null && now - persisted.fetchedAt < config.cacheTtlMs) {
-                writeLocalCache(path, persisted.data);
+            if (persisted !== null && now - persisted.fetchedAt < cacheTtlMs) {
+                writeLocalCache(path, persisted.data, persisted.fetchedAt);
                 return dataSuccess(persisted.data);
             }
 
@@ -241,7 +244,7 @@ export const createRateLimitedClient = (config: RateLimitedClientConfig): RateLi
                     "age(ms)=",
                     now - persisted.fetchedAt,
                 );
-                writeLocalCache(path, persisted.data);
+                writeLocalCache(path, persisted.data, persisted.fetchedAt);
                 return dataSuccess(persisted.data);
             }
 

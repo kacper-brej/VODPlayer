@@ -9,7 +9,8 @@ type Executor = Pool | PoolConnection;
 export const sumReadyMediaAssetBytes = async (db: Executor = getDbPool()): Promise<number> => {
     try {
         const [rows] = await db.execute<RowDataPacket[]>(
-            "SELECT COALESCE(SUM(total_size_bytes), 0) AS total_bytes FROM media_assets WHERE status = 'ready'",
+            `SELECT COALESCE(SUM(total_size_bytes), 0) AS total_bytes
+             FROM media_assets WHERE status = 'ready' AND delivery = 'hls'`,
         );
         return Number(rows[0]?.total_bytes ?? 0);
     } catch (error) {

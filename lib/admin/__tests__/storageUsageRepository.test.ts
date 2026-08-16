@@ -8,10 +8,10 @@ const { sumReadyMediaAssetBytes, getCurrentDate, upsertSnapshot, listSnapshotsSi
 beforeEach(() => execute.mockReset());
 
 describe("sumReadyMediaAssetBytes", () => {
-    it("liczy wylacznie assety w statusie ready", async () => {
+    it("liczy wylacznie gotowe assety HLS przechowywane w B2", async () => {
         execute.mockResolvedValueOnce([[{ total_bytes: 12345 }]]);
         await expect(sumReadyMediaAssetBytes()).resolves.toBe(12345);
-        expect(execute).toHaveBeenCalledWith(expect.stringMatching(/WHERE status = 'ready'/));
+        expect(execute).toHaveBeenCalledWith(expect.stringMatching(/status = 'ready'[\s\S]*delivery = 'hls'/));
     });
 
     it("brak assetow -> 0 (COALESCE), nie null", async () => {

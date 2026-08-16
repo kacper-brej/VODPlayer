@@ -24,13 +24,21 @@ describe("partyPlayerAdapter", () => {
         expect(target.playbackRate).toBe(1);
     });
 
-    it("wysyła intencję spacji bez lokalnej zmiany odtwarzacza", async () => {
+    it("stosuje spację lokalnie od razu i równolegle wysyła intencję", async () => {
         const target = player();
-        const sendIntent = vi.fn(async () => null);
+        const sendIntent = vi.fn(async () => ({ type: "play" }));
         await requestPlaybackToggle(target, sendIntent);
         expect(sendIntent).toHaveBeenCalledWith({ kind: "play" });
-        expect(target.play).not.toHaveBeenCalled();
+        expect(target.play).toHaveBeenCalledOnce();
         expect(target.pause).not.toHaveBeenCalled();
+    });
+
+    it("odrzucona intencja cofa lokalne odtwarzanie do kotwicy", async () => {
+        const target = player();
+        const onIntentRejected = vi.fn();
+        await requestPlaybackToggle(target, vi.fn(async () => null), onIntentRejected);
+        expect(target.play).toHaveBeenCalledOnce();
+        expect(onIntentRejected).toHaveBeenCalledOnce();
     });
 
     it("bez synchronizacji używa wyłącznie lokalnego odtwarzacza", async () => {
