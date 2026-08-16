@@ -13,10 +13,13 @@ export type MediaAssetStatus =
     | "delete_failed"
     | "deleted";
 
+export type MediaDelivery = "hls" | "file";
+
 export interface EpisodeMediaStatus {
     assetId: number;
     assetVersion: number;
     status: MediaAssetStatus;
+    delivery: MediaDelivery;
     heights: number[];
     previewStartSeconds: number | null;
     hasPreviewClip: boolean;
@@ -473,6 +476,7 @@ const isEpisodeMediaStatus = (value: unknown): value is EpisodeMediaStatus =>
     && isNumber(value.assetId)
     && isNumber(value.assetVersion)
     && isMediaAssetStatus(value.status)
+    && (value.delivery === "hls" || value.delivery === "file")
     && Array.isArray(value.heights)
     && value.heights.every(isNumber)
     && isNullableNumber(value.previewStartSeconds)

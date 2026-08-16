@@ -60,7 +60,7 @@ const series = (key: string, visibility: SeriesVisibility): CatalogSeriesPayload
         media: {
             assetId: 42,
             assetVersion: 7,
-            status: "ready",
+            status: "ready", delivery: "hls",
             heights: [720],
             previewStartSeconds: null,
             hasPreviewClip: false,

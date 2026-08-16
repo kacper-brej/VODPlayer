@@ -333,7 +333,7 @@ export const VideoPlayer = ({
     }, [flushProgress, onBack]);
 
     const attemptPlaybackRefresh = useCallback(() => {
-        if (refreshInFlightRef.current) return;
+        if (activePlayback.kind === 'file' || refreshInFlightRef.current) return;
         if (refreshAttemptsRef.current >= HLS_REFRESH_MAX_ATTEMPTS) {
             setManifestUnrecoverable(true);
             return;
@@ -378,7 +378,7 @@ export const VideoPlayer = ({
         };
 
         void refresh();
-    }, [seriesKey, episodeKey]);
+    }, [activePlayback.kind, seriesKey, episodeKey]);
 
     const handleProviderChange = useCallback((provider: MediaProviderAdapter | null) => {
         if (isHLSProvider(provider)) {
@@ -439,6 +439,14 @@ export const VideoPlayer = ({
             if (selectedQuality) selectedQuality.selected = true;
             selectedQualityHeightRef.current = null;
         }
+        if (activePlayback.kind === 'file'
+            && !hasSeekedToStart.current
+            && desiredStartPositionRef.current > 0
+            && playerRef.current) {
+            hasSeekedToStart.current = true;
+            playerRef.current.currentTime = desiredStartPositionRef.current;
+        }
+
         if (syncRef.current) void applyCurrentPartyAnchor();
         else if (!shouldResumeAfterRefreshRef.current) playerRef.current?.pause();
 
@@ -722,7 +730,9 @@ export const VideoPlayer = ({
         setMediaInstanceKey((value) => value + 1);
     };
 
-    const mediaSrc = { src: activePlayback.src, type: 'application/vnd.apple.mpegurl' as const };
+    const mediaSrc = activePlayback.kind === 'file'
+        ? { src: activePlayback.src, type: 'video/mp4' as const }
+        : { src: activePlayback.src, type: 'application/vnd.apple.mpegurl' as const };
 
     return (
         <MotionConfig reducedMotion="user">

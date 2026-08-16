@@ -26,7 +26,8 @@ export const beginMediaDeletion = async (
     const [rows] = await connection.execute<DeleteAssetRow[]>(
         `SELECT id, status, storage_prefix,
                 (delete_started_at IS NOT NULL AND delete_started_at > DATE_SUB(NOW(), INTERVAL 5 MINUTE)) AS lease_active
-         FROM media_assets WHERE series_key = ? AND episode_key = ? LIMIT 1 FOR UPDATE`,
+         FROM media_assets
+         WHERE series_key = ? AND episode_key = ? AND delivery = 'hls' LIMIT 1 FOR UPDATE`,
         [seriesKey, episodeKey],
     );
     const asset = rows[0];

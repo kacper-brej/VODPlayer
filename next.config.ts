@@ -12,12 +12,18 @@ const partyStreamOrigin = (() => {
     try { return new URL(raw.startsWith("http") ? raw : `https://${raw}`).origin; } catch { return ""; }
 })();
 
+const fileOrigin = (() => {
+    const raw = process.env.MEDIA_FILE_ORIGIN?.trim();
+    if (!raw) return "";
+    try { return new URL(raw.startsWith("http") ? raw : `https://${raw}`).origin; } catch { return ""; }
+})();
+
 const contentSecurityPolicy = [
     "default-src 'self'",
     `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'",
     `img-src 'self' data: blob: https://cdn.myanimelist.net https://s4.anilist.co https://image.tmdb.org${b2Origin ? ` ${b2Origin}` : ""}`,
-    `media-src 'self' blob:${b2Origin ? ` ${b2Origin}` : ""}`,
+    `media-src 'self' blob:${b2Origin ? ` ${b2Origin}` : ""}${fileOrigin ? ` ${fileOrigin}` : ""}`,
     `connect-src 'self' blob:${b2Origin ? ` ${b2Origin}` : ""}${partyStreamOrigin ? ` ${partyStreamOrigin}` : ""}`,
     "font-src 'self' data:",
     "object-src 'none'",

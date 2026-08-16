@@ -185,13 +185,13 @@ const ChapterEditor = ({ series }: { series: AdminLibrarySeries[] }) => {
                 <div className="mt-5 grid gap-4">
                     <label>
                         <span className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-nx-text-2">Serial</span>
-                        <select value={selectedSeries?.seriesKey ?? ""} onChange={(event) => selectSeries(event.target.value)} className="min-h-11 w-full rounded-[var(--r-s)] border border-nx-border bg-nx-bg px-3 text-sm text-nx-text outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nx-accent">
+                        <select value={selectedSeries?.seriesKey ?? ""} onChange={(event) => selectSeries(event.target.value)} className="min-h-11 w-full cursor-pointer rounded-[var(--r-s)] border border-nx-border bg-nx-bg px-3 text-sm text-nx-text outline-none transition-colors duration-140 hover:border-nx-accent hover:bg-nx-raised/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nx-accent">
                             {series.map((item) => <option key={item.seriesKey} value={item.seriesKey}>{item.seriesKey}</option>)}
                         </select>
                     </label>
                     <label>
                         <span className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-nx-text-2">Odcinek</span>
-                        <select value={selectedEpisode?.episodeKey ?? ""} onChange={(event) => selectEpisode(event.target.value)} className="min-h-11 w-full rounded-[var(--r-s)] border border-nx-border bg-nx-bg px-3 text-sm text-nx-text outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nx-accent">
+                        <select value={selectedEpisode?.episodeKey ?? ""} onChange={(event) => selectEpisode(event.target.value)} className="min-h-11 w-full cursor-pointer rounded-[var(--r-s)] border border-nx-border bg-nx-bg px-3 text-sm text-nx-text outline-none transition-colors duration-140 hover:border-nx-accent hover:bg-nx-raised/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nx-accent">
                             {selectedSeries?.episodes.map((episode) => (
                                 <option key={episode.episodeKey} value={episode.episodeKey}>
                                     {episode.title ?? episode.episodeKey}
@@ -213,12 +213,12 @@ const ChapterEditor = ({ series }: { series: AdminLibrarySeries[] }) => {
                     ) : (
                         <ul className="mt-3 grid gap-2">
                             {chapters.map((chapter) => (
-                                <li key={chapter.type} className="flex flex-wrap items-center gap-3 rounded-[var(--r-s)] border border-nx-border bg-nx-bg px-3 py-3">
-                                    <button type="button" onClick={() => editChapter(chapter)} className="min-w-0 flex-1 text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nx-accent">
+                                <li key={chapter.type} className="flex flex-wrap items-center gap-3 rounded-[var(--r-s)] border border-nx-border bg-nx-bg px-3 py-3 transition-[border-color,background-color] duration-140 hover:border-nx-text-2/40 hover:bg-nx-raised/35">
+                                    <button type="button" onClick={() => editChapter(chapter)} className="min-w-0 flex-1 cursor-pointer rounded-[var(--r-s)] text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nx-accent">
                                         <span className="block text-sm font-semibold text-nx-text">{typeLabel(chapter.type)}</span>
-                                        <span className="mt-1 block font-mono text-[10px] text-nx-text-2">{formatTime(chapter.startSeconds)}–{formatTime(chapter.endSeconds)}</span>
+                                        <span className="mt-1 block font-mono text-[10px] text-nx-text-2">{formatTime(chapter.startSeconds)} - {formatTime(chapter.endSeconds)}</span>
                                     </button>
-                                    <button type="button" onClick={() => deleteChapter(chapter.type)} disabled={saving} aria-label={`Usuń ${typeLabel(chapter.type)} z odcinka`} className="flex size-11 items-center justify-center rounded-full border border-nx-border text-nx-text-2 outline-none hover:border-danger/50 hover:text-danger focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger disabled:opacity-55">
+                                    <button type="button" onClick={() => deleteChapter(chapter.type)} disabled={saving} aria-label={`Usuń ${typeLabel(chapter.type)} z odcinka`} className="flex size-11 cursor-pointer items-center justify-center rounded-full border border-nx-border text-nx-text-2 outline-none transition-colors duration-140 hover:border-danger/50 hover:bg-nx-critical/10 hover:text-danger focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger disabled:cursor-wait disabled:opacity-55">
                                         <Trash2 size={16} aria-hidden="true" />
                                     </button>
                                 </li>
@@ -235,29 +235,29 @@ const ChapterEditor = ({ series }: { series: AdminLibrarySeries[] }) => {
                 <div className="mt-5 grid gap-4 sm:grid-cols-3">
                     <label>
                         <span className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-nx-text-2">Typ</span>
-                        <select value={chapterType} onChange={(event) => setChapterType(event.target.value as EpisodeChapterType)} className="min-h-11 w-full rounded-[var(--r-s)] border border-nx-border bg-nx-bg px-3 text-sm text-nx-text outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nx-accent">
+                        <select value={chapterType} onChange={(event) => setChapterType(event.target.value as EpisodeChapterType)} className="min-h-11 w-full cursor-pointer rounded-[var(--r-s)] border border-nx-border bg-nx-bg px-3 text-sm text-nx-text outline-none transition-colors duration-140 hover:border-nx-accent hover:bg-nx-raised/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nx-accent">
                             {CHAPTER_TYPES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                         </select>
                     </label>
                     <label>
                         <span className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-nx-text-2">Początek</span>
-                        <input type="number" min={0} max={duration ?? undefined} step={1} required value={startSeconds} onChange={(event) => setStartSeconds(event.target.value)} className="min-h-11 w-full rounded-[var(--r-s)] border border-nx-border bg-nx-bg px-3 text-sm text-nx-text outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nx-accent" />
+                        <input type="number" min={0} max={duration ?? undefined} step={1} required value={startSeconds} onChange={(event) => setStartSeconds(event.target.value)} className="min-h-11 w-full rounded-[var(--r-s)] border border-nx-border bg-nx-bg px-3 text-sm text-nx-text outline-none transition-colors duration-140 hover:border-nx-text-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nx-accent" />
                     </label>
                     <label>
                         <span className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-nx-text-2">Koniec</span>
-                        <input type="number" min={1} max={duration ?? undefined} step={1} required value={endSeconds} onChange={(event) => setEndSeconds(event.target.value)} className="min-h-11 w-full rounded-[var(--r-s)] border border-nx-border bg-nx-bg px-3 text-sm text-nx-text outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nx-accent" />
+                        <input type="number" min={1} max={duration ?? undefined} step={1} required value={endSeconds} onChange={(event) => setEndSeconds(event.target.value)} className="min-h-11 w-full rounded-[var(--r-s)] border border-nx-border bg-nx-bg px-3 text-sm text-nx-text outline-none transition-colors duration-140 hover:border-nx-text-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nx-accent" />
                     </label>
                 </div>
 
-                <label className="mt-5 flex min-h-11 cursor-pointer items-start gap-3 rounded-[var(--r-s)] border border-nx-border bg-nx-bg px-4 py-3">
-                    <input type="checkbox" checked={applyToSeries} onChange={(event) => setApplyToSeries(event.target.checked)} className="mt-0.5 size-4 accent-nx-accent" />
+                <label className="mt-5 flex min-h-11 cursor-pointer items-start gap-3 rounded-[var(--r-s)] border border-nx-border bg-nx-bg px-4 py-3 transition-[border-color,background-color] duration-140 hover:border-nx-accent/60 hover:bg-nx-raised/40 focus-within:border-nx-accent">
+                    <input type="checkbox" checked={applyToSeries} onChange={(event) => setApplyToSeries(event.target.checked)} className="mt-0.5 size-5 shrink-0 cursor-pointer rounded border-nx-border bg-nx-bg accent-nx-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nx-accent" />
                     <span>
                         <span className="block text-sm font-semibold text-nx-text">Zastosuj do całej serii</span>
                         <span className="mt-1 block text-xs leading-5 text-nx-text-2">Ustawi wartość domyślną i zachowa istniejące ręczne korekty odcinków.</span>
                     </span>
                 </label>
 
-                <button type="submit" disabled={saving || !selectedEpisode} className="mt-6 inline-flex min-h-12 items-center gap-2 rounded-full bg-nx-accent px-6 text-sm font-semibold text-nx-on-accent outline-none hover:bg-[color-mix(in_srgb,var(--nx-accent)_88%,var(--nx-text))] focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent disabled:cursor-not-allowed disabled:opacity-55">
+                <button type="submit" disabled={saving || !selectedEpisode} className="mt-6 inline-flex min-h-12 cursor-pointer items-center gap-2 rounded-full bg-nx-accent px-6 text-sm font-semibold text-nx-on-accent outline-none transition-[filter,opacity] duration-140 hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent disabled:cursor-wait disabled:opacity-55">
                     <Save size={17} aria-hidden="true" />
                     {saving ? "Zapisywanie…" : "Zapisz zakres"}
                 </button>

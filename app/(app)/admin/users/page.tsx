@@ -30,8 +30,8 @@ const AdminUsersPage = async () => {
                     Konta
                 </h1>
                 <p className="mt-3 text-sm leading-6 text-nx-text-2">
-                    Nadanie roli administratora odbywa się wyłącznie przez bezpośredni dostęp do bazy.
-                    Dostęp do pojedynczych tytułów nadajesz niżej.
+                    Rolę administratora można nadać tylko bezpośrednio w bazie. Dostęp do poszczególnych
+                    tytułów ustawisz niżej.
                 </p>
             </div>
 
@@ -57,7 +57,7 @@ const AdminUsersPage = async () => {
                         </thead>
                         <tbody>
                             {result.data.users.map((user) => (
-                                <tr key={user.id} className="border-b border-nx-border/60 last:border-0 hover:bg-nx-raised/50">
+                                <tr key={user.id} className="border-b border-nx-border/60 transition-colors duration-140 last:border-0 hover:bg-nx-raised/50">
                                     <td className="px-5 py-4 text-nx-text">
                                         <span className="block truncate font-medium" title={user.username}>
                                             {user.username}
@@ -96,7 +96,7 @@ const AdminUsersPage = async () => {
                         Dostęp do tytułów
                     </h2>
                     <p className="mt-2 text-sm leading-6 text-nx-text-2">
-                        Lista obejmuje tytuły o poziomie „tylko wybrane konta”. Konto bez uprawnienia widzi kafelek
+                        Lista obejmuje tytuły dostępne tylko dla wybranych kont. Konto bez uprawnienia widzi kafelek
                         z opisami, ale odtwarza materiał demonstracyjny. Nadanie dostępu usuwa postęp zebrany
                         na tym materiale.
                     </p>

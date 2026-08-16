@@ -58,7 +58,7 @@ const SeriesAccessMatrix = ({ overview }: { overview: Overview }) => {
     if (restrictedSeries.length === 0) {
         return (
             <p className="text-sm leading-6 text-nx-text-2">
-                Żaden tytuł nie ma dziś poziomu „tylko wybrane konta”. Ustaw go w zakładce Biblioteka,
+                Żaden tytuł nie jest obecnie dostępny tylko dla wybranych kont. Ustaw taki dostęp w Bibliotece,
                 a pojawi się tutaj do przypisania.
             </p>
         );
@@ -71,7 +71,7 @@ const SeriesAccessMatrix = ({ overview }: { overview: Overview }) => {
             {viewers.map((user) => (
                 <section
                     key={user.id}
-                    className="rounded-[var(--r-m)] border border-nx-border bg-nx-panel p-5 shadow-[var(--sh-2)]"
+                    className="rounded-[var(--r-m)] border border-nx-border bg-nx-panel p-5 shadow-[var(--sh-2)] transition-colors duration-140 hover:border-nx-text-2/40"
                 >
                     <h3 className="text-sm font-semibold text-nx-text">{user.username}</h3>
                     <p className="mt-1 truncate font-mono text-[11px] text-nx-text-2" title={user.email}>
@@ -94,10 +94,10 @@ const SeriesAccessMatrix = ({ overview }: { overview: Overview }) => {
                                         onClick={() => toggle(entry.seriesKey, user.id, hasAccess)}
                                         disabled={isBusy}
                                         aria-pressed={hasAccess}
-                                        className={`inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs outline-none transition-colors duration-140 disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent ${
+                                        className={`inline-flex min-h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-xs outline-none transition-colors duration-140 disabled:cursor-wait disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent ${
                                             hasAccess
-                                                ? "border-nx-accent bg-nx-accent text-nx-on-accent"
-                                                : "border-nx-border bg-transparent text-nx-text-2 hover:border-nx-accent"
+                                                ? "border-nx-accent bg-nx-accent text-nx-on-accent hover:brightness-110"
+                                                : "border-nx-border bg-transparent text-nx-text-2 hover:border-nx-accent hover:bg-nx-raised hover:text-nx-text"
                                         }`}
                                     >
                                         {hasAccess ? <Check size={13} aria-hidden="true" /> : <Plus size={13} aria-hidden="true" />}

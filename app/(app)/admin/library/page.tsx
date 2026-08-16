@@ -52,7 +52,7 @@ const AdminLibraryPage = async () => {
                     Biblioteka
                 </h1>
                 <p className="mt-3 text-sm leading-6 text-nx-text-2 [font-variant-numeric:tabular-nums]">
-                    Lokalnie: {series.length} {pluralize(series.length, "serial", "seriale", "seriali")} i{" "}
+                    Na serwerze są {series.length} {pluralize(series.length, "serial", "seriale", "seriali")} i{" "}
                     {totalEpisodes} {pluralize(totalEpisodes, "odcinek", "odcinki", "odcinków")}. Status migracji do
                     Backblaze B2 będzie dostępny po utworzeniu rejestru mediów.
                 </p>
@@ -62,7 +62,7 @@ const AdminLibraryPage = async () => {
                 <DataState
                     kind="empty"
                     title="Biblioteka jest pusta"
-                    description="Dodaj pierwszy materiał w zakładce „Wyślij plik”."
+                    description="Dodaj pierwszy materiał w zakładce Wyślij plik."
                 />
             )}
 
@@ -71,9 +71,9 @@ const AdminLibraryPage = async () => {
                     {series.map((item) => (
                         <details
                             key={item.seriesKey}
-                            className="group overflow-hidden rounded-[var(--r-m)] border border-nx-border bg-nx-panel shadow-[var(--sh-2)]"
+                            className="group overflow-hidden rounded-[var(--r-m)] border border-nx-border bg-nx-panel shadow-[var(--sh-2)] transition-colors duration-140 open:border-nx-text-2/40"
                         >
-                            <summary className="grid min-h-16 cursor-pointer list-none grid-cols-[20px_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-[var(--r-m)] px-5 py-3 outline-none [&::-webkit-details-marker]:hidden sm:grid-cols-[20px_minmax(0,1fr)_auto] focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent">
+                            <summary className="grid min-h-16 cursor-pointer list-none grid-cols-[20px_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-[var(--r-m)] px-5 py-3 outline-none transition-colors duration-140 hover:bg-nx-raised/60 [&::-webkit-details-marker]:hidden sm:grid-cols-[20px_minmax(0,1fr)_auto] focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent">
                                 <ChevronDown
                                     size={18}
                                     aria-hidden="true"
@@ -101,7 +101,7 @@ const AdminLibraryPage = async () => {
                                 {item.episodes.map((episode) => (
                                     <li
                                         key={episode.episodeKey}
-                                        className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-nx-border/60 py-3 text-sm last:border-0"
+                                        className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-nx-border/60 px-2 py-3 text-sm transition-colors duration-140 last:border-0 hover:bg-nx-raised/35"
                                     >
                                         <div className="min-w-0">
                                             <p

@@ -47,8 +47,8 @@ const AdminStoragePage = async () => {
                     Magazyn B2
                 </h1>
                 <p className="mt-3 text-sm leading-6 text-nx-text-2">
-                    Zużycie Backblaze B2 i usuwanie przetranskodowanych odcinków (segmenty HLS + podgląd w B2
-                    oraz plik źródłowy na serwerze).
+                    Sprawdź zużycie Backblaze B2 i usuń przetranskodowane odcinki. Każdy wpis obejmuje
+                    segmenty HLS, podgląd w B2 oraz plik źródłowy na serwerze.
                 </p>
             </div>
 
@@ -83,11 +83,11 @@ const AdminStoragePage = async () => {
                             Średnia w tym miesiącu
                         </p>
                         <p className="mt-2 font-display text-[clamp(1.75rem,3vw,2.25rem)] leading-none tracking-[-0.025em] text-nx-text [font-variant-numeric:tabular-nums]">
-                            {currentMonthAverageBytes !== null ? formatBytes(currentMonthAverageBytes) : "—"}
+                            {currentMonthAverageBytes !== null ? formatBytes(currentMonthAverageBytes) : "Brak"}
                         </p>
                         <p className="mt-4 text-xs leading-5 text-nx-text-2">
-                            Liczona z dziennych migawek zapisywanych przy każdym otwarciu tej strony —
-                            tak jak Backblaze liczy koszt magazynu (średnia dobowa w miesiącu).
+                            Wartość jest liczona z dziennych migawek zapisywanych przy każdym otwarciu tej
+                            strony. Backblaze rozlicza magazyn na podstawie średniej dobowej w miesiącu.
                         </p>
                     </article>
                 </div>
@@ -102,7 +102,7 @@ const AdminStoragePage = async () => {
                         {history.map((entry) => (
                             <div
                                 key={entry.date}
-                                className="group/bar relative flex flex-1 flex-col items-center justify-end gap-1"
+                                className="group/bar relative flex flex-1 cursor-help flex-col items-center justify-end gap-1"
                                 title={`${formatDayLabel(entry.date)}: ${formatBytes(entry.totalBytes)}`}
                             >
                                 <div
@@ -124,7 +124,7 @@ const AdminStoragePage = async () => {
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-nx-text-2">
                     Usunięcie kasuje segmenty HLS i podgląd z B2 oraz plik <code className="text-nx-text">.mp4</code>{" "}
-                    z serwera. Nieodwracalne.
+                    z serwera. Tej operacji nie można cofnąć.
                 </p>
             </div>
 
@@ -139,14 +139,14 @@ const AdminStoragePage = async () => {
                     {sortedAssets.map((asset) => (
                         <li
                             key={`${asset.seriesKey}/${asset.episodeKey}`}
-                            className="flex items-center justify-between gap-4 rounded-[var(--r-m)] border border-nx-border bg-nx-panel px-4 py-3"
+                            className="flex items-center justify-between gap-4 rounded-[var(--r-m)] border border-nx-border bg-nx-panel px-4 py-3 transition-[border-color,background-color] duration-140 hover:border-nx-text-2/40 hover:bg-nx-raised/40"
                         >
                             <span className="min-w-0">
                                 <span className="block truncate text-sm text-nx-text">
                                     {asset.seriesKey}/{asset.episodeKey}
                                 </span>
                                 <span className="mt-0.5 block font-mono text-[10px] tracking-[0.08em] text-nx-text-2">
-                                    {asset.totalSizeBytes !== null ? formatBytes(asset.totalSizeBytes) : "—"}
+                                    {asset.totalSizeBytes !== null ? formatBytes(asset.totalSizeBytes) : "Brak danych"}
                                 </span>
                             </span>
                             <EpisodeDeleteButton seriesKey={asset.seriesKey} episodeKey={asset.episodeKey} />

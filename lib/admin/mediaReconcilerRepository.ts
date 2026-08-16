@@ -31,8 +31,11 @@ export interface ReconciliationAsset {
 export const listAssetsForReconciliation = async (db: Executor = getDbPool()): Promise<ReconciliationAsset[]> => {
     try {
         const [assets] = await db.execute<AssetRow[]>(
+            // delivery='file' wykluczone: te assety nie maja obiektow w B2,
+            // wiec porownanie prefiksow zglosiloby je jako brakujace (ADR-043).
             `SELECT id, series_key, episode_key, status, storage_prefix FROM media_assets
-             WHERE status IN ('ready', 'deleting', 'delete_failed', 'deleted')`,
+             WHERE status IN ('ready', 'deleting', 'delete_failed', 'deleted')
+               AND delivery = 'hls'`,
         );
         const [playlists] = await db.execute<PlaylistRow[]>(
             `SELECT r.asset_id, r.playlist_key FROM media_renditions r

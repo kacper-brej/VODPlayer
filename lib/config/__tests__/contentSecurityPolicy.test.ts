@@ -4,7 +4,9 @@ const originalEnv = { ...process.env };
 
 const readCsp = async (env: Record<string, string | undefined>): Promise<string> => {
     vi.resetModules();
-    for (const key of ["B2_ENDPOINT", "PARTY_REALTIME_STREAM_ORIGIN"]) delete process.env[key];
+    for (const key of ["B2_ENDPOINT", "PARTY_REALTIME_STREAM_ORIGIN", "MEDIA_FILE_ORIGIN"]) {
+        delete process.env[key];
+    }
     Object.assign(process.env, env);
 
     const config = (await import("@/next.config")).default;
@@ -59,5 +61,28 @@ describe("Content-Security-Policy dla kanału pokoju", () => {
         expect(directive(csp, "frame-ancestors")).toBe("'none'");
         expect(directive(csp, "script-src")).not.toContain("stream.example.test");
         expect(directive(csp, "media-src")).not.toContain("stream.example.test");
+    });
+});
+
+describe("Content-Security-Policy dla plikow z LH", () => {
+    it("bez skonfigurowanego originu nie wpuszcza zadnego obcego zrodla mediow", async () => {
+        const csp = await readCsp({});
+
+        expect(directive(csp, "media-src")).toBe("'self' blob:");
+    });
+
+    it("origin plikow trafia wylacznie do media-src", async () => {
+        const csp = await readCsp({ MEDIA_FILE_ORIGIN: "https://pliki.example.test" });
+
+        expect(directive(csp, "media-src")).toBe("'self' blob: https://pliki.example.test");
+        expect(directive(csp, "img-src")).not.toContain("pliki.example.test");
+        expect(directive(csp, "script-src")).not.toContain("pliki.example.test");
+        expect(directive(csp, "connect-src")).not.toContain("pliki.example.test");
+    });
+
+    it("bierze sam origin, bez sciezki", async () => {
+        const csp = await readCsp({ MEDIA_FILE_ORIGIN: "https://pliki.example.test/stream.php?x=1" });
+
+        expect(directive(csp, "media-src")).toBe("'self' blob: https://pliki.example.test");
     });
 });

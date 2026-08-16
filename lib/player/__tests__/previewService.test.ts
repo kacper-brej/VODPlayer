@@ -25,6 +25,7 @@ const asset = {
     version: 7,
     seriesKey: "Test",
     episodeKey: "01.mp4",
+        delivery: "hls" as const,
     durationSeconds: 1200,
     previewStartSeconds: 30,
     previewClipKey: "media/Test/01.mp4/preview.mp4",

@@ -3,7 +3,8 @@ import "server-only";
 import { DatabaseError } from "@/lib/db/errors";
 import { resolveOwnedProfileId } from "@/lib/profiles/profileService";
 import { B2ConfigError, presignedObjectUrl } from "@/lib/player/b2Storage";
-import { decidePreview } from "@/lib/player/previewPolicy";
+import { signedFileStreamUrl } from "@/lib/player/videoAccess";
+import { decidePreview, PREVIEW_PLAYBACK_DURATION_SECONDS } from "@/lib/player/previewPolicy";
 import { preparePreviewRange } from "@/lib/player/previewHlsService";
 import { findGrantedPreviewAsset, findPreviewSessionAsset } from "@/lib/player/previewRepository";
 import { signPreviewGrant, type PreviewGrant } from "@/lib/player/previewSigning";
@@ -55,6 +56,40 @@ export const createPreviewSession = async (
             { seriesKey, episodeKey },
         );
         if (!asset) return { ok: false, code: "not_found" };
+
+        // Materiał z pliku nie ma wariantów jakości ani segmentów, więc nie da się
+        // z niego wyciąć fragmentu odcinka. Jedyny możliwy podgląd to osobny klip
+        // leżący obok odcinka; decidePreview nie ma tu czego rozstrzygać (ADR-043).
+        if (asset.delivery === "file") {
+            if (!asset.previewClipKey) return { ok: false, code: "not_found" };
+            const expiresAt = Math.floor(Date.now() / 1000) + PREVIEW_SESSION_TTL_SECONDS;
+            const grant: PreviewGrant = {
+                kind: "clip",
+                profileId,
+                assetId: asset.id,
+                assetVersion: asset.version,
+                seriesKey: asset.seriesKey,
+                episodeKey: asset.episodeKey,
+                variant: 0,
+                firstSegment: -1,
+                lastSegment: -1,
+                expiresAt,
+            };
+            return {
+                ok: true,
+                source: {
+                    mode: "preview",
+                    type: "mp4",
+                    src: grantUrl("/api/preview/clip", grant),
+                    expiresAt,
+                    sourceTimelineStartSeconds: 0,
+                    mediaOffsetSeconds: 0,
+                    durationSeconds: PREVIEW_PLAYBACK_DURATION_SECONDS,
+                    reason: "default",
+                },
+            };
+        }
+
         const decision = decidePreview({
             assetId: asset.id,
             assetVersion: asset.version,
@@ -145,6 +180,9 @@ export const buildGrantedPreviewClip = async (grant: PreviewGrant): Promise<Prev
             grant.assetId, grant.assetVersion, grant.seriesKey, grant.episodeKey,
         );
         if (!asset?.previewClipKey) return { ok: false, code: "not_found" };
+        if (asset.delivery === "file") {
+            return { ok: true, url: signedFileStreamUrl(asset.seriesKey, asset.previewClipKey) };
+        }
         return { ok: true, url: await presignedObjectUrl(asset.previewClipKey, PREVIEW_CLIP_PRESIGN_TTL_SECONDS) };
     } catch (error) {
         if (error instanceof DatabaseError) return { ok: false, code: "server" };

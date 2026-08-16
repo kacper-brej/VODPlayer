@@ -39,7 +39,7 @@ const EpisodeDeleteButton = ({ seriesKey, episodeKey }: EpisodeDeleteButtonProps
                     type="button"
                     onClick={() => setIsConfirming(false)}
                     disabled={isPending}
-                    className="rounded-full border border-nx-border px-3 py-1.5 text-xs text-nx-text-2 outline-none transition-colors duration-140 hover:bg-nx-raised disabled:opacity-60"
+                    className="cursor-pointer rounded-full border border-nx-border px-3 py-1.5 text-xs text-nx-text-2 outline-none transition-colors duration-140 hover:bg-nx-raised hover:text-nx-text disabled:cursor-wait disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nx-accent"
                 >
                     Anuluj
                 </button>
@@ -47,7 +47,7 @@ const EpisodeDeleteButton = ({ seriesKey, episodeKey }: EpisodeDeleteButtonProps
                     type="button"
                     onClick={handleDelete}
                     disabled={isPending}
-                    className="rounded-full border border-nx-critical bg-nx-critical/10 px-3 py-1.5 text-xs font-semibold text-nx-critical outline-none transition-colors duration-140 hover:bg-nx-critical/20 disabled:opacity-60"
+                    className="cursor-pointer rounded-full border border-nx-critical bg-nx-critical/10 px-3 py-1.5 text-xs font-semibold text-nx-critical outline-none transition-colors duration-140 hover:bg-nx-critical/20 disabled:cursor-wait disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nx-critical"
                 >
                     {isPending ? "Usuwanie…" : "Na pewno usuń"}
                 </button>
@@ -60,7 +60,7 @@ const EpisodeDeleteButton = ({ seriesKey, episodeKey }: EpisodeDeleteButtonProps
             type="button"
             onClick={() => setIsConfirming(true)}
             aria-label={`Usuń ${seriesKey}/${episodeKey} z B2 i serwera`}
-            className="flex size-9 shrink-0 items-center justify-center rounded-full border border-nx-border text-nx-text-2 outline-none transition-colors duration-140 hover:border-nx-critical hover:text-nx-critical"
+            className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-nx-border text-nx-text-2 outline-none transition-colors duration-140 hover:border-nx-critical hover:bg-nx-critical/10 hover:text-nx-critical focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nx-critical"
         >
             <Trash2 size={15} />
         </button>
