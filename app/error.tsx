@@ -26,13 +26,13 @@ const Error = ({
                     <button
                         type="button"
                         onClick={() => retry()}
-                        className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-on-accent outline-none transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
+                        className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-on-accent outline-none transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-primary"
                     >
                         Spróbuj ponownie
                     </button>
                     <Link
                         href="/"
-                        className="rounded-full border border-border px-5 py-2.5 text-sm font-semibold text-foreground outline-none transition-colors hover:bg-surface-light focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
+                        className="rounded-full border border-border px-5 py-2.5 text-sm font-semibold text-foreground outline-none transition-colors hover:bg-surface-light focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-primary"
                     >
                         Strona główna
                     </Link>

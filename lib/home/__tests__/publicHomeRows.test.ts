@@ -98,7 +98,7 @@ describe("publiczne sekcje strony glownej", () => {
         });
     });
 
-    it("nie pokazuje tytulu TMDB nieobecnego w katalogu widza", async () => {
+    it("uzupelnia rzad tytulem TMDB nieobecnym w katalogu widza", async () => {
         const viewerCatalog = catalog.slice(0, 3);
         const rows = await getPublicHomeRows(viewerCatalog, sources({
             popularNow: vi.fn().mockResolvedValue(success(999, 3, 2, 1)),
@@ -108,10 +108,41 @@ describe("publiczne sekcje strony glownej", () => {
         expect(popular.kind).toBe("ready");
         if (popular.kind === "ready") {
             expect(popular.row.items.map((series) => series.key)).toEqual([
+                "tmdb:999",
                 "Series 3",
                 "Series 2",
                 "Series 1",
             ]);
+        }
+    });
+
+    it("tytul wylacznie z TMDB dostaje tryb pokazowy i nie udaje pozycji lokalnej", async () => {
+        const viewerCatalog = catalog.slice(0, 3);
+        const rows = await getPublicHomeRows(viewerCatalog, sources({
+            popularNow: vi.fn().mockResolvedValue(success(999, 3, 2, 1)),
+        }));
+        const popular = rows[2];
+
+        expect(popular.kind).toBe("ready");
+        if (popular.kind === "ready") {
+            expect(popular.row.items[0]).toMatchObject({
+                key: "tmdb:999",
+                access: "demo",
+                tmdbExternalId: 999,
+                episodes: [],
+            });
+        }
+    });
+
+    it("lokalne dopasowanie ma pierwszenstwo przed wpisem wirtualnym", async () => {
+        const rows = await getPublicHomeRows(catalog, sources({
+            popularNow: vi.fn().mockResolvedValue(success(3, 2, 1)),
+        }));
+        const popular = rows[2];
+
+        expect(popular.kind).toBe("ready");
+        if (popular.kind === "ready") {
+            expect(popular.row.items.every((series) => !series.key.startsWith("tmdb:"))).toBe(true);
         }
     });
 });

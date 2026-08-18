@@ -12,6 +12,7 @@ const repo = {
     insertDefaultProfile: vi.fn(),
     insertProfile: vi.fn(),
     renameProfileById: vi.fn(),
+    updateProfileById: vi.fn(),
     isProfileDefault: vi.fn(),
     deleteProfileById: vi.fn(),
     promoteFirstProfileToDefault: vi.fn(),
@@ -21,7 +22,7 @@ vi.mock("@/lib/profiles/profileRepository", () => repo);
 const selectedProfileId = vi.fn();
 vi.mock("@/lib/core/vodConfig", () => ({ selectedProfileId }));
 
-const { listProfiles, createProfile, renameProfile, deleteProfile, resolveOwnedProfileId } = await import("../profileService");
+const { listProfiles, createProfile, updateProfile, renameProfile, deleteProfile, resolveOwnedProfileId } = await import("../profileService");
 const { DatabaseError } = await import("@/lib/db/errors");
 
 const USER_ID = 1;
@@ -59,6 +60,16 @@ describe("createProfile", () => {
         });
     });
 
+    it("zapisuje wybrany awatar", async () => {
+        repo.countProfilesForUser.mockResolvedValue(1);
+        repo.insertProfile.mockResolvedValue(10);
+
+        await expect(createProfile(USER_ID, "Kino", "nx-03")).resolves.toEqual({
+            ok: true, profile: { id: 10, name: "Kino", isDefault: false, avatar: "nx-03" },
+        });
+        expect(repo.insertProfile).toHaveBeenCalledWith(USER_ID, "Kino", "nx-03");
+    });
+
     it("zla nazwa (pusta) -> invalid bez dotykania bazy", async () => {
         await expect(createProfile(USER_ID, "   ")).resolves.toEqual({ ok: false, code: "invalid" });
         expect(repo.countProfilesForUser).not.toHaveBeenCalled();
@@ -78,6 +89,37 @@ describe("createProfile", () => {
         repo.countProfilesForUser.mockResolvedValue(1);
         repo.insertProfile.mockRejectedValue(new DatabaseError("conflict", 409, "Rekord o tych danych już istnieje."));
         await expect(createProfile(USER_ID, "Kacper")).resolves.toEqual({ ok: false, code: "conflict" });
+    });
+});
+
+describe("updateProfile — nazwa i awatar", () => {
+    it("aktualizuje oba pola jednym zapytaniem dla wlasnego profilu", async () => {
+        repo.isProfileOwnedByUser.mockResolvedValue(true);
+
+        await expect(updateProfile(USER_ID, 5, "Wieczorny", "nx-07")).resolves.toEqual({
+            ok: true,
+            profile: { id: 5, name: "Wieczorny", avatar: "nx-07" },
+        });
+        expect(repo.updateProfileById).toHaveBeenCalledWith(5, "Wieczorny", "nx-07");
+    });
+
+    it("odrzuca nieznany awatar przed sprawdzeniem ownership", async () => {
+        await expect(updateProfile(USER_ID, 5, "Wieczorny", "obcy-awatar")).resolves.toEqual({
+            ok: false,
+            code: "invalid_avatar",
+        });
+        expect(repo.isProfileOwnedByUser).not.toHaveBeenCalled();
+        expect(repo.updateProfileById).not.toHaveBeenCalled();
+    });
+
+    it("nie pozwala edytowac obcego profilu", async () => {
+        repo.isProfileOwnedByUser.mockResolvedValue(false);
+
+        await expect(updateProfile(USER_ID, 999, "Przejety", "nx-01")).resolves.toEqual({
+            ok: false,
+            code: "forbidden",
+        });
+        expect(repo.updateProfileById).not.toHaveBeenCalled();
     });
 });
 

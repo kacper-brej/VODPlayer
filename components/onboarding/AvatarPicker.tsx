@@ -8,15 +8,17 @@ interface AvatarPickerProps {
     value: ProfileAvatar | null;
     onChange: (value: ProfileAvatar) => void;
     onClose: () => void;
+    autoFocus?: boolean;
 }
 
-export function AvatarPicker({ value, onChange, onClose }: AvatarPickerProps) {
+export function AvatarPicker({ value, onChange, onClose, autoFocus = true }: AvatarPickerProps) {
     const refs = useRef<Array<HTMLButtonElement | null>>([]);
 
     useEffect(() => {
+        if (!autoFocus) return;
         const selectedIndex = value ? PROFILE_AVATARS.indexOf(value) : 0;
         refs.current[Math.max(0, selectedIndex)]?.focus();
-    }, [value]);
+    }, [autoFocus, value]);
 
     const moveSelection = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
         let next = index;

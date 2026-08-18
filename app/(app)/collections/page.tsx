@@ -46,7 +46,7 @@ const CollectionDirectory = ({ collections }: { collections: CollectionSummary[]
                 <Link
                     key={collection.id}
                     href={`/collections?collection=${collection.id}`}
-                    className="group relative flex min-h-48 flex-col justify-between overflow-hidden rounded-2xl border border-nx-border bg-nx-panel p-6 outline-none transition-[border-color,background-color,transform] hover:-translate-y-0.5 hover:border-nx-accent/50 hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent"
+                    className="group relative flex min-h-48 flex-col justify-between overflow-hidden rounded-2xl border border-nx-border bg-nx-panel p-6 outline-none transition-[border-color,background-color,transform] hover:-translate-y-0.5 hover:border-nx-accent/50 hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent"
                 >
                     <span aria-hidden="true" className="absolute -right-2 -top-8 font-display text-[118px] leading-none text-transparent opacity-40 [-webkit-text-stroke:1px_color-mix(in_srgb,var(--nx-accent)_38%,transparent)]">
                         {String(index + 1).padStart(2, "0")}
@@ -180,7 +180,7 @@ const CollectionsPage = async ({ searchParams }: { searchParams: CollectionsSear
 
     if (collectionsResult.kind === "error") {
         return (
-            <div className="min-h-screen bg-nx-bg px-5 py-16 sm:px-8 xl:px-10 min-[1440px]:px-12">
+            <div className="min-h-dvh bg-nx-bg px-5 py-16 sm:px-8 xl:px-10 min-[1440px]:px-12">
                 <DataErrorState reason={collectionsResult.reason} headingLevel={1} />
             </div>
         );
@@ -192,7 +192,7 @@ const CollectionsPage = async ({ searchParams }: { searchParams: CollectionsSear
         : null;
 
     return (
-        <div className="min-h-screen bg-nx-bg px-5 pb-[calc(80px+env(safe-area-inset-bottom))] pt-12 sm:px-8 lg:pb-20 lg:pt-16 xl:px-10 min-[1440px]:px-12">
+        <div className="min-h-dvh bg-nx-bg px-5 pb-[calc(80px+env(safe-area-inset-bottom))] pt-12 sm:px-8 lg:pb-20 lg:pt-16 xl:px-10 min-[1440px]:px-12">
             <header className="mb-10 max-w-4xl sm:mb-12">
                 <span className="font-mono text-[10px] tracking-[0.22em] text-nx-text-2 sm:text-[11px]">
                     TWOJE ZESTAWY / {collectionsResult.data.length}

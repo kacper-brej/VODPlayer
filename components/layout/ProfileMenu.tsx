@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell, LogOut, Settings, User } from "lucide-react";
+import { Bell, LogOut, Settings, User, UsersRound } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { getUnreadNotificationsCountAction } from "@/lib/notifications/notificationsActions";
 import { NOTIFICATIONS_CHANGED_EVENT } from "@/lib/notifications/notificationEvents";
@@ -17,7 +17,11 @@ const initialsFrom = (username: string) => {
     return (parts[0][0] + parts[1][0]).toUpperCase();
 };
 
-const ProfileMenu = () => {
+interface ProfileMenuProps {
+    placement?: "rail" | "header";
+}
+
+const ProfileMenu = ({ placement = "rail" }: ProfileMenuProps) => {
     const { user, logout } = useAuth();
     const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
@@ -96,7 +100,7 @@ const ProfileMenu = () => {
                 onClick={() => setIsOpen((open) => !open)}
                 aria-haspopup="menu"
                 aria-expanded={isOpen}
-                className="relative flex size-11 cursor-pointer items-center justify-center rounded-full border border-border bg-surface-light text-foreground outline-none hover:border-primary/50 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
+                className="relative flex size-11 cursor-pointer items-center justify-center rounded-full border border-border bg-surface-light text-foreground outline-none hover:border-primary/50 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-primary"
             >
                 {initials ? (
                     <span className="font-mono text-[11px] text-foreground">{initials}</span>
@@ -118,14 +122,18 @@ const ProfileMenu = () => {
                 <div
                     role="menu"
                     aria-label="Menu profilu"
-                    className="absolute bottom-0 left-full z-[90] ml-3 flex min-w-48 flex-col gap-0.5 rounded-xl border border-border bg-surface p-1.5 shadow-[0_16px_50px_rgba(0,0,0,.72)]"
+                    className={`absolute z-[90] flex min-w-48 flex-col gap-0.5 rounded-xl border border-border bg-surface p-1.5 shadow-[0_16px_50px_rgba(0,0,0,.72)] ${
+                        placement === "header"
+                            ? "right-0 top-[calc(100%+8px)]"
+                            : "bottom-0 left-full ml-3"
+                    }`}
                     style={{ backgroundColor: "rgba(12,10,17,0.96)", backdropFilter: "blur(22px)" }}
                 >
                     <Link
                         role="menuitem"
                         href="/notifications"
                         onClick={() => setIsOpen(false)}
-                        className="flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-foreground outline-none transition-colors hover:bg-surface-light focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
+                        className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-foreground outline-none transition-colors hover:bg-surface-light focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-primary"
                     >
                         <Bell size={16} aria-hidden="true" />
                         <span className="flex-1">Powiadomienia</span>
@@ -137,9 +145,18 @@ const ProfileMenu = () => {
                     </Link>
                     <Link
                         role="menuitem"
+                        href="/profiles?manage=1"
+                        onClick={() => setIsOpen(false)}
+                        className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-foreground outline-none transition-colors hover:bg-surface-light focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-primary"
+                    >
+                        <UsersRound size={16} aria-hidden="true" />
+                        Zarządzaj profilami
+                    </Link>
+                    <Link
+                        role="menuitem"
                         href="/settings"
                         onClick={() => setIsOpen(false)}
-                        className="flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-foreground outline-none transition-colors hover:bg-surface-light focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
+                        className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-foreground outline-none transition-colors hover:bg-surface-light focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-primary"
                     >
                         <Settings size={16} aria-hidden="true" />
                         Ustawienia
@@ -149,7 +166,7 @@ const ProfileMenu = () => {
                         type="button"
                         onClick={handleLogout}
                         disabled={logoutPending}
-                        className="flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-danger outline-none transition-colors hover:bg-surface-light focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
+                        className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-danger outline-none transition-colors hover:bg-surface-light focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-primary"
                     >
                         <LogOut size={16} aria-hidden="true" />
                         {logoutPending ? "Wylogowywanie…" : "Wyloguj"}

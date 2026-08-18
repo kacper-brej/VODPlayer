@@ -63,10 +63,15 @@ const buildTmdbIndex = (
     return index;
 };
 
-export const mapTmdbListToCatalog = (
-    items: readonly Pick<TmdbTvListItem, "id">[],
+export interface TmdbCatalogMappingOptions<TItem> {
+    createFallback?: (item: TItem) => CatalogSeries | null;
+}
+
+export const mapTmdbListToCatalog = <TItem extends Pick<TmdbTvListItem, "id">>(
+    items: readonly TItem[],
     catalog: readonly CatalogSeries[],
     limit: number,
+    options: TmdbCatalogMappingOptions<TItem> = {},
 ): TmdbCatalogMappingResult => {
     const maxItems = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 0;
     const representatives = getCatalogRepresentatives(catalog);
@@ -84,7 +89,10 @@ export const mapTmdbListToCatalog = (
         }
         seenTmdbIds.add(item.id);
 
-        const series = byTmdbId.get(item.id);
+        const local = byTmdbId.get(item.id);
+        const series = local
+            ?? (byTmdbId.has(item.id) ? null : options.createFallback?.(item) ?? null);
+
         if (!series) {
             rejectedCount += 1;
             continue;

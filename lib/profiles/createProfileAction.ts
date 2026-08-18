@@ -2,6 +2,7 @@
 import { getSessionUser } from "@/lib/auth/session";
 import { createProfile } from "@/lib/profiles/profileService";
 import type { CreateProfileResponse } from "@/lib/core/contracts";
+import { isProfileAvatar, type ProfileAvatar } from "@/lib/core/onboarding";
 
 type CreateProfileError = {
     success: false;
@@ -9,11 +10,17 @@ type CreateProfileError = {
     message?: string;
 };
 
-const createProfileAction = async (name: string): Promise<CreateProfileResponse | CreateProfileError> => {
+const createProfileAction = async (
+    name: string,
+    avatar: ProfileAvatar | null = null,
+): Promise<CreateProfileResponse | CreateProfileError> => {
     const user = await getSessionUser();
     if (!user) return { success: false, error: "unauthenticated" };
+    if (avatar !== null && !isProfileAvatar(avatar)) {
+        return { success: false, error: "backend", message: "Wybierz prawidłowy awatar." };
+    }
 
-    const result = await createProfile(user.id, name);
+    const result = await createProfile(user.id, name, avatar);
 
     if (!result.ok) {
         const messages: Record<typeof result.code, string> = {

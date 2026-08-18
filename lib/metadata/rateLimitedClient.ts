@@ -18,6 +18,7 @@ export interface RateLimitedClientConfig {
 
 export interface RateLimitedRequestConfig {
     cacheTtlMs?: number;
+    maxRetries?: number;
 }
 
 export interface RateLimitedClient {
@@ -130,10 +131,11 @@ export const createRateLimitedClient = (config: RateLimitedClientConfig): RateLi
         path: string,
         options: RequestInit | undefined,
         validator: ((value: unknown) => boolean) | undefined,
+        maxRetries: number,
     ): Promise<DataResult<unknown>> => {
         await scheduleStart();
 
-        for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
             try {
                 const res = await fetch(`${config.baseUrl}${path}`, {
                     ...options,
@@ -141,7 +143,7 @@ export const createRateLimitedClient = (config: RateLimitedClientConfig): RateLi
                 });
 
                 if (res.status === 429 || res.status >= 500) {
-                    if (attempt < config.maxRetries) {
+                    if (attempt < maxRetries) {
                         const delay = res.status === 429
                             ? retryAfterMs(res) ?? config.minRequestIntervalMs * (attempt + 2)
                             : config.minRequestIntervalMs * (attempt + 2);
@@ -180,7 +182,7 @@ export const createRateLimitedClient = (config: RateLimitedClientConfig): RateLi
                 const timedOut = error instanceof Error && error.name === "TimeoutError";
                 console.error(`rateLimitedClient[${config.providerId}] request failed:`, timedOut ? "timeout" : error);
 
-                if (attempt < config.maxRetries) {
+                if (attempt < maxRetries) {
                     await wait(config.minRequestIntervalMs * (attempt + 2));
                     continue;
                 }
@@ -201,6 +203,7 @@ export const createRateLimitedClient = (config: RateLimitedClientConfig): RateLi
         requestConfig?: RateLimitedRequestConfig,
     ): Promise<DataResult<unknown>> => {
         const cacheTtlMs = requestConfig?.cacheTtlMs ?? config.cacheTtlMs;
+        const maxRetries = Math.max(0, Math.min(config.maxRetries, requestConfig?.maxRetries ?? config.maxRetries));
         const cachedLocal = readLocalCache(path, cacheTtlMs);
         if (cachedLocal !== null) {
             return dataSuccess(cachedLocal);
@@ -231,7 +234,7 @@ export const createRateLimitedClient = (config: RateLimitedClientConfig): RateLi
 
             const result = circuitOpen
                 ? dataFailure("network")
-                : await attemptNetwork(path, options, validator);
+                : await attemptNetwork(path, options, validator, maxRetries);
 
             if (result.kind !== "error") {
                 return result;

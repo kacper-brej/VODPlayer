@@ -27,6 +27,8 @@ const normalizeListItem = (item: TmdbTvListItem): TmdbTvListItem => ({
     first_air_date: item.first_air_date?.trim() || null,
 });
 
+export const TMDB_TV_LIST_MAX_RETRIES = 1;
+
 const fetchTvList = async (
     path: string,
     cacheTtlMs: number,
@@ -34,7 +36,7 @@ const fetchTvList = async (
     const response = await fetchTmdbResult(
         path,
         (value) => validateTmdbTvListResponse(value).ok,
-        { cacheTtlMs },
+        { cacheTtlMs, maxRetries: TMDB_TV_LIST_MAX_RETRIES },
     );
 
     if (response.kind === "error") {

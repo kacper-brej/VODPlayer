@@ -176,7 +176,7 @@ describe("personalizowane sekcje strony glownej", () => {
         });
     });
 
-    it("nie zwraca rekomendacji nieobecnej w katalogu widza", async () => {
+    it("zwraca rekomendacje nieobecna w katalogu widza jako pozycje TMDB", async () => {
         const viewerCatalog = catalog.slice(0, 5);
         const rows = await getPersonalizedHomeRows(viewerCatalog, sources({
             progressData: progress([resume("Series 2", 20)]),
@@ -187,10 +187,12 @@ describe("personalizowane sekcje strony glownej", () => {
         expect(recommendations.kind).toBe("ready");
         if (recommendations.kind === "ready") {
             expect(recommendations.row.items.map((series) => series.key)).toEqual([
+                "tmdb:999",
                 "Series 3",
                 "Series 4",
                 "Series 5",
             ]);
+            expect(recommendations.row.items[0]).toMatchObject({ access: "demo" });
         }
     });
 });

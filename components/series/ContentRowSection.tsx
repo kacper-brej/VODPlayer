@@ -7,7 +7,8 @@ import SeriesCard, { type CardInput, type ContentCardVariant } from "@/component
 
 interface ContentRowSectionProps {
     title: string;
-    kicker: string;
+    kicker?: string;
+    numbered?: boolean;
     variant: ContentRowVariant;
     items: CardInput[];
 }
@@ -60,6 +61,7 @@ const cardSizes = (variant: ContentRowVariant, index: number) => {
 const ContentRowSection = ({
     title,
     kicker,
+    numbered = false,
     variant,
     items,
 }: ContentRowSectionProps) => {
@@ -198,6 +200,7 @@ const ContentRowSection = ({
         <ContentRow
             title={title}
             kicker={kicker}
+            numbered={numbered}
             variant={variant}
             itemCount={displayedItems.length}
             mosaicPanelHeader={mosaicPanelHeader}
@@ -222,6 +225,7 @@ const ContentRowSection = ({
                         variant={cardVariant(variant, index)}
                         featured={variant === "mosaic" && index === 0}
                         fill={variant === "mosaic" && index === 0}
+                        {...(variant === "ranking" ? { rank: index + 1 } : {})}
                         onWatchlistChange={(seriesKey, inWatchlist) => {
                             setWatchlistOverrides((current) => ({
                                 ...current,

@@ -1295,6 +1295,7 @@ export interface TmdbContentRating {
 export interface TmdbSeasonSummary {
     season_number: number;
     name: string;
+    episode_count?: number | null;
 }
 
 export interface TmdbTvDetails {
@@ -1331,6 +1332,7 @@ export interface TmdbTvSearchResult {
     original_name: string;
     first_air_date: string | null;
     overview: string | null;
+    poster_path?: string | null;
 }
 
 export interface TmdbTvSearchResponse {
@@ -1345,6 +1347,9 @@ export interface TmdbTvListItem {
     vote_count: number;
     first_air_date: string | null;
     genre_ids: number[];
+    overview?: string | null;
+    poster_path?: string | null;
+    backdrop_path?: string | null;
 }
 
 export interface TmdbTvListResponse {
@@ -1378,7 +1383,10 @@ const isTmdbContentRatings = (value: unknown): value is { results: TmdbContentRa
     isObject(value) && Array.isArray(value.results) && value.results.every(isTmdbContentRating);
 
 const isTmdbSeasonSummary = (value: unknown): value is TmdbSeasonSummary =>
-    isObject(value) && isNumber(value.season_number) && isString(value.name);
+    isObject(value)
+    && isNumber(value.season_number)
+    && isString(value.name)
+    && isOptionalNullableNumber(value.episode_count);
 
 const isTmdbTvDetails = (value: unknown): value is TmdbTvDetails =>
     isObject(value)
@@ -1420,7 +1428,8 @@ const isTmdbTvSearchResult = (value: unknown): value is TmdbTvSearchResult =>
     && isString(value.name)
     && isString(value.original_name)
     && isNullableString(value.first_air_date)
-    && isNullableString(value.overview);
+    && isNullableString(value.overview)
+    && isOptionalNullableString(value.poster_path);
 
 const isTmdbTvSearchResponse = (value: unknown): value is TmdbTvSearchResponse =>
     isObject(value)
@@ -1442,7 +1451,10 @@ const isTmdbTvListItem = (value: unknown): value is TmdbTvListItem =>
     && isNonNegativeInteger(value.vote_count)
     && isNullableString(value.first_air_date)
     && Array.isArray(value.genre_ids)
-    && value.genre_ids.every(isPositiveInteger);
+    && value.genre_ids.every(isPositiveInteger)
+    && isOptionalNullableString(value.overview)
+    && isOptionalNullableString(value.poster_path)
+    && isOptionalNullableString(value.backdrop_path);
 
 const isTmdbTvListResponse = (value: unknown): value is TmdbTvListResponse =>
     isObject(value)

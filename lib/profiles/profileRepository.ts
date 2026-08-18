@@ -112,6 +112,19 @@ export const renameProfileById = async (profileId: number, name: string, db: Exe
     }
 };
 
+export const updateProfileById = async (
+    profileId: number,
+    name: string,
+    avatar: string | null,
+    db: Executor = getDbPool(),
+): Promise<void> => {
+    try {
+        await db.execute("UPDATE profiles SET name = ?, avatar = ? WHERE id = ?", [name, avatar, profileId]);
+    } catch (error) {
+        throw mapDatabaseError(error);
+    }
+};
+
 export const updateProfileAvatarById = async (
     profileId: number,
     avatar: string | null,

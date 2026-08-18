@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { Play, Star, Users } from "lucide-react";
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { partyWatchPath, watchPath } from "@/lib/core/routes";
 import { ARTWORK_SIZES, blurProps, imageLoader, safeArtworkColor } from "@/lib/catalog/imageDelivery";
@@ -124,11 +124,11 @@ const SeriesHero = ({
 
             <div className="relative z-10 mx-auto grid min-h-[46vh] w-full max-w-[1440px] grid-cols-4 items-end gap-x-4 px-5 pb-12 sm:min-h-[520px] sm:px-8 lg:min-h-[52vh] lg:grid-cols-12 lg:gap-x-5 lg:px-10 lg:pb-14 xl:min-h-[58vh] xl:px-11 2xl:min-h-[62vh] 2xl:max-h-[760px] 2xl:px-12">
                 <div
-                    className="col-span-4 max-w-[46ch] lg:col-span-8 xl:col-span-7"
+                    className="col-span-4 max-w-full md:max-w-[var(--nx-hero-copy-w)] lg:col-span-8 xl:col-span-7"
                     style={{
-                        maxWidth: `min(46ch, ${Math.round(copyWidth * 100)}vw)`,
+                        "--nx-hero-copy-w": `min(46ch, ${Math.round(copyWidth * 100)}vw)`,
                         paddingBottom: `${Math.round((copyBottom - 0.3) * 24)}px`,
-                    }}
+                    } as CSSProperties}
                 >
                     <p className="mb-3 font-mono text-[10px] tracking-[0.18em] text-nx-text-2 lg:text-[10.5px] xl:text-[11px]">
                         {resumeEpisodeKey ? "KONTYNUUJ OGLĄDANIE" : "OD POCZĄTKU"}
@@ -185,7 +185,7 @@ const SeriesHero = ({
                         </div>
                     )}
 
-                    <div className="mt-6 flex flex-wrap items-center gap-3">
+                    <div className="mt-6 flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                         <button
                             type="button"
                             onClick={play}

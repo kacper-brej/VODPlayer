@@ -4,6 +4,7 @@ import { getNewestSeries } from "@/lib/catalog/catalogRows";
 import { mapTmdbListToCatalog } from "@/lib/catalog/tmdbCatalogMapping";
 import type { TmdbTvListItem } from "@/lib/core/contracts";
 import { dataFailure, type DataResult } from "@/lib/core/dataResult";
+import { HOME_SECTION_PRESENTATION } from "@/lib/home/homeLayout";
 import type {
     HomeRow,
     HomeRowId,
@@ -17,6 +18,8 @@ import {
     getTmdbTopRatedTv,
     getTmdbTrendingTv,
 } from "@/lib/metadata/tmdbLists";
+import { getTmdbImageBaseUrl } from "@/lib/metadata/tmdbConfig";
+import { virtualSeriesFromListItem } from "@/lib/catalog/tmdbVirtualSeries";
 
 const TMDB_ROW_MIN_ITEMS = 3;
 
@@ -32,34 +35,30 @@ interface TmdbHomeRowSpec {
 const TMDB_ROW_SPECS = {
     trendingToday: {
         id: "trending-today",
-        title: "Top 10 trendów dzisiaj",
+        ...HOME_SECTION_PRESENTATION["trending-today"],
         kicker: "TMDB / DZIŚ",
         source: "tmdb-trending-day",
-        variant: "ranking",
         limit: 10,
     },
     popularNow: {
         id: "popular-now",
-        title: "Popularne teraz",
+        ...HOME_SECTION_PRESENTATION["popular-now"],
         kicker: "TMDB / POPULARNE",
         source: "tmdb-popular",
-        variant: "classic",
         limit: 20,
     },
     topRated: {
         id: "top-rated",
-        title: "Najwyżej oceniane",
+        ...HOME_SECTION_PRESENTATION["top-rated"],
         kicker: "TMDB / OCENY",
         source: "tmdb-top-rated",
-        variant: "classic",
         limit: 20,
     },
     onTheAir: {
         id: "on-the-air",
-        title: "Nowe odcinki w tym tygodniu",
+        ...HOME_SECTION_PRESENTATION["on-the-air"],
         kicker: "TMDB / EMISJA",
         source: "tmdb-on-the-air",
-        variant: "classic",
         limit: 20,
     },
 } as const satisfies Record<string, TmdbHomeRowSpec>;
@@ -88,10 +87,20 @@ const loadSafely = async (loader: TmdbListLoader): Promise<DataResult<TmdbTvList
     }
 };
 
+const resolveImageBaseUrl = async (): Promise<string | null> => {
+    try {
+        const result = await getTmdbImageBaseUrl();
+        return result.kind === "error" ? null : result.data;
+    } catch {
+        return null;
+    }
+};
+
 export const buildTmdbHomeRow = (
     spec: TmdbHomeRowSpec,
     result: DataResult<TmdbTvListItem[]>,
     catalog: readonly CatalogSeries[],
+    imageBaseUrl: string | null = null,
 ): HomeRowResult => {
     if (result.kind === "error") {
         return {
@@ -103,7 +112,9 @@ export const buildTmdbHomeRow = (
         };
     }
 
-    const mapped = mapTmdbListToCatalog(result.data, catalog, spec.limit);
+    const mapped = mapTmdbListToCatalog(result.data, catalog, spec.limit, {
+        createFallback: (item) => virtualSeriesFromListItem(item, imageBaseUrl),
+    });
     if (mapped.series.length < TMDB_ROW_MIN_ITEMS) {
         return {
             kind: "omitted",
@@ -141,10 +152,9 @@ export const buildNewestHomeRow = (catalog: readonly CatalogSeries[]): HomeRowRe
 
     const row: HomeRow = {
         id: "newest-local",
-        title: "Najnowsze w Nocturna",
+        ...HOME_SECTION_PRESENTATION["newest-local"],
         kicker: "NOCTURNA / NOWOŚCI",
         source: "local-newest",
-        variant: "classic",
         items,
     };
 
@@ -155,18 +165,19 @@ export const getPublicHomeRows = async (
     catalog: readonly CatalogSeries[],
     sources: PublicHomeRowSources = defaultSources,
 ): Promise<HomeRowResult[]> => {
-    const [trendingToday, popularNow, topRated, onTheAir] = await Promise.all([
+    const [trendingToday, popularNow, topRated, onTheAir, imageBaseUrl] = await Promise.all([
         loadSafely(sources.trendingToday),
         loadSafely(sources.popularNow),
         loadSafely(sources.topRated),
         loadSafely(sources.onTheAir),
+        resolveImageBaseUrl(),
     ]);
 
     return [
-        buildTmdbHomeRow(TMDB_ROW_SPECS.trendingToday, trendingToday, catalog),
+        buildTmdbHomeRow(TMDB_ROW_SPECS.trendingToday, trendingToday, catalog, imageBaseUrl),
         buildNewestHomeRow(catalog),
-        buildTmdbHomeRow(TMDB_ROW_SPECS.popularNow, popularNow, catalog),
-        buildTmdbHomeRow(TMDB_ROW_SPECS.topRated, topRated, catalog),
-        buildTmdbHomeRow(TMDB_ROW_SPECS.onTheAir, onTheAir, catalog),
+        buildTmdbHomeRow(TMDB_ROW_SPECS.popularNow, popularNow, catalog, imageBaseUrl),
+        buildTmdbHomeRow(TMDB_ROW_SPECS.topRated, topRated, catalog, imageBaseUrl),
+        buildTmdbHomeRow(TMDB_ROW_SPECS.onTheAir, onTheAir, catalog, imageBaseUrl),
     ];
 };

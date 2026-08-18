@@ -3,6 +3,7 @@ import type { Pool, PoolConnection, RowDataPacket, ResultSetHeader } from "mysql
 import { getDbPool } from "@/lib/db/pool";
 import { mapDatabaseError } from "@/lib/db/errors";
 import type { EpisodeProgress, ResumePoint } from "@/lib/core/contracts";
+import { isEpisodeComplete } from "@/lib/progress/watchProgress";
 
 type Executor = Pool | PoolConnection;
 
@@ -49,7 +50,10 @@ export const loadProgressSnapshot = async (profileId: number, seriesKeys?: reado
                 completed: row.completed === 1,
                 updatedAt: row.updated_at,
             };
-            if (row.completed !== 1 && row.position_seconds > 0 && !newestIncomplete.has(row.series_key)) {
+            const finished = row.completed === 1
+                && isEpisodeComplete(row.position_seconds, row.duration_seconds);
+
+            if (!finished && row.position_seconds > 0 && !newestIncomplete.has(row.series_key)) {
                 newestIncomplete.set(row.series_key, {
                     seriesKey: row.series_key,
                     episodeKey: row.episode_key,

@@ -32,14 +32,56 @@ let hlsConstructorPromise: Promise<typeof Hls> | null = null;
 let previewMutedPreference: boolean | null = null;
 let lifecycleListenersInstalled = false;
 
+const PREVIEW_MUTED_KEY = "nx-preview-muted";
+const USER_ACTIVATED_KEY = "nx-user-activated";
+
+const readSession = (key: string): string | null => {
+    try {
+        return sessionStorage.getItem(key);
+    } catch {
+        return null;
+    }
+};
+
+const writeSession = (key: string, value: string): void => {
+    try {
+        sessionStorage.setItem(key, value);
+    } catch {
+        // pamięć sesji bywa niedostępna w trybie prywatnym
+    }
+};
+
+const ACTIVATION_EVENTS = ["pointerdown", "mousedown", "touchstart", "keydown"] as const;
+
+export const trackUserActivation = (): void => {
+    if (typeof document === "undefined" || readSession(USER_ACTIVATED_KEY) === "1") return;
+
+    if (navigator.userActivation?.hasBeenActive) {
+        writeSession(USER_ACTIVATED_KEY, "1");
+        return;
+    }
+
+    const mark = () => {
+        writeSession(USER_ACTIVATED_KEY, "1");
+        for (const type of ACTIVATION_EVENTS) document.removeEventListener(type, mark, true);
+    };
+
+    for (const type of ACTIVATION_EVENTS) document.addEventListener(type, mark, true);
+};
+
 export const isPreviewMuted = (): boolean => {
     if (previewMutedPreference !== null) return previewMutedPreference;
+
+    const stored = readSession(PREVIEW_MUTED_KEY);
+    if (stored !== null) return stored === "1";
+
     if (typeof navigator === "undefined") return true;
-    return !navigator.userActivation?.hasBeenActive;
+    return !(navigator.userActivation?.hasBeenActive || readSession(USER_ACTIVATED_KEY) === "1");
 };
 
 export const setPreviewMuted = (muted: boolean): void => {
     previewMutedPreference = muted;
+    writeSession(PREVIEW_MUTED_KEY, muted ? "1" : "0");
     if (activeElement) activeElement.muted = muted;
 };
 

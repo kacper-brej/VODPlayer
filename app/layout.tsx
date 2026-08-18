@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 
@@ -25,6 +25,14 @@ const bodoniModa = localFont({
 export const metadata: Metadata = {
   title: "Nocturna",
   description: "VOD Player",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  colorScheme: "dark",
+  themeColor: "#07070A",
 };
 
 export default function RootLayout({

@@ -53,6 +53,7 @@ interface WatchClientProps {
     skipIntroPrompt: boolean;
     defaultVolume: number;
     isDemo?: boolean;
+    trackProgress?: boolean;
     partyCode?: string;
     episodeKeys: Array<{ key: string; number: number }>;
     nextEpisodeKey?: string;
@@ -466,6 +467,7 @@ const WatchClient = ({
     skipIntroPrompt,
     defaultVolume,
     isDemo = false,
+    trackProgress = true,
     partyCode,
     episodeKeys,
     nextEpisodeKey,
@@ -478,7 +480,7 @@ const WatchClient = ({
 
     useEffect(() => {
         isNavigatingRef.current = false;
-    }, [fileName]);
+    }, [fileName, partyCode]);
 
     useEffect(() => {
         const handleGlobalError = (event: ErrorEvent) => {
@@ -494,6 +496,8 @@ const WatchClient = ({
     }, []);
 
     const handleProgressUpdate = async (currentTime: number) => {
+        if (!trackProgress) return;
+
         await saveProgressAction({
             seriesKey,
             episodeKey: fileName,
@@ -570,7 +574,7 @@ const WatchClient = ({
     };
 
     return (
-        <div className="fixed inset-0 z-[999] bg-[var(--nx-bg)] flex flex-col w-screen h-screen">
+        <div className="fixed inset-0 z-[999] bg-[var(--nx-bg)] flex flex-col w-screen h-dvh">
             <h1 className="sr-only">
                 {seriesTitle} — {episodeTitle}
                 {isDemo ? " (materiał demonstracyjny)" : ""}

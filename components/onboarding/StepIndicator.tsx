@@ -18,9 +18,9 @@ export function StepIndicator({ current }: StepIndicatorProps) {
                         <span
                             aria-current={index === current ? "step" : undefined}
                             aria-label={`${label}${index < current ? ", ukończono" : index === current ? ", bieżący krok" : ""}`}
-                            className={`grid size-5 place-items-center rounded-full border text-[9px] transition-[background-color,border-color,color] duration-[140ms] motion-reduce:transition-none ${
+                            className={`grid size-5 place-items-center rounded-full border text-[9px] transition-[background-color,border-color,color,transform] duration-[240ms] motion-reduce:transition-none ${
                                 index === current
-                                    ? "border-nx-accent bg-nx-accent text-nx-on-accent"
+                                    ? "scale-110 border-nx-accent bg-nx-accent text-nx-on-accent motion-reduce:scale-100"
                                     : index < current
                                       ? "border-nx-accent text-nx-accent"
                                       : "border-nx-border text-nx-text-2"
@@ -29,10 +29,9 @@ export function StepIndicator({ current }: StepIndicatorProps) {
                             {index < current ? <Check className="size-3" strokeWidth={2.5} /> : index + 1}
                         </span>
                         {index < STEPS.length - 1 && (
-                            <span
-                                aria-hidden="true"
-                                className={`h-px w-8 sm:w-12 ${index < current ? "bg-nx-accent" : "bg-nx-border"}`}
-                            />
+                            <span aria-hidden="true" className="relative h-px w-8 overflow-hidden bg-nx-border sm:w-12">
+                                <span className={`absolute inset-0 origin-left bg-nx-accent transition-transform duration-300 ease-out motion-reduce:transition-none ${index < current ? "scale-x-100" : "scale-x-0"}`} />
+                            </span>
                         )}
                     </li>
                 ))}

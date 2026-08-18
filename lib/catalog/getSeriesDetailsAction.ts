@@ -1,5 +1,6 @@
 "use server";
 import { resolveCatalogSeries } from "@/lib/catalog/catalog";
+import { isVirtualTmdbKey } from "@/lib/catalog/tmdbVirtualSeries";
 import { getSeriesProgressAction } from "@/lib/progress/getProgressAction";
 import { progressPercent, isWatched } from "@/lib/progress/watchProgress";
 import { fetchJikanRaw } from "@/lib/metadata/providers/jikan";
@@ -61,7 +62,7 @@ const localDetails = async (id: number): Promise<DataResult<SeriesDetails | null
     let year = series.year;
     let rating = series.rating;
 
-    if (!series.hasMetadata || !synopsis) {
+    if (!isVirtualTmdbKey(series.key) && (!series.hasMetadata || !synopsis)) {
         const identityResult = await resolveSeriesIdentity(series.title);
         if (identityResult.kind === "error") return identityResult;
 

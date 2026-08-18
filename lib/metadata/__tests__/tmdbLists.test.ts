@@ -13,6 +13,7 @@ const {
     getTmdbTopRatedTv,
     getTmdbTrendingTv,
     TMDB_TV_LIST_CACHE_TTL_MS,
+    TMDB_TV_LIST_MAX_RETRIES,
 } = await import("../tmdbLists");
 
 const item = {
@@ -82,7 +83,7 @@ describe("listy telewizyjne TMDB", () => {
         expect(fetchTmdbResult).toHaveBeenCalledWith(
             path,
             expect.any(Function),
-            { cacheTtlMs },
+            { cacheTtlMs, maxRetries: TMDB_TV_LIST_MAX_RETRIES },
         );
 
         const validator = fetchTmdbResult.mock.calls[0]?.[1];

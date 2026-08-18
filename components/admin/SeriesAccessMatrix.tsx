@@ -94,7 +94,7 @@ const SeriesAccessMatrix = ({ overview }: { overview: Overview }) => {
                                         onClick={() => toggle(entry.seriesKey, user.id, hasAccess)}
                                         disabled={isBusy}
                                         aria-pressed={hasAccess}
-                                        className={`inline-flex min-h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-xs outline-none transition-colors duration-140 disabled:cursor-wait disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent ${
+                                        className={`inline-flex min-h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-xs outline-none transition-colors duration-140 disabled:cursor-wait disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent ${
                                             hasAccess
                                                 ? "border-nx-accent bg-nx-accent text-nx-on-accent hover:brightness-110"
                                                 : "border-nx-border bg-transparent text-nx-text-2 hover:border-nx-accent hover:bg-nx-raised hover:text-nx-text"

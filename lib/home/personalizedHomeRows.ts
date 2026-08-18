@@ -7,8 +7,11 @@ import {
 } from "@/lib/catalog/tmdbCatalogMapping";
 import type { ResumePoint, TmdbTvListItem, WatchlistItem } from "@/lib/core/contracts";
 import { type DataResult } from "@/lib/core/dataResult";
+import { HOME_SECTION_PRESENTATION } from "@/lib/home/homeLayout";
 import type { HomeRowDiagnostics, HomeRowResult } from "@/lib/home/homeRowTypes";
 import { getTmdbRecommendations } from "@/lib/metadata/tmdbLists";
+import { getTmdbImageBaseUrl } from "@/lib/metadata/tmdbConfig";
+import { virtualSeriesFromListItem } from "@/lib/catalog/tmdbVirtualSeries";
 import { getViewerProgressSnapshot } from "@/lib/progress/continueWatching";
 import type { ProgressReadModel } from "@/lib/progress/progressService";
 import { getWatchlist } from "@/lib/watchlist/watchlist";
@@ -85,10 +88,9 @@ export const buildWatchlistHomeRow = (
         kind: "ready",
         row: {
             id: "watchlist",
-            title: "Moja lista",
+            ...HOME_SECTION_PRESENTATION.watchlist,
             kicker: "TWOJA LISTA",
             source: "local-watchlist",
-            variant: "classic",
             items,
         },
     };
@@ -136,6 +138,7 @@ export const buildRecommendationHomeRow = (
     progress: ProgressReadModel,
     seed: RecommendationSeed,
     result: DataResult<TmdbTvListItem[]>,
+    imageBaseUrl: string | null = null,
 ): HomeRowResult => {
     if (result.kind === "error") {
         return {
@@ -146,7 +149,9 @@ export const buildRecommendationHomeRow = (
         };
     }
 
-    const mapped = mapTmdbListToCatalog(result.data, catalog, result.data.length);
+    const mapped = mapTmdbListToCatalog(result.data, catalog, result.data.length, {
+        createFallback: (item) => virtualSeriesFromListItem(item, imageBaseUrl),
+    });
     const seedIdentity = catalogSeriesIdentity(seed.series);
     const items = mapped.series
         .filter((series) => catalogSeriesIdentity(series) !== seedIdentity)
@@ -173,10 +178,10 @@ export const buildRecommendationHomeRow = (
         kind: "ready",
         row: {
             id: "recommendations",
-            title: `Ponieważ oglądałeś: ${seed.series.baseTitle ?? seed.series.title}`,
+            ...HOME_SECTION_PRESENTATION.recommendations,
+            title: `${HOME_SECTION_PRESENTATION.recommendations.title}: ${seed.series.baseTitle ?? seed.series.title}`,
             kicker: "TMDB / DLA CIEBIE",
             source: "tmdb-recommendations",
-            variant: "classic",
             items,
         },
         diagnostics,
@@ -213,11 +218,16 @@ export const getPersonalizedHomeRows = async (
         ];
     }
 
-    const recommendations = await sources.recommendations(seed.tmdbId)
-        .catch(() => ({ kind: "error" as const, reason: "network" as const }));
+    const [recommendations, imageBaseUrl] = await Promise.all([
+        sources.recommendations(seed.tmdbId)
+            .catch(() => ({ kind: "error" as const, reason: "network" as const })),
+        getTmdbImageBaseUrl()
+            .then((result) => result.kind === "error" ? null : result.data)
+            .catch(() => null),
+    ]);
 
     return [
         watchlistRow,
-        buildRecommendationHomeRow(catalog, progressResult.data, seed, recommendations),
+        buildRecommendationHomeRow(catalog, progressResult.data, seed, recommendations, imageBaseUrl),
     ];
 };

@@ -176,6 +176,27 @@ describe("timeout providera", () => {
     });
 });
 
+describe("limit prob dla konkretnego endpointu", () => {
+    it("obniza liczbe podejsc ponizej globalnego limitu", async () => {
+        vi.mocked(fetch).mockResolvedValue(jsonResponse({ error: "boom" }, 500));
+        const client = createRateLimitedClient({ ...baseConfig, maxRetries: 3 });
+
+        const result = await client.fetchResult("/tv/1", undefined, undefined, { maxRetries: 1 });
+
+        expect(fetch).toHaveBeenCalledTimes(2);
+        expect(result.kind).toBe("error");
+    });
+
+    it("nie moze podniesc globalnego limitu prob", async () => {
+        vi.mocked(fetch).mockResolvedValue(jsonResponse({ error: "boom" }, 429));
+        const client = createRateLimitedClient({ ...baseConfig, maxRetries: 1 });
+
+        await client.fetchResult("/tv/1", undefined, undefined, { maxRetries: 9 });
+
+        expect(fetch).toHaveBeenCalledTimes(2);
+    });
+});
+
 describe("rownolegly miss tego samego klucza", () => {
     it("dwa rownoczesne zapytania o ta sama sciezke wywoluja siec tylko raz", async () => {
         let resolveFetch: (value: Response) => void = () => {};

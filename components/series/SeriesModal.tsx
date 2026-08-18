@@ -143,7 +143,7 @@ const SeriesModal = () => {
                     type="button"
                     onClick={closeModal}
                     aria-label="Zamknij szczegóły serialu"
-                    className="absolute right-4 top-4 z-50 flex size-11 cursor-pointer items-center justify-center rounded-full border border-border bg-surface-light text-foreground transition-colors hover:bg-primary hover:text-on-accent focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
+                    className="absolute right-4 top-[calc(16px+env(safe-area-inset-top))] z-50 flex size-11 cursor-pointer items-center justify-center rounded-full border border-border bg-surface-light text-foreground transition-colors hover:bg-primary hover:text-on-accent focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-primary md:top-4"
                 >
                     <X size={20} className="md:w-6 md:h-6" />
                 </button>
@@ -164,7 +164,7 @@ const SeriesModal = () => {
                         />
                     </div>
                 ) : loading || !details ? (
-                    <div className="text-foreground pb-8 w-full">
+                    <div className="w-full pb-[calc(32px+env(safe-area-inset-bottom))] text-foreground">
                         <div className="w-full h-62.5 md:h-100 shrink-0 bg-surface-light animate-pulse relative">
                             <div className="absolute inset-0 bg-linear-to-t from-surface via-surface/40 to-transparent" />
                         </div>
@@ -190,7 +190,7 @@ const SeriesModal = () => {
                         </div>
                     </div>
                 ) : (
-                    <div className="text-foreground pb-8 w-full">
+                    <div className="w-full pb-[calc(32px+env(safe-area-inset-bottom))] text-foreground">
                         <div className="w-full h-62.5 md:h-100 shrink-0 bg-surface-light relative">
                             {details.bannerImage && (
                                 <Image
@@ -216,7 +216,7 @@ const SeriesModal = () => {
                             <div className="mb-8 flex flex-wrap items-center gap-3">
                                 <button
                                     onClick={goToSeriesPage}
-                                    className="flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface-light px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:border-primary hover:bg-primary hover:text-on-accent focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary md:px-5 md:py-2.5 md:text-base"
+                                    className="flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface-light px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:border-primary hover:bg-primary hover:text-on-accent focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-primary md:px-5 md:py-2.5 md:text-base"
                                 >
                                     Przejdź do strony serialu
                                     <ArrowUpRight size={18} />
@@ -226,7 +226,7 @@ const SeriesModal = () => {
                                         type="button"
                                         onClick={watchTogether}
                                         disabled={startingParty}
-                                        className={`flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface-light px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:border-primary hover:bg-primary hover:text-on-accent focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary md:px-5 md:py-2.5 md:text-base ${startingParty ? "opacity-70" : ""}`}
+                                        className={`flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface-light px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:border-primary hover:bg-primary hover:text-on-accent focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-primary md:px-5 md:py-2.5 md:text-base ${startingParty ? "opacity-70" : ""}`}
                                     >
                                         <Users size={18} />
                                         {startingParty ? "Tworzenie pokoju…" : "Oglądaj razem"}
@@ -241,13 +241,13 @@ const SeriesModal = () => {
                                 Odcinki ({details.episodes.length})
                             </h3>
 
-                            <div className="flex flex-col gap-3 max-h-[40vh] overflow-y-auto pr-1 -mr-1 scrollbar-hide">
+                            <div className="-mr-1 flex flex-col gap-3 pr-1 scrollbar-hide md:max-h-[40vh] md:overflow-y-auto">
                                 {details.episodes.map((episode) => (
                                     <button
                                         type="button"
                                         key={episode.key}
                                         onClick={() => openEpisode(episode.key)}
-                                        className="group flex w-full cursor-pointer items-center gap-4 rounded-lg border border-border bg-surface-light/50 p-3 text-left transition-[background-color,border-color] hover:border-border-hover hover:bg-surface-light focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary md:p-4"
+                                        className="group flex w-full cursor-pointer items-center gap-4 rounded-lg border border-border bg-surface-light/50 p-3 text-left transition-[background-color,border-color] hover:border-border-hover hover:bg-surface-light focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-primary md:p-4"
                                     >
                                         <span className={`relative h-20 w-32 shrink-0 overflow-hidden rounded-md bg-background transition-opacity md:h-24 md:w-40 ${episode.watched ? "opacity-75 ring-2 ring-nx-text-2/40" : ""}`}>
                                             {episode.thumbnail ? (

@@ -51,6 +51,7 @@ export interface SeriesCardProps {
     sizes?: string;
     tabIndex?: number;
     fill?: boolean;
+    rank?: number;
     onWatchlistChange?: (seriesKey: string, inWatchlist: boolean) => void;
 }
 
@@ -79,6 +80,7 @@ const SeriesCard = ({
     sizes = "(max-width: 639px) 82vw, (max-width: 1023px) 44vw, (max-width: 1439px) 30vw, 22vw",
     tabIndex = -1,
     fill = false,
+    rank,
     onWatchlistChange,
 }: SeriesCardProps) => {
     const router = useRouter();
@@ -191,7 +193,7 @@ const SeriesCard = ({
         <span
             className={`relative block overflow-hidden bg-nx-panel ${
                 variant === "poster"
-                    ? "aspect-2/3 rounded-t-2xl"
+                    ? "nx-content-card aspect-2/3 rounded-md border border-nx-border"
                     : variant === "row"
                         ? "m-3 aspect-video w-[132px] shrink-0 self-stretch rounded-xl sm:w-[176px] xl:w-[190px] min-[1440px]:w-[220px]"
                         : variant === "mosaic"
@@ -269,6 +271,18 @@ const SeriesCard = ({
         </span>
     );
 
+    const rankedMedia = variant === "poster" && rank !== undefined ? (
+        <span className="relative block">
+            {media}
+            <span
+                aria-hidden="true"
+                className="pointer-events-none absolute bottom-0 left-full z-20 -translate-x-[42%] translate-y-[13px] font-display text-[56px] font-bold leading-[0.72] tracking-[-0.06em] text-transparent [-webkit-text-stroke:2px_color-mix(in_srgb,var(--nx-accent)_58%,transparent)] sm:text-[72px] xl:text-[92px]"
+            >
+                {rank}
+            </span>
+        </span>
+    ) : media;
+
     const metadata = [
         item.episodeNumber !== undefined ? `ODCINEK ${formatEpisode(item.episodeNumber)}` : null,
         item.year ? String(item.year) : null,
@@ -321,7 +335,7 @@ const SeriesCard = ({
                 if (!event.currentTarget.contains(event.relatedTarget)) setIsMoreMenuOpen(false);
             }}
         >
-            {item.previewSource && (
+            {item.previewSource && variant !== "poster" && (
                 <button
                     type="button"
                     onClick={preview.startManual}
@@ -352,7 +366,7 @@ const SeriesCard = ({
                     tabIndex={variant === "row" ? 0 : -1}
                     onClick={handleInfoClick}
                     aria-label={`Więcej informacji o ${item.title}`}
-                    className="hidden size-11 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text-2 outline-none transition-colors duration-140 hover:bg-nx-raised hover:text-nx-text sm:flex sm:size-12"
+                    className="flex size-11 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text-2 outline-none transition-colors duration-140 hover:bg-nx-raised hover:text-nx-text sm:size-12"
                 >
                     <Info size={18} />
                 </button>
@@ -477,11 +491,12 @@ const SeriesCard = ({
             {landscapeMetadataLine}
         </span>
     ) : (
-        <span className="flex min-w-0 flex-col gap-2 px-1 pb-1 pt-3">
-            {metadataLine}
-            <span className="line-clamp-2 text-[15px] font-semibold leading-[1.35] text-nx-text sm:text-base" title={item.title}>
-                {item.title}
-            </span>
+        <span className="mt-3 flex min-w-0 items-center gap-2.5 font-mono text-[10.5px] tabular-nums text-nx-text-2">
+            {item.score && <span className="text-nx-accent-2">{item.score}</span>}
+            {item.score && item.year && (
+                <span aria-hidden="true" className="h-px w-4 shrink-0 bg-nx-border" />
+            )}
+            {item.year && <span>{item.year}</span>}
         </span>
     );
 
@@ -493,6 +508,7 @@ const SeriesCard = ({
             role="link"
             tabIndex={tabIndex}
             aria-label={`${item.title}${progressDescription}`}
+            {...(variant === "poster" ? { title: item.title } : {})}
             onClick={navigate}
             onKeyDown={handleCardKeyDown}
             {...preview.surfaceProps}
@@ -501,17 +517,21 @@ const SeriesCard = ({
                 event.preventDefault();
                 openInfo();
             }}
-            className={`nx-content-card group/card relative w-full scroll-mx-6 cursor-pointer rounded-2xl border bg-nx-panel text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent ${
-                variant === "row"
-                    ? `flex min-h-[164px] overflow-visible focus-within:z-30 ${
-                        watchlisted
-                            ? "border-[color-mix(in_srgb,var(--nx-accent)_72%,var(--nx-border))] bg-[linear-gradient(105deg,color-mix(in_srgb,var(--nx-panel)_96%,var(--nx-accent))_0%,var(--nx-panel)_58%,color-mix(in_srgb,var(--nx-panel)_93%,var(--nx-accent))_100%)]"
-                            : "border-nx-border"
+            className={
+                variant === "poster"
+                    ? "group/card relative w-full scroll-mx-6 cursor-pointer overflow-visible text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent"
+                    : `nx-content-card group/card relative w-full scroll-mx-6 cursor-pointer rounded-2xl border bg-nx-panel text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent ${
+                        variant === "row"
+                            ? `flex min-h-[164px] overflow-visible focus-within:z-30 ${
+                                watchlisted
+                                    ? "border-[color-mix(in_srgb,var(--nx-accent)_72%,var(--nx-border))] bg-[linear-gradient(105deg,color-mix(in_srgb,var(--nx-panel)_96%,var(--nx-accent))_0%,var(--nx-panel)_58%,color-mix(in_srgb,var(--nx-panel)_93%,var(--nx-accent))_100%)]"
+                                    : "border-nx-border"
+                            }`
+                            : `overflow-hidden border-nx-border ${fill ? "lg:h-full" : ""}`
                     }`
-                    : `overflow-hidden border-nx-border ${fill ? "lg:h-full" : ""}`
-            }`}
+            }
         >
-            {media}
+            {rankedMedia}
             {body}
 
             <span className={`absolute z-10 ${variant === "row" ? "right-3 top-1/2 -translate-y-1/2" : "right-2 top-2"}`}>
