@@ -73,7 +73,7 @@ const AdminLibraryPage = async () => {
                             key={item.seriesKey}
                             className="group overflow-hidden rounded-[var(--r-m)] border border-nx-border bg-nx-panel shadow-[var(--sh-2)] transition-colors duration-140 open:border-nx-text-2/40"
                         >
-                            <summary className="grid min-h-16 cursor-pointer list-none grid-cols-[20px_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-[var(--r-m)] px-5 py-3 outline-none transition-colors duration-140 hover:bg-nx-raised/60 [&::-webkit-details-marker]:hidden sm:grid-cols-[20px_minmax(0,1fr)_auto] focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent">
+                            <summary className="grid min-h-16 cursor-pointer list-none grid-cols-[20px_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-[var(--r-m)] px-5 py-3 outline-none transition-colors duration-140 hover:bg-nx-raised/60 [&::-webkit-details-marker]:hidden sm:grid-cols-[20px_minmax(0,1fr)_auto] focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent">
                                 <ChevronDown
                                     size={18}
                                     aria-hidden="true"

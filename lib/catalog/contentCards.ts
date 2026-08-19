@@ -74,7 +74,7 @@ export const toContentCard = (
         completed,
         addedAt: latest?.addedAt,
         isNew,
-        href: href ?? seriesPath(series.key),
+        href: href ?? (episode ? watchPath(series.key, episode.key) : seriesPath(series.key)),
         infoId: series.id,
         inWatchlist,
         previewSource,

@@ -32,7 +32,10 @@ export const savePartyTelemetry = async (
 
 export interface PartyTelemetryOverview {
     sessions: number;
+    syncedSessions: number;
+    driftSamples: number;
     driftBuckets: [number, number, number, number, number];
+    hardSeeks: number;
     hardSeeksPerSession: number;
     averageTimeToSyncMs: number | null;
     maximumTimeToSyncMs: number | null;
@@ -44,13 +47,17 @@ export const loadPartyTelemetryOverview = async (): Promise<PartyTelemetryOvervi
     const number = (value: string | number): number => Number(value);
     const sessions = number(row.sessions);
     const syncedSessions = number(row.synced_sessions);
+    const hardSeeks = number(row.hard_seeks);
     return {
         sessions,
+        syncedSessions,
+        driftSamples: number(row.drift_samples),
         driftBuckets: [
             number(row.drift_dead_zone), number(row.drift_under_half), number(row.drift_under_one),
             number(row.drift_under_two), number(row.drift_over_two),
         ],
-        hardSeeksPerSession: sessions === 0 ? 0 : number(row.hard_seeks) / sessions,
+        hardSeeks,
+        hardSeeksPerSession: sessions === 0 ? 0 : hardSeeks / sessions,
         averageTimeToSyncMs: syncedSessions === 0 ? null : number(row.sync_time_total_ms) / syncedSessions,
         maximumTimeToSyncMs: syncedSessions === 0 ? null : number(row.sync_time_max_ms),
         buffering: {

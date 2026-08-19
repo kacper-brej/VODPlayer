@@ -23,7 +23,7 @@ const EmptyContinueWatching = () => (
         </p>
         <Link
             href="/explore"
-            className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-full border border-nx-border bg-nx-panel px-5 text-sm font-semibold text-nx-text outline-none transition-colors duration-140 hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent"
+            className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-full border border-nx-border bg-nx-panel px-5 text-sm font-semibold text-nx-text outline-none transition-colors duration-140 hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent"
         >
             Przejdź do katalogu
             <ArrowUpRight aria-hidden="true" size={16} />
@@ -89,7 +89,7 @@ const ContinueWatchingContent = async () => {
 };
 
 const ContinueWatchingPage = () => (
-    <main className="min-h-screen w-full min-w-0 bg-nx-bg px-5 py-12 sm:px-8 lg:py-16 xl:px-10 min-[1440px]:px-12">
+    <main className="min-h-dvh w-full min-w-0 bg-nx-bg px-5 py-12 sm:px-8 lg:py-16 xl:px-10 min-[1440px]:px-12">
         <div className="mx-auto w-full max-w-[1600px]">
             <header className="mb-10 border-b border-nx-border pb-8 sm:mb-12">
                 <span className="font-mono text-[10px] tracking-[0.22em] text-nx-text-2">

@@ -4,7 +4,7 @@ import { withTransaction } from "@/lib/db/transaction";
 import { DatabaseError } from "@/lib/db/errors";
 import type { Profile } from "@/lib/core/contracts";
 import { selectedProfileId } from "@/lib/core/vodConfig";
-import { MAX_PROFILES_PER_ACCOUNT } from "@/lib/core/onboarding";
+import { isProfileAvatar, MAX_PROFILES_PER_ACCOUNT, type ProfileAvatar } from "@/lib/core/onboarding";
 import * as repo from "@/lib/profiles/profileRepository";
 
 type Executor = Pool | PoolConnection;
@@ -30,7 +30,11 @@ export type CreateProfileResult =
     | { ok: true; profile: Profile }
     | { ok: false; code: "invalid" | "limit" | "conflict" | "server" };
 
-export const createProfile = async (userId: number, rawName: string): Promise<CreateProfileResult> => {
+export const createProfile = async (
+    userId: number,
+    rawName: string,
+    avatar: ProfileAvatar | null = null,
+): Promise<CreateProfileResult> => {
     const name = validateProfileName(rawName);
     if (name === null) return { ok: false, code: "invalid" };
 
@@ -38,8 +42,35 @@ export const createProfile = async (userId: number, rawName: string): Promise<Cr
         const count = await repo.countProfilesForUser(userId);
         if (count >= MAX_PROFILES_PER_ACCOUNT) return { ok: false, code: "limit" };
 
-        const id = await repo.insertProfile(userId, name);
-        return { ok: true, profile: { id, name, isDefault: false, avatar: null } };
+        const id = await repo.insertProfile(userId, name, avatar);
+        return { ok: true, profile: { id, name, isDefault: false, avatar } };
+    } catch (error) {
+        if (error instanceof DatabaseError && error.code === "conflict") return { ok: false, code: "conflict" };
+        if (error instanceof DatabaseError) return { ok: false, code: "server" };
+        throw error;
+    }
+};
+
+export type UpdateProfileResult =
+    | { ok: true; profile: { id: number; name: string; avatar: ProfileAvatar | null } }
+    | { ok: false; code: "invalid" | "invalid_avatar" | "forbidden" | "conflict" | "server" };
+
+export const updateProfile = async (
+    userId: number,
+    profileId: number,
+    rawName: string,
+    avatar: unknown,
+): Promise<UpdateProfileResult> => {
+    const name = validateProfileName(rawName);
+    if (name === null) return { ok: false, code: "invalid" };
+    if (avatar !== null && !isProfileAvatar(avatar)) return { ok: false, code: "invalid_avatar" };
+
+    try {
+        const owned = await repo.isProfileOwnedByUser(profileId, userId);
+        if (!owned) return { ok: false, code: "forbidden" };
+
+        await repo.updateProfileById(profileId, name, avatar);
+        return { ok: true, profile: { id: profileId, name, avatar } };
     } catch (error) {
         if (error instanceof DatabaseError && error.code === "conflict") return { ok: false, code: "conflict" };
         if (error instanceof DatabaseError) return { ok: false, code: "server" };

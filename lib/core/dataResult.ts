@@ -1,6 +1,7 @@
 export type DataErrorReason =
     | "unauthorized"
     | "forbidden"
+    | "not_configured"
     | "server"
     | "network"
     | "invalid_response";

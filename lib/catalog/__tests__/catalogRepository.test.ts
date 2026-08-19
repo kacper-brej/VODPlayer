@@ -16,6 +16,7 @@ describe("loadCatalogRows", () => {
         expect(assetSql).toMatch(/FROM media_assets a/);
         expect(assetSql).toMatch(/a\.status = 'ready'/);
         expect(assetSql).toMatch(/EXISTS[\s\S]*series_artwork[\s\S]*kind = 'poster'[\s\S]*is_primary = 1/);
+        expect(assetSql).toMatch(/LEFT JOIN series_external_ids tmdb_id[\s\S]*tmdb_id\.provider = 'tmdb'/);
         expect(assetSql).not.toMatch(/scandir|uploads/i);
     });
 

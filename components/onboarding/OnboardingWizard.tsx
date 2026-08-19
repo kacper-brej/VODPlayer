@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import completeOnboardingAction from "@/lib/profiles/completeOnboardingAction";
 import skipOnboardingAction from "@/lib/profiles/skipOnboardingAction";
 import {
@@ -22,6 +23,8 @@ const STEP_INDEX: Record<Step, number> = {
     profiles: 1,
     preferences: 2,
 };
+
+const STEP_EASE = [0.22, 1, 0.36, 1] as const;
 
 const defaultSettings: OnboardingSettingsInput = {
     autoplayNext: true,
@@ -58,8 +61,10 @@ interface OnboardingWizardProps {
 
 export default function OnboardingWizard({ username }: OnboardingWizardProps) {
     const router = useRouter();
+    const prefersReducedMotion = useReducedMotion();
     const headingRef = useRef<HTMLHeadingElement | null>(null);
     const [step, setStep] = useState<Step>("welcome");
+    const [direction, setDirection] = useState(1);
     const [profiles, setProfiles] = useState<DraftProfile[]>([
         { key: "default-profile", name: username, avatar: PROFILE_AVATARS[0] },
     ]);
@@ -70,10 +75,11 @@ export default function OnboardingWizard({ username }: OnboardingWizardProps) {
 
     useEffect(() => {
         headingRef.current?.focus();
-    }, [step]);
+    }, []);
 
     const goTo = (next: Step) => {
         setActionError("");
+        setDirection(STEP_INDEX[next] >= STEP_INDEX[step] ? 1 : -1);
         setStep(next);
     };
 
@@ -160,7 +166,7 @@ export default function OnboardingWizard({ username }: OnboardingWizardProps) {
                 }
 
                 setActionError(result.message ?? "Nie udało się zapisać konfiguracji. Spróbuj ponownie.");
-                if (result.code && result.code !== "server") setStep("profiles");
+                if (result.code && result.code !== "server") goTo("profiles");
             } catch {
                 setActionError("Nie udało się zapisać konfiguracji. Spróbuj ponownie.");
             }
@@ -173,40 +179,54 @@ export default function OnboardingWizard({ username }: OnboardingWizardProps) {
             <div className="relative mx-auto flex min-h-dvh w-full max-w-6xl flex-col py-7 sm:py-9 lg:py-10">
                 <StepIndicator current={STEP_INDEX[step]} />
 
-                {step === "welcome" && (
-                    <StepWelcome
-                        headingRef={headingRef}
-                        pending={pending}
-                        error={actionError}
-                        onStart={() => goTo("profiles")}
-                        onSkip={skip}
-                    />
-                )}
-                {step === "profiles" && (
-                    <StepProfiles
-                        headingRef={headingRef}
-                        profiles={profiles}
-                        errors={profileErrors}
-                        formError={actionError}
-                        onChangeName={changeName}
-                        onChangeAvatar={changeAvatar}
-                        onAdd={addProfile}
-                        onRemove={removeProfile}
-                        onBack={() => goTo("welcome")}
-                        onNext={openPreferences}
-                    />
-                )}
-                {step === "preferences" && (
-                    <StepPreferences
-                        headingRef={headingRef}
-                        settings={settings}
-                        pending={pending}
-                        error={actionError}
-                        onChange={(next) => { setSettings(next); setActionError(""); }}
-                        onBack={() => goTo("profiles")}
-                        onFinish={finish}
-                    />
-                )}
+                <AnimatePresence initial={false} mode="wait">
+                    <motion.div
+                        key={step}
+                        className="flex flex-1"
+                        initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, x: 30 * direction, filter: "blur(4px)" }}
+                        animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
+                        exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: -22 * direction, filter: "blur(3px)" }}
+                        transition={{ duration: prefersReducedMotion ? 0.01 : 0.32, ease: STEP_EASE }}
+                        onAnimationStart={() => {
+                            window.requestAnimationFrame(() => headingRef.current?.focus());
+                        }}
+                    >
+                        {step === "welcome" && (
+                            <StepWelcome
+                                headingRef={headingRef}
+                                pending={pending}
+                                error={actionError}
+                                onStart={() => goTo("profiles")}
+                                onSkip={skip}
+                            />
+                        )}
+                        {step === "profiles" && (
+                            <StepProfiles
+                                headingRef={headingRef}
+                                profiles={profiles}
+                                errors={profileErrors}
+                                formError={actionError}
+                                onChangeName={changeName}
+                                onChangeAvatar={changeAvatar}
+                                onAdd={addProfile}
+                                onRemove={removeProfile}
+                                onBack={() => goTo("welcome")}
+                                onNext={openPreferences}
+                            />
+                        )}
+                        {step === "preferences" && (
+                            <StepPreferences
+                                headingRef={headingRef}
+                                settings={settings}
+                                pending={pending}
+                                error={actionError}
+                                onChange={(next) => { setSettings(next); setActionError(""); }}
+                                onBack={() => goTo("profiles")}
+                                onFinish={finish}
+                            />
+                        )}
+                    </motion.div>
+                </AnimatePresence>
             </div>
         </div>
     );

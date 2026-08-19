@@ -10,6 +10,14 @@ const splitLanguages = (value: string | null): string[] =>
 const numberOrNull = (value: string | number | null): number | null =>
     value === null ? null : Number(value);
 
+const tmdbIdOrNull = (value: string | null): number | null => {
+    const match = /^(?:tv:)?(\d+)$/.exec(value?.trim() ?? "");
+    if (!match) return null;
+
+    const id = Number(match[1]);
+    return Number.isSafeInteger(id) && id > 0 ? id : null;
+};
+
 const episodeNumber = (episodeKey: string, fallback: number): number => {
     const parsed = Number.parseInt(episodeKey.replace(/\.mp4$/i, ""), 10);
     return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
@@ -101,6 +109,7 @@ export const buildCatalog = async (): Promise<CatalogResponse> => {
                 subtitleLanguages: splitLanguages(row.subtitle_languages),
                 metadataProvider: row.metadata_provider,
                 externalId: row.external_id === null ? null : Number(row.external_id),
+                tmdbExternalId: tmdbIdOrNull(row.tmdb_external_id),
                 genres: genres.get(row.series_key) ?? [],
                 altTitles: [...new Set(titles.get(row.series_key) ?? [])],
                 hasMetadata: row.cover_row_title !== null,

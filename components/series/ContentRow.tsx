@@ -7,7 +7,8 @@ export type ContentRowVariant = "progress" | "ranking" | "mosaic" | "classic";
 
 interface ContentRowProps {
     title: string;
-    kicker: string;
+    kicker?: string;
+    numbered?: boolean;
     variant: ContentRowVariant;
     itemCount: number;
     children: ReactNode;
@@ -15,15 +16,18 @@ interface ContentRowProps {
     mosaicPanelHeader?: ReactNode;
 }
 
+export const rowKickerClass = "block font-mono text-[10px] tracking-[0.22em] text-nx-text-2 sm:text-[11px]";
+
 const horizontalItemClass: Record<Exclude<ContentRowVariant, "mosaic">, string> = {
     progress: "basis-[82%] sm:basis-[48%] lg:basis-[calc((100%-40px)/3)] min-[1440px]:basis-[calc((100%-72px)/4)]",
-    ranking: "basis-[40%] sm:basis-[28%] lg:basis-[calc((100%-60px)/4)] xl:basis-[calc((100%-96px)/5)] min-[1440px]:basis-[calc((100%-120px)/6)]",
+    ranking: "basis-[40%] sm:basis-[30%] lg:basis-[calc((100%-168px)/4)] xl:basis-[calc((100%-256px)/5)] min-[1440px]:basis-[calc((100%-320px)/6)]",
     classic: "basis-[70%] sm:basis-[44%] lg:basis-[calc((100%-40px)/3)] xl:basis-[calc((100%-72px)/4)] min-[1440px]:basis-[calc((100%-96px)/5)]",
 };
 
 const ContentRow = ({
     title,
     kicker,
+    numbered = false,
     variant,
     itemCount,
     children,
@@ -176,9 +180,9 @@ const ContentRow = ({
         >
             <header className="mb-5 flex items-end gap-4 sm:mb-6">
                 <div className="min-w-0">
-                    <span className="block font-mono text-[10px] tracking-[0.22em] text-nx-text-2 sm:text-[11px]">
-                        {kicker}
-                    </span>
+                    {numbered
+                        ? <span aria-hidden="true" className={`nx-row-index ${rowKickerClass}`} />
+                        : kicker && <span className={rowKickerClass}>{kicker}</span>}
                     <h2
                         id={titleId}
                         className="mt-1 text-xl font-semibold leading-[1.08] text-nx-text sm:font-display sm:text-[28px] min-[1440px]:text-[30px]"
@@ -197,7 +201,7 @@ const ContentRow = ({
                             disabled={!isMosaic && !canMoveLeft}
                             aria-disabled={!isMosaic && !canMoveLeft}
                             aria-label={`Przewiń sekcję ${title} w lewo`}
-                            className="flex size-11 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text-2 opacity-0 outline-none transition-[opacity,color,background-color,border-color] duration-140 hover:bg-nx-raised hover:text-nx-text focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent disabled:cursor-not-allowed disabled:border-transparent disabled:bg-transparent disabled:text-nx-text-2/25 group-hover/section:opacity-100"
+                            className="flex size-11 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text-2 opacity-0 outline-none transition-[opacity,color,background-color,border-color] duration-140 hover:bg-nx-raised hover:text-nx-text focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent disabled:cursor-not-allowed disabled:border-transparent disabled:bg-transparent disabled:text-nx-text-2/25 group-hover/section:opacity-100"
                         >
                             <ChevronLeft size={19} />
                         </button>
@@ -207,7 +211,7 @@ const ContentRow = ({
                             disabled={!isMosaic && !canMoveRight}
                             aria-disabled={!isMosaic && !canMoveRight}
                             aria-label={`Przewiń sekcję ${title} w prawo`}
-                            className="flex size-11 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text-2 opacity-0 outline-none transition-[opacity,color,background-color,border-color] duration-140 hover:bg-nx-raised hover:text-nx-text focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent disabled:cursor-not-allowed disabled:border-transparent disabled:bg-transparent disabled:text-nx-text-2/25 group-hover/section:opacity-100"
+                            className="flex size-11 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text-2 opacity-0 outline-none transition-[opacity,color,background-color,border-color] duration-140 hover:bg-nx-raised hover:text-nx-text focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent disabled:cursor-not-allowed disabled:border-transparent disabled:bg-transparent disabled:text-nx-text-2/25 group-hover/section:opacity-100"
                         >
                             <ChevronRight size={19} />
                         </button>
@@ -228,7 +232,11 @@ const ContentRow = ({
                 className={
                     isMosaic
                         ? "grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-stretch lg:gap-5"
-                        : "scrollbar-hide -mx-2 flex w-[calc(100%+1rem)] snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain px-2 py-4 scroll-smooth motion-reduce:scroll-auto lg:gap-5 xl:gap-6"
+                        : `scrollbar-hide -mx-2 flex w-[calc(100%+1rem)] snap-x snap-mandatory overflow-x-auto overscroll-x-contain px-2 py-4 scroll-smooth motion-reduce:scroll-auto ${
+                            variant === "ranking"
+                                ? "gap-10 sm:gap-14 xl:gap-16"
+                                : "gap-4 lg:gap-5 xl:gap-6"
+                        }`
                 }
             >
                 {isMosaic ? (
@@ -279,17 +287,7 @@ const ContentRow = ({
                         className={`nx-section-item relative min-w-0 shrink-0 snap-start ${horizontalItemClass[variant]}`}
                         style={{ animationDelay: `${Math.min(index * 60, 300)}ms` }}
                     >
-                        {variant === "ranking" && (
-                            <span
-                                aria-hidden="true"
-                                className="pointer-events-none absolute -left-[0.08em] bottom-7 z-0 font-display text-[76px] leading-[0.84] tracking-[-0.05em] text-transparent [-webkit-text-stroke:1px_color-mix(in_srgb,var(--nx-accent)_42%,transparent)] sm:text-[92px] xl:text-[112px] min-[1440px]:text-[128px]"
-                            >
-                                {index + 1}
-                            </span>
-                        )}
-                        <div className={variant === "ranking" ? "relative z-10 ml-[18%] w-[82%]" : ""}>
-                            {child}
-                        </div>
+                        {child}
                     </div>
                 ))}
             </div>

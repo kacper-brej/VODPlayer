@@ -1,5 +1,5 @@
 const CatalogSkeleton = () => (
-    <div className="min-h-screen bg-nx-bg px-5 pb-[calc(80px+env(safe-area-inset-bottom))] pt-12 sm:px-8 lg:pb-20 lg:pt-16 xl:px-10 min-[1440px]:px-12">
+    <div className="min-h-dvh bg-nx-bg px-5 pb-[calc(80px+env(safe-area-inset-bottom))] pt-12 sm:px-8 lg:pb-20 lg:pt-16 xl:px-10 min-[1440px]:px-12">
         <div className="h-3 w-40 rounded-full bg-nx-panel skeleton-pulse" />
         <div className="mt-5 h-12 w-full max-w-xl rounded-2xl bg-nx-panel skeleton-pulse" />
         <div className="mt-8 flex gap-2 overflow-hidden">

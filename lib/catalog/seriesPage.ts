@@ -10,6 +10,7 @@ export interface SeriesSeason {
     title: string;
     coverImage: string | null;
     episodes: CatalogSeries["episodes"];
+    declaredEpisodeCount?: number;
 }
 
 const toSeason = (entry: CatalogSeries): SeriesSeason => ({

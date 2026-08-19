@@ -2,36 +2,38 @@ import "server-only";
 import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
 import { getDbPool } from "@/lib/db/pool";
 import { mapDatabaseError } from "@/lib/db/errors";
+import { parseNullableSafeDbInteger, type DbInteger } from "@/lib/db/integer";
 import type { MediaStatusAsset, MediaStatusRendition, MediaStatusLastVerification } from "@/lib/core/contracts";
 
 type Executor = Pool | PoolConnection;
 
 interface AssetSqlRow extends RowDataPacket {
-    id: number;
+    id: DbInteger;
     series_key: string;
     episode_key: string;
     status: string;
+    delivery: "hls" | "file";
     duration_seconds: number | null;
-    total_size_bytes: number | null;
+    total_size_bytes: DbInteger | null;
     preview_clip_key: string | null;
     error_message: string | null;
     updated_at: string;
 }
 
 interface RenditionSqlRow extends RowDataPacket {
-    asset_id: number;
+    asset_id: DbInteger;
     height: number;
     width: number | null;
     bitrate_kbps: number;
     playlist_key: string;
     segment_count: number | null;
-    size_bytes: number | null;
+    size_bytes: DbInteger | null;
 }
 
 export const listMediaAssetsWithRenditions = async (db: Executor = getDbPool()): Promise<MediaStatusAsset[]> => {
     try {
         const [assetRows] = await db.execute<AssetSqlRow[]>(
-            `SELECT id, series_key, episode_key, status, duration_seconds, total_size_bytes,
+            `SELECT id, series_key, episode_key, status, delivery, duration_seconds, total_size_bytes,
                     preview_clip_key, error_message, DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at
              FROM media_assets
              ORDER BY series_key, episode_key`,
@@ -42,7 +44,7 @@ export const listMediaAssetsWithRenditions = async (db: Executor = getDbPool()):
              ORDER BY asset_id, height`,
         );
 
-        const renditionsByAsset = new Map<number, MediaStatusRendition[]>();
+        const renditionsByAsset = new Map<string, MediaStatusRendition[]>();
         for (const row of renditionRows) {
             const rendition: MediaStatusRendition = {
                 height: row.height,
@@ -50,23 +52,25 @@ export const listMediaAssetsWithRenditions = async (db: Executor = getDbPool()):
                 bitrateKbps: row.bitrate_kbps,
                 playlistKey: row.playlist_key,
                 segmentCount: row.segment_count,
-                sizeBytes: row.size_bytes,
+                sizeBytes: parseNullableSafeDbInteger(row.size_bytes, "media_renditions.size_bytes"),
             };
-            const bucket = renditionsByAsset.get(row.asset_id);
+            const assetId = String(row.asset_id);
+            const bucket = renditionsByAsset.get(assetId);
             if (bucket) bucket.push(rendition);
-            else renditionsByAsset.set(row.asset_id, [rendition]);
+            else renditionsByAsset.set(assetId, [rendition]);
         }
 
         return assetRows.map((row) => ({
             seriesKey: row.series_key,
             episodeKey: row.episode_key,
             status: row.status,
+            delivery: row.delivery === "file" ? "file" : "hls",
             durationSeconds: row.duration_seconds,
-            totalSizeBytes: row.total_size_bytes,
+            totalSizeBytes: parseNullableSafeDbInteger(row.total_size_bytes, "media_assets.total_size_bytes"),
             previewClipKey: row.preview_clip_key,
             errorMessage: row.error_message,
             updatedAt: row.updated_at,
-            renditions: renditionsByAsset.get(row.id) ?? [],
+            renditions: renditionsByAsset.get(String(row.id)) ?? [],
         }));
     } catch (error) {
         throw mapDatabaseError(error);

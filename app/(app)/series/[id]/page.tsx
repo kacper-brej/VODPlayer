@@ -4,12 +4,18 @@ import EpisodeList, { type SeasonEpisodes } from "@/components/episodes/EpisodeL
 import { DataErrorState, DataState } from "@/components/data/DataState";
 import SeriesHero from "@/components/series/SeriesHero";
 import SeriesMetadata from "@/components/series/SeriesMetadata";
-import { getCatalog, resolveCatalogSeries } from "@/lib/catalog/catalog";
+import { getCatalog, resolveCatalogSeries, type CatalogSeries } from "@/lib/catalog/catalog";
+import {
+    getVirtualTmdbEpisodes,
+    getVirtualTmdbSeasons,
+    isVirtualTmdbKey,
+} from "@/lib/catalog/tmdbVirtualSeries";
 import { getProgressSnapshotAction } from "@/lib/progress/getProgressAction";
 import { seriesPath } from "@/lib/core/routes";
 import {
     getSeriesDisplayTitle,
     getSeriesSeasons,
+    type SeriesSeason,
     currentUnixTime,
     formatEpisodeNumber,
     formatRemainingTime,
@@ -44,26 +50,45 @@ export const generateMetadata = async ({ params }: Pick<SeriesPageProps, "params
     };
 };
 
+const resolveSeasons = async (
+    series: CatalogSeries,
+    catalog: CatalogSeries[],
+    requestedSeason: string | undefined,
+): Promise<SeriesSeason[]> => {
+    const local = getSeriesSeasons(catalog, series);
+
+    if (!isVirtualTmdbKey(series.key) || series.tmdbExternalId === null) return local;
+
+    const available = await getVirtualTmdbSeasons(series.tmdbExternalId);
+    if (available.length === 0) return local;
+
+    const requested = Number(requestedSeason);
+    const activeNumber = available.some((season) => season.number === requested)
+        ? requested
+        : available[0].number;
+    const activeEpisodes = await getVirtualTmdbEpisodes(series.tmdbExternalId, activeNumber);
+
+    return available.map((season) => ({
+        id: String(season.number),
+        number: season.number,
+        label: season.label,
+        seriesId: series.id,
+        seriesKey: series.key,
+        title: series.title,
+        coverImage: series.sourceCoverImage,
+        episodes: season.number === activeNumber ? activeEpisodes : [],
+        declaredEpisodeCount: season.episodeCount,
+    }));
+};
+
 const SeriesPage = async ({ params, searchParams }: SeriesPageProps) => {
     const [{ id: rawId }, query, catalogResult] = await Promise.all([params, searchParams, getCatalog()]);
     const id = decodeSeriesId(rawId);
 
     if (catalogResult.kind === "error") {
         return (
-            <div className="min-h-screen bg-nx-bg px-5 py-28 sm:px-8">
+            <div className="min-h-dvh bg-nx-bg px-5 py-28 sm:px-8">
                 <DataErrorState reason={catalogResult.reason} headingLevel={1} />
-            </div>
-        );
-    }
-
-    if (catalogResult.data.length === 0) {
-        return (
-            <div className="min-h-screen bg-nx-bg px-5 py-28 sm:px-8">
-                <DataState
-                    kind="empty"
-                    title="Katalog jest pusty"
-                    description="Dodaj pierwszy tytuł, aby pojawił się na stronie serialu."
-                />
             </div>
         );
     }
@@ -71,19 +96,34 @@ const SeriesPage = async ({ params, searchParams }: SeriesPageProps) => {
     const seriesResult = await resolveCatalogSeries(id);
     if (seriesResult.kind === "error") {
         return (
-            <div className="min-h-screen bg-nx-bg px-5 py-28 sm:px-8">
+            <div className="min-h-dvh bg-nx-bg px-5 py-28 sm:px-8">
                 <DataErrorState reason={seriesResult.reason} headingLevel={1} />
             </div>
         );
     }
-    if (!seriesResult.data) notFound();
+
+    if (!seriesResult.data) {
+        if (catalogResult.data.length === 0) {
+            return (
+                <div className="min-h-dvh bg-nx-bg px-5 py-28 sm:px-8">
+                    <DataState
+                        kind="empty"
+                        title="Katalog jest pusty"
+                        description="Dodaj pierwszy tytuł, aby pojawił się na stronie serialu."
+                    />
+                </div>
+            );
+        }
+
+        notFound();
+    }
 
     const series = seriesResult.data;
     if (id !== String(series.id)) permanentRedirect(seriesPath(series.id));
 
-    const seasons = getSeriesSeasons(catalogResult.data, series);
     const displayTitle = getSeriesDisplayTitle(series);
     const requestedSeason = Array.isArray(query.season) ? query.season[0] : query.season;
+    const seasons = await resolveSeasons(series, catalogResult.data, requestedSeason);
     const initialSeason = seasons.some((season) => season.id === requestedSeason)
         ? requestedSeason as string
         : seasons.find((season) => season.seriesId === series.id)?.id ?? seasons[0]?.id ?? "all";
@@ -136,7 +176,7 @@ const SeriesPage = async ({ params, searchParams }: SeriesPageProps) => {
         return {
             id: season.id,
             label: season.label,
-            episodeCount: episodes.length,
+            episodeCount: episodes.length > 0 ? episodes.length : season.declaredEpisodeCount ?? 0,
             completed: episodes.length > 0 && episodes.every((episode) => episode.watched),
             seriesId: season.seriesId,
             episodes,
@@ -157,7 +197,7 @@ const SeriesPage = async ({ params, searchParams }: SeriesPageProps) => {
         && (progressResult.reason === "unauthorized" || progressResult.reason === "forbidden");
 
     return (
-        <div className="min-h-screen bg-nx-bg text-nx-text">
+        <div className="min-h-dvh bg-nx-bg text-nx-text">
             <div className="relative">
                 <SeriesHero
                     seriesId={activeSeason?.seriesId ?? series.id}

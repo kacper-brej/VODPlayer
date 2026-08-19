@@ -19,6 +19,7 @@ import {
 import { dataFailure, dataSuccess, type DataResult } from "@/lib/core/dataResult";
 
 const EXTERNAL_ID_PATTERN = /^tv:(\d+)$/;
+const TMDB_LANGUAGE = "pl-PL";
 
 const parseExternalId = (externalId: string): number | null => {
     const match = EXTERNAL_ID_PATTERN.exec(externalId);
@@ -71,7 +72,7 @@ const mapDetailsToSeries = (details: TmdbTvDetails): ProviderSeries => {
 
 const fetchTvDetails = async (id: number): Promise<DataResult<TmdbTvDetails>> => {
     const response = await fetchTmdbResult(
-        `/tv/${id}?append_to_response=content_ratings`,
+        `/tv/${id}?language=${TMDB_LANGUAGE}&append_to_response=content_ratings`,
         (value) => validateTmdbTvDetails(value).ok,
     );
 
@@ -83,7 +84,7 @@ const fetchTvDetails = async (id: number): Promise<DataResult<TmdbTvDetails>> =>
 
 const searchSeries = async (query: string): Promise<DataResult<SeriesCandidate[]>> => {
     const response = await fetchTmdbResult(
-        `/search/tv?query=${encodeURIComponent(query)}`,
+        `/search/tv?language=${TMDB_LANGUAGE}&query=${encodeURIComponent(query)}`,
         (value) => validateTmdbTvSearchResponse(value).ok,
     );
 
@@ -99,7 +100,7 @@ const searchSeries = async (query: string): Promise<DataResult<SeriesCandidate[]
         altTitles: item.original_name !== item.name ? [item.original_name] : [],
         year: yearFromDate(item.first_air_date),
         format: "TV",
-        coverImage: null,
+        coverImage: item.poster_path ?? null,
     }));
 
     return dataSuccess(candidates);
@@ -138,7 +139,7 @@ const getArtwork = async (externalId: string): Promise<DataResult<ProviderArtwor
 
 const fetchSeasonEpisodes = async (id: number, seasonNumber: number): Promise<DataResult<TmdbSeasonResponse>> => {
     const response = await fetchTmdbResult(
-        `/tv/${id}/season/${seasonNumber}`,
+        `/tv/${id}/season/${seasonNumber}?language=${TMDB_LANGUAGE}`,
         (value) => validateTmdbSeasonResponse(value).ok,
     );
 

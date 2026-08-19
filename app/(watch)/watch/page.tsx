@@ -1,5 +1,10 @@
 import WatchClient from "./WatchClient";
 import { resolveCatalogSeries } from "@/lib/catalog/catalog";
+import {
+    getVirtualTmdbEpisodes,
+    isVirtualTmdbKey,
+    parseVirtualEpisodeKey,
+} from "@/lib/catalog/tmdbVirtualSeries";
 import { getSeriesResume } from "@/lib/progress/continueWatching";
 import { getSeriesProgressAction } from "@/lib/progress/getProgressAction";
 import { playbackSourceFromAsset, resolvePlaybackSource } from "@/lib/player/videoAccess";
@@ -13,13 +18,13 @@ import { DataErrorState } from "@/components/data/DataState";
 const RESUME_REWIND_SECONDS = 5;
 
 const ErrorScreen = ({ message }: { message: string }) => (
-    <div className="fixed inset-0 z-[999] bg-black min-h-screen flex items-center justify-center text-foreground">
+    <div className="fixed inset-0 z-[999] bg-black min-h-dvh flex items-center justify-center text-foreground">
         {message}
     </div>
 );
 
 const DataErrorScreen = ({ reason }: { reason: Parameters<typeof DataErrorState>[0]["reason"] }) => (
-    <div className="fixed inset-0 z-[999] flex min-h-screen items-center justify-center bg-black p-4">
+    <div className="fixed inset-0 z-[999] flex min-h-dvh items-center justify-center bg-black p-4">
         <DataErrorState reason={reason} headingLevel={1} />
     </div>
 );
@@ -37,7 +42,20 @@ const WatchPage = async ({ searchParams }: { searchParams: Promise<{ id?: string
 
     if (!seriesResult.data) notFound();
 
-    const series = seriesResult.data;
+    const resolved = seriesResult.data;
+    const requestedVirtualEpisode = epQuery ? parseVirtualEpisodeKey(epQuery) : null;
+    const virtualTmdbId = isVirtualTmdbKey(resolved.key) ? resolved.tmdbExternalId : null;
+
+    const series = requestedVirtualEpisode && virtualTmdbId !== null
+        && requestedVirtualEpisode.season !== resolved.seasonNumber
+        ? await (async () => {
+            const episodes = await getVirtualTmdbEpisodes(virtualTmdbId, requestedVirtualEpisode.season);
+            return episodes.length === 0
+                ? resolved
+                : { ...resolved, episodes, seasonNumber: requestedVirtualEpisode.season, episodeCount: episodes.length };
+        })()
+        : resolved;
+
     const demo = series.access === "full" ? null : await getDemoAsset();
 
     if (series.access !== "full" && !demo) {
@@ -48,7 +66,7 @@ const WatchPage = async ({ searchParams }: { searchParams: Promise<{ id?: string
     let savedTime = 0;
     let timeResolved = false;
 
-    if (epQuery && epQuery.toLowerCase().endsWith(".mp4")) {
+    if (epQuery && (epQuery.toLowerCase().endsWith(".mp4") || requestedVirtualEpisode)) {
         episode = series.episodes.find((item) => item.key === epQuery) ?? null;
 
         if (!episode) return <ErrorScreen message={`Nie znaleziono odcinka: ${epQuery}`} />;
@@ -129,6 +147,7 @@ const WatchPage = async ({ searchParams }: { searchParams: Promise<{ id?: string
                 skipIntroPrompt={settings.skipIntroPrompt}
                 defaultVolume={settings.defaultVolume}
                 isDemo={demo !== null}
+                trackProgress={!isVirtualTmdbKey(series.key)}
                 partyCode={partyCode}
                 episodeKeys={series.episodes.map((item) => ({ key: item.key, number: item.number }))}
                 nextEpisodeKey={nextEpisode?.key}

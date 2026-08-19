@@ -1,22 +1,34 @@
 import { cache } from "react";
 import { getSessionUser } from "@/lib/auth/session";
-import { getContinueWatching as getContinueWatchingFromDal } from "@/lib/progress/progressService";
+import {
+    getProgressSnapshot as getProgressSnapshotFromDal,
+    type ProgressReadModel,
+} from "@/lib/progress/progressService";
 import { type ResumePoint } from "@/lib/core/contracts";
 import { dataEmpty, dataFailure, dataSuccess, type DataResult } from "@/lib/core/dataResult";
 
 export type { ResumePoint };
 
-const loadContinueWatching = async (): Promise<DataResult<ResumePoint[]>> => {
+const loadViewerProgressSnapshot = async (): Promise<DataResult<ProgressReadModel>> => {
     const user = await getSessionUser();
     if (!user) return dataFailure("unauthorized");
 
     try {
-        const items = await getContinueWatchingFromDal(user.id, user.username);
-        return items.length === 0 ? dataEmpty(items) : dataSuccess(items);
+        return dataSuccess(await getProgressSnapshotFromDal(user.id, user.username));
     } catch (error) {
-        console.error("getContinueWatching failed:", error);
+        console.error("getViewerProgressSnapshot failed:", error);
         return dataFailure("server");
     }
+};
+
+export const getViewerProgressSnapshot = cache(loadViewerProgressSnapshot);
+
+const loadContinueWatching = async (): Promise<DataResult<ResumePoint[]>> => {
+    const result = await getViewerProgressSnapshot();
+    if (result.kind === "error") return result;
+
+    const items = result.data.resumes;
+    return items.length === 0 ? dataEmpty(items) : dataSuccess(items);
 };
 
 export const getContinueWatching = cache(loadContinueWatching);

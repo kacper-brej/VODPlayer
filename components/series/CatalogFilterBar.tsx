@@ -61,7 +61,7 @@ const FilterTabs = ({ label, options }: FilterTabsProps) => {
                     aria-selected={option.active}
                     tabIndex={option.active ? 0 : -1}
                     onKeyDown={(event) => handleKeyDown(event, index)}
-                    className={`relative flex min-h-11 shrink-0 items-center rounded-full border px-4 text-[13.5px] outline-none transition-colors duration-140 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent ${
+                    className={`relative flex min-h-11 shrink-0 items-center rounded-full border px-4 text-[13.5px] outline-none transition-colors duration-140 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent ${
                         option.active
                             ? "border-nx-border bg-nx-raised text-nx-text after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:bg-nx-accent"
                             : "border-nx-border bg-nx-panel text-nx-text-2 hover:bg-nx-raised hover:text-nx-text"
@@ -115,7 +115,7 @@ const CatalogFilterBar = ({
     ];
 
     return (
-        <div className="max-lg:sticky max-lg:top-[72px] max-lg:z-20 max-lg:-mx-5 max-lg:border-y max-lg:border-nx-border max-lg:bg-nx-bg max-lg:px-5 max-lg:py-4 sm:max-lg:-mx-8 sm:max-lg:px-8">
+        <div className="max-lg:sticky max-lg:top-[calc(var(--nx-header-offset)-1px)] max-lg:z-20 max-lg:-mx-5 max-lg:border-y max-lg:border-nx-border max-lg:bg-nx-bg max-lg:px-5 max-lg:py-4 sm:max-lg:-mx-8 sm:max-lg:px-8">
             <form action={basePath} className="mb-3 flex w-full max-w-xl items-center gap-2">
                 {sort !== defaultSort && <input type="hidden" name="sort" value={sort} />}
                 {genre && <input type="hidden" name="genre" value={genre} />}
@@ -131,12 +131,12 @@ const CatalogFilterBar = ({
                         name="q"
                         defaultValue={query}
                         placeholder="Szukaj tytułu"
-                        className="min-h-11 w-full rounded-full border border-nx-border bg-nx-panel py-2 pl-11 pr-4 text-sm text-nx-text outline-none placeholder:text-nx-text-2 focus:border-nx-accent focus:outline-2 focus:outline-offset-[3px] focus:outline-nx-accent"
+                        className="min-h-11 w-full rounded-full border border-nx-border bg-nx-panel py-2 pl-11 pr-4 text-sm text-nx-text outline-none placeholder:text-nx-text-2 focus:border-nx-accent focus:outline-2 focus:outline-offset-3 focus:outline-nx-accent"
                     />
                 </label>
                 <button
                     type="submit"
-                    className="flex min-h-11 items-center rounded-full border border-nx-border bg-nx-panel px-5 text-sm font-semibold text-nx-text outline-none transition-colors duration-140 hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent"
+                    className="flex min-h-11 items-center rounded-full border border-nx-border bg-nx-panel px-5 text-sm font-semibold text-nx-text outline-none transition-colors duration-140 hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent"
                 >
                     Szukaj
                 </button>
@@ -145,7 +145,7 @@ const CatalogFilterBar = ({
                         href={hrefFor({ query: "" })}
                         prefetch={false}
                         aria-label="Wyczyść wyszukiwanie"
-                        className="flex size-11 shrink-0 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text-2 outline-none transition-colors duration-140 hover:bg-nx-raised hover:text-nx-text focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent"
+                        className="flex size-11 shrink-0 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text-2 outline-none transition-colors duration-140 hover:bg-nx-raised hover:text-nx-text focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent"
                     >
                         <X size={17} />
                     </Link>

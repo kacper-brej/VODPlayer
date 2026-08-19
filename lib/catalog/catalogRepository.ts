@@ -44,6 +44,7 @@ export interface CatalogAssetRow extends RowDataPacket {
     subtitle_languages: string | null;
     metadata_provider: string | null;
     external_id: number | null;
+    tmdb_external_id: string | null;
     episode_title: string | null;
     episode_synopsis: string | null;
     episode_duration_seconds: number | null;
@@ -93,6 +94,7 @@ export const loadCatalogRows = async (db: Executor = getDbPool()): Promise<Catal
                         c.age_rating, c.year, c.focal_x, c.focal_y, c.safe_left, c.safe_bottom,
                         c.dominant_color, c.placeholder, c.studio, c.audio_languages,
                         c.subtitle_languages, c.metadata_provider, c.external_id,
+                        tmdb_id.external_id AS tmdb_external_id,
                         e.title AS episode_title, e.synopsis AS episode_synopsis,
                         e.duration_seconds AS episode_duration_seconds,
                         e.thumbnail_path, e.thumbnail_source,
@@ -101,6 +103,8 @@ export const loadCatalogRows = async (db: Executor = getDbPool()): Promise<Catal
                  INNER JOIN series_identities i ON i.series_key = a.series_key
                  LEFT JOIN series_groups g ON g.id = i.group_id
                  LEFT JOIN local_series_covers c ON c.title = a.series_key
+                 LEFT JOIN series_external_ids tmdb_id
+                   ON tmdb_id.series_key = a.series_key AND tmdb_id.provider = 'tmdb'
                  LEFT JOIN episodes_metadata e
                    ON e.series_key = a.series_key AND e.episode_key = a.episode_key
                  LEFT JOIN series_access sa ON sa.series_key = a.series_key

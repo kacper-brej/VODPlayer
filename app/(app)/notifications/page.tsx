@@ -12,7 +12,7 @@ const NotificationsPage = async () => {
 
     if (notificationsResult.kind === "error") {
         return (
-            <div className="min-h-screen bg-nx-bg px-5 py-16 sm:px-8 xl:px-10 min-[1440px]:px-12">
+            <div className="min-h-dvh bg-nx-bg px-5 py-16 sm:px-8 xl:px-10 min-[1440px]:px-12">
                 <DataErrorState reason={notificationsResult.reason} headingLevel={1} />
             </div>
         );
@@ -34,7 +34,7 @@ const NotificationsPage = async () => {
     });
 
     return (
-        <div className="min-h-screen bg-nx-bg px-5 pb-[calc(80px+env(safe-area-inset-bottom))] pt-12 sm:px-8 lg:pb-20 lg:pt-16 xl:px-10 min-[1440px]:px-12">
+        <div className="min-h-dvh bg-nx-bg px-5 pb-[calc(80px+env(safe-area-inset-bottom))] pt-12 sm:px-8 lg:pb-20 lg:pt-16 xl:px-10 min-[1440px]:px-12">
             <header className="mb-10 max-w-4xl border-b border-nx-border pb-8 sm:mb-12">
                 <span className="font-mono text-[10px] tracking-[0.22em] text-nx-text-2 sm:text-[11px]">
                     AKTUALIZACJE / {items.length}

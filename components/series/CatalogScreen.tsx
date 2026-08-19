@@ -110,7 +110,7 @@ const EmptyCatalog = ({
                 </h2>
                 <Link
                     href={basePath}
-                    className="mt-6 flex min-h-11 items-center rounded-full border border-nx-border bg-nx-panel px-5 text-sm font-semibold text-nx-text outline-none transition-colors duration-140 hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent"
+                    className="mt-6 flex min-h-11 items-center rounded-full border border-nx-border bg-nx-panel px-5 text-sm font-semibold text-nx-text outline-none transition-colors duration-140 hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent"
                 >
                     Wyczyść filtry
                 </Link>
@@ -132,7 +132,7 @@ const EmptyCatalog = ({
             {action && (
                 <Link
                     href={action.href}
-                    className="mt-6 flex min-h-12 items-center rounded-full bg-nx-accent px-6 text-[15px] font-semibold text-nx-on-accent outline-none transition-colors duration-140 hover:bg-[color-mix(in_srgb,var(--nx-accent)_88%,var(--nx-text))] focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent"
+                    className="mt-6 flex min-h-12 items-center rounded-full bg-nx-accent px-6 text-[15px] font-semibold text-nx-on-accent outline-none transition-colors duration-140 hover:bg-[color-mix(in_srgb,var(--nx-accent)_88%,var(--nx-text))] focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent"
                 >
                     {action.label}
                 </Link>
@@ -238,7 +238,7 @@ const CatalogScreen = async ({
 
     if (catalogResult.kind === "error") {
         return (
-            <div className="min-h-screen bg-nx-bg px-5 py-16 sm:px-8 xl:px-10 min-[1440px]:px-12">
+            <div className="min-h-dvh bg-nx-bg px-5 py-16 sm:px-8 xl:px-10 min-[1440px]:px-12">
                 <DataErrorState reason={catalogResult.reason} headingLevel={1} />
             </div>
         );
@@ -246,7 +246,7 @@ const CatalogScreen = async ({
 
     if (mode === "watchlist" && watchlistResult.kind === "error") {
         return (
-            <div className="min-h-screen bg-nx-bg px-5 py-16 sm:px-8 xl:px-10 min-[1440px]:px-12">
+            <div className="min-h-dvh bg-nx-bg px-5 py-16 sm:px-8 xl:px-10 min-[1440px]:px-12">
                 <DataErrorState reason={watchlistResult.reason} headingLevel={1} />
             </div>
         );
@@ -306,7 +306,7 @@ const CatalogScreen = async ({
     nextParams.set("page", String(page + 1));
 
     return (
-        <div className="min-h-screen bg-nx-bg px-5 pb-[calc(80px+env(safe-area-inset-bottom))] pt-12 sm:px-8 lg:pb-20 lg:pt-16 xl:px-10 min-[1440px]:px-12">
+        <div className="min-h-dvh bg-nx-bg px-5 pb-[calc(80px+env(safe-area-inset-bottom))] pt-12 sm:px-8 lg:pb-20 lg:pt-16 xl:px-10 min-[1440px]:px-12">
             <header className="max-w-4xl">
                 <span className="font-mono text-[10px] tracking-[0.22em] text-nx-text-2 sm:text-[11px]">
                     {copy.kicker} / {source.length} {source.length === 1 ? "TYTUŁ" : "TYTUŁÓW"}
@@ -409,7 +409,7 @@ const CatalogScreen = async ({
                         <div className="mt-12 flex justify-center">
                             <Link
                                 href={`${basePath}?${nextParams.toString()}`}
-                                className="flex min-h-11 items-center rounded-full border border-nx-border bg-nx-panel px-6 text-sm font-semibold text-nx-text outline-none transition-colors duration-140 hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent"
+                                className="flex min-h-11 items-center rounded-full border border-nx-border bg-nx-panel px-6 text-sm font-semibold text-nx-text outline-none transition-colors duration-140 hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent"
                             >
                                 Pokaż więcej
                             </Link>

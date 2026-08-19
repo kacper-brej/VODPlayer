@@ -11,11 +11,16 @@ export const ARTWORK_SIZES: Record<ArtworkRole, string> = {
 };
 
 const tmdbSize = (role: ArtworkRole, width: number) => {
-    if (role === "hero") return width <= 1280 ? "w1280" : "original";
-    if (role === "poster") return "w780";
-    if (role === "episode") return "w300";
-    if (role === "logo") return width <= 500 ? "w500" : "original";
-    return width <= 300 ? "w300" : "w780";
+    if (role === "hero") return width <= 780 ? "w780" : width <= 1280 ? "w1280" : "original";
+    if (role === "poster") {
+        if (width <= 185) return "w185";
+        if (width <= 342) return "w342";
+        if (width <= 500) return "w500";
+        return "w780";
+    }
+    if (role === "episode") return width <= 185 ? "w185" : "w300";
+    if (role === "logo") return width <= 300 ? "w300" : width <= 500 ? "w500" : "original";
+    return width <= 300 ? "w300" : width <= 780 ? "w780" : "w1280";
 };
 
 const loaderFor = (role: ArtworkRole): ImageLoader => ({ src, width }) => {

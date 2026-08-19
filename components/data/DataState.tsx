@@ -42,7 +42,7 @@ export const DataState = ({
                 <button
                     type="button"
                     onClick={onRetry ?? (() => router.refresh())}
-                    className="mt-5 min-h-11 rounded-full bg-nx-accent px-5 py-2 text-sm font-semibold text-nx-on-accent outline-none transition-colors duration-140 hover:bg-[color-mix(in_srgb,var(--nx-accent)_88%,var(--nx-text))] focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent"
+                    className="mt-5 min-h-11 rounded-full bg-nx-accent px-5 py-2 text-sm font-semibold text-nx-on-accent outline-none transition-colors duration-140 hover:bg-[color-mix(in_srgb,var(--nx-accent)_88%,var(--nx-text))] focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent"
                 >
                     Spróbuj ponownie
                 </button>
@@ -51,7 +51,7 @@ export const DataState = ({
             {action === "login" && (
                 <Link
                     href="/login"
-                    className="mt-5 flex min-h-11 items-center rounded-full bg-nx-accent px-5 py-2 text-sm font-semibold text-nx-on-accent outline-none transition-colors duration-140 hover:bg-[color-mix(in_srgb,var(--nx-accent)_88%,var(--nx-text))] focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent"
+                    className="mt-5 flex min-h-11 items-center rounded-full bg-nx-accent px-5 py-2 text-sm font-semibold text-nx-on-accent outline-none transition-colors duration-140 hover:bg-[color-mix(in_srgb,var(--nx-accent)_88%,var(--nx-text))] focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent"
                 >
                     Zaloguj się
                 </Link>

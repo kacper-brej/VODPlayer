@@ -55,7 +55,7 @@ describe("POST /api/party/[code]/chat", () => {
         expect(response.status).toBe(200);
         expect(await response.json()).toEqual({ event });
         expect(response.headers.get("Cache-Control")).toBe("no-store");
-        expect(postPartyMessage).toHaveBeenCalledWith(USER, "KXRT49", "cześć");
+        expect(postPartyMessage).toHaveBeenCalledWith(USER, "KXRT49", "cześć", null);
     });
 
     it("nieprawidłowa treść daje 422", async () => {

@@ -99,7 +99,7 @@ const SettingsPanel = ({ initialSettings, loadFailed }: SettingsPanelProps) => {
     };
 
     return (
-        <div className="min-h-screen bg-nx-bg px-5 pb-[calc(96px+env(safe-area-inset-bottom))] pt-12 sm:px-8 lg:pb-20 lg:pt-16 xl:px-10 2xl:px-12">
+        <div className="min-h-dvh bg-nx-bg px-5 pb-[calc(96px+env(safe-area-inset-bottom))] pt-12 sm:px-8 lg:pb-20 lg:pt-16 xl:px-10 2xl:px-12">
             <div className="mx-auto w-full max-w-[1240px]">
                 <header>
                     <span className="font-mono text-[10px] tracking-[0.22em] text-nx-text-2 sm:text-[11px]">PROFIL / USTAWIENIA</span>
@@ -233,7 +233,7 @@ const SettingsPanel = ({ initialSettings, loadFailed }: SettingsPanelProps) => {
                                 </div>
                             </dl>
                             <div className="mt-5 flex flex-wrap gap-3">
-                                <Link href="/profiles" className="inline-flex min-h-11 items-center rounded-xl border border-nx-border px-4 text-sm font-semibold text-nx-text transition-colors hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent">
+                                <Link href="/profiles?manage=1" className="inline-flex min-h-11 items-center rounded-xl border border-nx-border px-4 text-sm font-semibold text-nx-text transition-colors hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent">
                                     Zarządzaj profilami
                                 </Link>
                                 <button type="button" onClick={requestPasswordChange} disabled={pending} className="min-h-11 rounded-xl border border-nx-border px-4 text-sm font-semibold text-nx-text transition-colors hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent disabled:cursor-wait disabled:opacity-55">
@@ -242,7 +242,7 @@ const SettingsPanel = ({ initialSettings, loadFailed }: SettingsPanelProps) => {
                             </div>
                         </section>
 
-                        <div className="sticky bottom-[calc(76px+env(safe-area-inset-bottom))] z-20 flex flex-col gap-3 rounded-2xl border border-nx-border bg-[color-mix(in_srgb,var(--nx-panel)_92%,transparent)] p-4 shadow-[0_18px_60px_rgba(0,0,0,.62)] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between lg:bottom-5">
+                        <div className="sticky bottom-[calc(var(--nx-mobile-nav-h)+12px)] z-20 flex flex-col gap-3 rounded-2xl border border-nx-border bg-[color-mix(in_srgb,var(--nx-panel)_92%,transparent)] p-4 shadow-[0_18px_60px_rgba(0,0,0,.62)] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between lg:bottom-5">
                             <p role="status" aria-live="polite" className={`min-h-5 text-sm ${messageKind === "error" ? "text-nx-critical" : "text-nx-text-2"}`}>
                                 {message || (dirty ? "Masz niezapisane zmiany." : "Wszystko jest aktualne.")}
                             </p>

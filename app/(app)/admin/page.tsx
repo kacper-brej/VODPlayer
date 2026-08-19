@@ -1,26 +1,26 @@
+import Link from "next/link";
+import { HardDriveDownload } from "lucide-react";
 import { DataErrorState } from "@/components/data/DataState";
 import { getAdminLibraryAction, getAdminUsersAction, getPartyTelemetryAction } from "@/lib/admin/adminActions";
 import { getMediaStorageStatus } from "@/lib/admin/mediaStorageStatus";
+import { estimateB2MonthlyStorageCostUsd, formatB2Bytes } from "@/lib/admin/b2Storage";
 
-const B2_ESTIMATED_COST_PER_GB_MONTH_USD = 0.006;
+const formatInteger = (value: number): string => value.toLocaleString("pl-PL");
 
-const formatBytes = (bytes: number): string => {
-    if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
-    if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
-    return `${(bytes / 1024).toFixed(0)} KB`;
-};
+const formatDecimal = (value: number, digits = 2): string =>
+    value.toLocaleString("pl-PL", { minimumFractionDigits: digits, maximumFractionDigits: digits });
 
-const estimateMonthlyCostUsd = (totalBytes: number): number =>
-    (totalBytes / 1024 ** 3) * B2_ESTIMATED_COST_PER_GB_MONTH_USD;
+const formatSeconds = (milliseconds: number): string => `${formatDecimal(milliseconds / 1000)} s`;
 
-const StatTile = ({ label, value }: { label: string; value: string | number | null }) => (
+const StatTile = ({ label, value, detail }: { label: string; value: string | number | null; detail?: string }) => (
     <article className="min-w-0 rounded-[var(--r-m)] border border-nx-border bg-nx-panel px-5 py-5 shadow-[var(--sh-2)]">
         <p className="min-h-7 font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-nx-text-2">
             {label}
         </p>
-        <p className="mt-2 truncate font-display text-[clamp(1.75rem,3vw,2.25rem)] leading-none tracking-[-0.025em] text-nx-text [font-variant-numeric:tabular-nums]">
+        <p className="mt-2 break-words font-display text-[clamp(1.75rem,3vw,2.25rem)] leading-none tracking-[-0.025em] text-nx-text [font-variant-numeric:tabular-nums]">
             {value ?? "Brak"}
         </p>
+        {detail && <p className="mt-3 text-xs leading-5 text-nx-text-2">{detail}</p>}
     </article>
 );
 
@@ -37,39 +37,45 @@ const AdminOverviewPage = async () => {
         libraryResult.kind === "success"
             ? libraryResult.data.series.reduce((total, item) => total + item.episodeCount, 0)
             : null;
-    const totalBytes =
-        libraryResult.kind === "success"
-            ? libraryResult.data.series.reduce((total, item) => total + item.totalBytes, 0)
-            : null;
     const userCount = usersResult.kind === "success" ? usersResult.data.users.length : null;
 
     const mediaAssets = mediaStorageResult.kind === "success" ? mediaStorageResult.data.assets : [];
-    const readyAssets = mediaAssets.filter((asset) => asset.status === "ready");
-    const processingAssets = mediaAssets.filter((asset) => asset.status === "pending" || asset.status === "processing");
-    const failedAssets = mediaAssets.filter((asset) => asset.status === "failed" || asset.status === "delete_failed");
+    const hlsAssets = mediaAssets.filter((asset) => asset.delivery === "hls");
+    const readyAssets = hlsAssets.filter((asset) => asset.status === "ready");
+    const processingAssets = hlsAssets.filter((asset) => asset.status === "pending" || asset.status === "processing");
+    const failedAssets = hlsAssets.filter((asset) => asset.status === "failed" || asset.status === "delete_failed");
+    const deletedAssets = hlsAssets.filter((asset) => asset.status === "deleted");
     const readyTotalBytes = readyAssets.reduce((total, asset) => total + (asset.totalSizeBytes ?? 0), 0);
-    const estimatedMonthlyCost = estimateMonthlyCostUsd(readyTotalBytes);
-    const episodesWithoutAsset = episodeCount !== null ? Math.max(0, episodeCount - mediaAssets.length) : null;
+    const estimatedMonthlyCost = estimateB2MonthlyStorageCostUsd(readyTotalBytes);
     const lastVerification = mediaStorageResult.kind === "success" ? mediaStorageResult.data.lastVerification : null;
 
     return (
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-7 px-4 py-8 pb-12 sm:px-8 sm:py-10 sm:pb-16">
-            <div className="max-w-3xl">
-                <p className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-nx-accent">
-                    Przegląd
-                </p>
-                <h1 className="mt-2 font-display text-[36px] leading-[1.05] tracking-[-0.03em] text-nx-text sm:text-[42px]">
-                    Panel administracyjny
-                </h1>
-                <p className="mt-3 text-sm leading-6 text-nx-text-2">
-                    Widok obejmuje bibliotekę HLS i grafiki przechowywane w Backblaze B2.
-                </p>
+            <div className="flex flex-col items-start justify-between gap-5 sm:flex-row sm:items-end">
+                <div className="max-w-3xl">
+                    <p className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-nx-accent">
+                        Przegląd
+                    </p>
+                    <h1 className="mt-2 font-display text-[36px] leading-[1.05] tracking-[-0.03em] text-nx-text sm:text-[42px]">
+                        Panel administracyjny
+                    </h1>
+                    <p className="mt-3 text-sm leading-6 text-nx-text-2">
+                        Liczniki pokazują gotowe odcinki katalogu oraz stan assetów HLS w Backblaze B2.
+                    </p>
+                </div>
+                <Link
+                    href="/admin/library-scan"
+                    className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-2 rounded-full bg-nx-accent px-5 text-sm font-semibold text-nx-on-accent outline-none transition-[filter] duration-140 hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent"
+                >
+                    <HardDriveDownload aria-hidden="true" className="size-4" />
+                    Skanuj pliki na serwerze
+                </Link>
             </div>
 
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                <StatTile label="Seriale" value={seriesCount} />
-                <StatTile label="Odcinki" value={episodeCount} />
-                <StatTile label="Rozmiar biblioteki (B2)" value={totalBytes !== null ? formatBytes(totalBytes) : null} />
+                <StatTile label="Seriale z gotowym odcinkiem" value={seriesCount} />
+                <StatTile label="Gotowe odcinki" value={episodeCount} />
+                <StatTile label="Rozmiar gotowych HLS" value={mediaStorageResult.kind === "success" ? formatB2Bytes(readyTotalBytes) : null} />
                 <StatTile label="Konta" value={userCount} />
             </div>
 
@@ -78,24 +84,36 @@ const AdminOverviewPage = async () => {
                     Zdrowie wspólnego oglądania
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-nx-text-2">
-                    Anonimowe agregaty z ostatnich 30 dni. Rozkład dryfu nie zawiera nazw profili ani treści czatu.
+                    Anonimowe agregaty z ostatnich 30 dni. Sesja oznacza raport jednego uczestnika, a rozkład dryfu pokazuje udział próbek odtwarzacza.
                 </p>
             </div>
 
             {partyTelemetryResult.kind !== "error" ? (
                 <>
                     <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                        <StatTile label="Sesje uczestników" value={partyTelemetryResult.data.sessions} />
-                        <StatTile label="Twarde seeki / sesję" value={partyTelemetryResult.data.hardSeeksPerSession.toFixed(2)} />
                         <StatTile
-                            label="Śr. czas do zgrania"
-                            value={partyTelemetryResult.data.averageTimeToSyncMs === null
-                                ? null
-                                : `${(partyTelemetryResult.data.averageTimeToSyncMs / 1000).toFixed(2)} s`}
+                            label="Sesje uczestników"
+                            value={formatInteger(partyTelemetryResult.data.sessions)}
+                            detail={`${formatInteger(partyTelemetryResult.data.syncedSessions)} z pomiarem synchronizacji`}
                         />
                         <StatTile
-                            label="Pauzy: timeout"
-                            value={`${partyTelemetryResult.data.buffering.timedOut}/${partyTelemetryResult.data.buffering.cycles}`}
+                            label="Twarde seeki"
+                            value={formatInteger(partyTelemetryResult.data.hardSeeks)}
+                            detail={`${formatDecimal(partyTelemetryResult.data.hardSeeksPerSession)} na sesję`}
+                        />
+                        <StatTile
+                            label="Śr. czas synchronizacji"
+                            value={partyTelemetryResult.data.averageTimeToSyncMs === null
+                                ? null
+                                : formatSeconds(partyTelemetryResult.data.averageTimeToSyncMs)}
+                            detail={partyTelemetryResult.data.maximumTimeToSyncMs === null
+                                ? undefined
+                                : `Najdłużej: ${formatSeconds(partyTelemetryResult.data.maximumTimeToSyncMs)}`}
+                        />
+                        <StatTile
+                            label="Timeouty buforowania"
+                            value={formatInteger(partyTelemetryResult.data.buffering.timedOut)}
+                            detail={`${formatInteger(partyTelemetryResult.data.buffering.cycles)} cykli, ${formatInteger(partyTelemetryResult.data.buffering.recovered)} wznowień`}
                         />
                     </div>
                     <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
@@ -103,7 +121,18 @@ const AdminOverviewPage = async () => {
                             ["Dryf <0,25 s", 0], ["Dryf <0,5 s", 1], ["Dryf <1 s", 2],
                             ["Dryf ≤2 s", 3], ["Dryf >2 s", 4],
                         ].map(([label, index]) => (
-                            <StatTile key={String(label)} label={String(label)} value={partyTelemetryResult.data.driftBuckets[Number(index)] ?? 0} />
+                            <StatTile
+                                key={String(label)}
+                                label={String(label)}
+                                value={partyTelemetryResult.data.driftSamples === 0
+                                    ? "0,0%"
+                                    : `${formatDecimal(
+                                        ((partyTelemetryResult.data.driftBuckets[Number(index)] ?? 0)
+                                            / partyTelemetryResult.data.driftSamples) * 100,
+                                        1,
+                                    )}%`}
+                                detail={`${formatInteger(partyTelemetryResult.data.driftBuckets[Number(index)] ?? 0)} próbek`}
+                            />
                         ))}
                     </div>
                 </>
@@ -125,9 +154,13 @@ const AdminOverviewPage = async () => {
                 <StatTile label="Gotowe (ready)" value={readyAssets.length} />
                 <StatTile label="W trakcie" value={processingAssets.length} />
                 <StatTile label="Niepowodzenia (failed)" value={failedAssets.length} />
-                <StatTile label="Odcinki bez assetu" value={episodesWithoutAsset} />
-                <StatTile label="Rozmiar w B2" value={formatBytes(readyTotalBytes)} />
-                <StatTile label="Szac. koszt / mies." value={`$${estimatedMonthlyCost.toFixed(2)}`} />
+                <StatTile label="Rekordy usunięte" value={deletedAssets.length} />
+                <StatTile label="Rozmiar w B2" value={formatB2Bytes(readyTotalBytes)} />
+                <StatTile
+                    label="Szac. koszt / mies."
+                    value={`$${estimatedMonthlyCost.toFixed(2)}`}
+                    detail="Po odjęciu darmowego limitu 10 GB"
+                />
                 <StatTile
                     label="Ostatnia weryfikacja"
                     value={lastVerification ? lastVerification.ranAt : "brak"}

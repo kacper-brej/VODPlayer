@@ -43,6 +43,7 @@ const series = (key: string, visibility: SeriesVisibility): CatalogSeriesPayload
     subtitleLanguages: [],
     metadataProvider: null,
     externalId: null,
+    tmdbExternalId: null,
     genres: [],
     altTitles: [],
     hasMetadata: true,

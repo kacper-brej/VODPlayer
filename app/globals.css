@@ -47,6 +47,22 @@
   --glow-primary: rgba(185, 160, 255, 0.25);
 
   --on-accent: var(--surface);
+
+  --nx-header-h: 56px;
+  --nx-header-offset: calc(var(--nx-header-h) + env(safe-area-inset-top));
+  --nx-mobile-nav-h: calc(64px + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 640px) {
+  :root {
+    --nx-header-h: 76px;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --nx-mobile-nav-h: 0px;
+  }
 }
 
 @theme inline {
@@ -90,14 +106,22 @@
 html {
   height: 100%;
   overflow-x: clip;
+  color-scheme: dark;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  min-height: 100vh;
+  min-height: 100dvh;
   overflow-x: clip;
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-ui);
+}
+
+@media (pointer: coarse) {
+  body {
+    -webkit-tap-highlight-color: transparent;
+  }
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -213,6 +237,18 @@ body {
 
 .nx-section-item {
   animation: nx-section-enter 280ms cubic-bezier(.2, .8, .25, 1) both;
+}
+
+.nx-home-rows {
+  counter-reset: nx-home-row;
+}
+
+.nx-row-index {
+  counter-increment: nx-home-row;
+}
+
+.nx-row-index::before {
+  content: "N° " counter(nx-home-row, decimal-leading-zero);
 }
 
 .nx-profile-handoff {

@@ -1,9 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { useState, type KeyboardEvent, type MouseEvent } from "react";
-import { Clock, Play, Volume2, VolumeX } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
+import { Info, Play, Volume2, VolumeX } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ARTWORK_SIZES, blurProps, imageLoader, safeArtworkColor } from "@/lib/catalog/imageDelivery";
 import type { PreviewSource } from "@/lib/player/videoAccess";
 import { setPreviewMuted } from "@/components/series/previewController";
@@ -16,6 +16,7 @@ export interface LastWatchedData {
     episodeNumber: number;
     lastWatchedTime: number;
     progressPercent: number | null;
+    remainingMinutes: number | null;
     poster: string | null;
     backdrop: string | null;
     logo?: string | null;
@@ -28,6 +29,13 @@ export interface LastWatchedData {
     description: string | null;
     href: string;
     isResume: boolean;
+    infoId?: number | null;
+    year?: number | null;
+    score?: string | null;
+    ageRating?: string | null;
+    seasonNumber?: number | null;
+    episodeCount?: number | null;
+    genres?: string[];
 }
 
 interface HeroBanerProps {
@@ -36,6 +44,8 @@ interface HeroBanerProps {
 
 const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
     const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
     const preview = usePreviewSurface(lastWatchedData?.previewSource);
     const [isMuted, setIsMuted] = useState(true);
     const [failedArtwork, setFailedArtwork] = useState<string | null>(null);
@@ -52,7 +62,24 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
     const safeBottom = Math.min(0.7, Math.max(0.3, activeContent.safeBottom ?? 0.42));
     const logo = activeContent.logo === failedLogo ? null : activeContent.logo;
 
+    const metaParts = [
+        activeContent.year ? String(activeContent.year) : null,
+        activeContent.seasonNumber ? `Sezon ${activeContent.seasonNumber}` : null,
+        activeContent.episodeCount ? `${activeContent.episodeCount} odc.` : null,
+        activeContent.ageRating,
+        ...(activeContent.genres ?? []).slice(0, 2),
+    ].filter((part): part is string => Boolean(part));
+
     const openEpisode = () => router.push(activeContent.href);
+
+    const openInfo = (event: MouseEvent<HTMLButtonElement>) => {
+        event.stopPropagation();
+        if (activeContent.infoId === null || activeContent.infoId === undefined) return;
+
+        const params = new URLSearchParams(searchParams.toString());
+        params.set("info", String(activeContent.infoId));
+        router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    };
 
     const toggleMute = (event: MouseEvent<HTMLButtonElement>) => {
         event.stopPropagation();
@@ -79,7 +106,7 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
             onClick={openEpisode}
             onKeyDown={handleKeyDown}
             {...preview.surfaceProps}
-            className="group/hero relative h-[46vh] min-h-80 max-h-105 w-full cursor-pointer overflow-hidden border-y border-nx-border bg-nx-panel outline-none lg:h-[52vh] lg:min-h-105 lg:max-h-155 xl:h-[58vh] xl:min-h-130 xl:max-h-190 min-[1440px]:h-[62vh] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-nx-accent"
+            className="group/hero relative h-[62vh] min-h-[440px] max-h-[560px] w-full cursor-pointer overflow-hidden border-b border-nx-border bg-nx-panel outline-none sm:h-[64vh] lg:h-[70vh] lg:min-h-[520px] lg:max-h-[680px] xl:h-[72vh] xl:max-h-[760px] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-nx-accent"
             style={safeDominantColor ? {
                 background: `linear-gradient(to top, var(--nx-bg), color-mix(in srgb, ${safeDominantColor} 8%, var(--nx-panel)))`,
             } : undefined}
@@ -106,34 +133,34 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
                 className={`absolute inset-0 size-full object-cover transition-opacity duration-520 motion-reduce:transition-none ${preview.isPlaying ? "opacity-100" : "opacity-0"}`}
             />
 
-            <span className="pointer-events-none absolute inset-0 bg-linear-to-t from-nx-bg via-nx-bg/15 to-transparent md:bg-[linear-gradient(90deg,var(--nx-bg)_0%,color-mix(in_srgb,var(--nx-bg)_88%,transparent)_34%,color-mix(in_srgb,var(--nx-bg)_20%,transparent)_64%,color-mix(in_srgb,var(--nx-bg)_55%,transparent)_100%)]" />
-            <span className="pointer-events-none absolute inset-0 hidden bg-linear-to-t from-nx-bg via-transparent to-transparent md:block" />
+            <span className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,var(--nx-bg)_2%,color-mix(in_srgb,var(--nx-bg)_72%,transparent)_34%,transparent_72%)]" />
+            <span className="pointer-events-none absolute inset-0 hidden bg-[linear-gradient(90deg,color-mix(in_srgb,var(--nx-bg)_92%,transparent)_0%,color-mix(in_srgb,var(--nx-bg)_46%,transparent)_42%,transparent_74%)] md:block" />
 
             {preview.isPlaying && (
                 <button
                     type="button"
                     onClick={toggleMute}
                     aria-label={isMuted ? "Włącz dźwięk" : "Wycisz"}
-                    className="absolute bottom-6 right-5 z-30 hidden size-11 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text outline-none transition-colors duration-140 hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent [@media(pointer:fine)]:flex sm:right-8 xl:right-10 min-[1440px]:right-12"
+                    className="absolute bottom-6 right-5 z-30 hidden size-11 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text outline-none transition-colors duration-140 hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent [@media(pointer:fine)]:flex sm:right-8 xl:right-10 min-[1440px]:right-12"
                 >
                     {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
                 </button>
             )}
 
             <div
-                className="absolute bottom-0 left-0 z-20 flex w-full max-w-[760px] flex-col justify-end px-5 pb-6 pt-20 sm:px-8 sm:pb-10 lg:px-8 lg:pb-12 xl:px-10 xl:pb-14 min-[1440px]:px-12"
+                className="absolute bottom-0 left-0 z-20 flex w-full max-w-full flex-col justify-end px-5 pb-8 pt-14 sm:px-8 sm:pb-12 sm:pt-24 md:max-w-[var(--nx-hero-copy-w)] lg:px-10 lg:pb-13 xl:px-11 xl:pb-14 min-[1440px]:px-12"
                 style={{
-                    maxWidth: `min(760px, ${Math.round(safeLeft * 100)}vw)`,
+                    "--nx-hero-copy-w": `min(620px, ${Math.round(safeLeft * 100)}vw)`,
                     minHeight: `min(100%, max(320px, ${Math.round(safeBottom * 100)}vh))`,
-                }}
+                } as CSSProperties}
             >
-                <span className="mb-3 flex w-fit items-center gap-2 font-mono text-[10px] tracking-[0.18em] text-nx-text-2 sm:text-[11px]">
-                    {activeContent.isResume && <Clock size={14} className="text-nx-accent" />}
-                    {activeContent.isResume ? "KONTYNUUJ OGLĄDANIE" : "DZISIEJSZY WYBÓR"}
+                <span className="mb-4 flex w-fit items-center gap-2.5 font-mono text-[10px] tracking-[0.2em] uppercase text-nx-accent sm:text-[10.5px]">
+                    <span aria-hidden="true" className="h-px w-[18px] bg-nx-accent" />
+                    {activeContent.isResume ? "Kontynuuj oglądanie" : "Dzisiejszy wybór"}
                 </span>
 
                 {logo ? (
-                    <span className="relative block h-20 w-full max-w-[520px] sm:h-24 lg:h-30">
+                    <h1 className="relative block h-20 w-full max-w-[460px] drop-shadow-[0_8px_28px_rgba(0,0,0,0.7)] sm:h-24 lg:h-28 xl:h-33">
                         <Image
                             src={logo}
                             alt={activeContent.title}
@@ -143,55 +170,102 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
                             onError={() => setFailedLogo(logo)}
                             className="object-contain object-left"
                         />
-                    </span>
+                    </h1>
                 ) : (
                     <h1
                         title={activeContent.title}
-                        className="line-clamp-3 max-w-[16ch] text-balance font-display text-[34px] leading-none tracking-[-0.02em] text-nx-text sm:text-[42px] lg:line-clamp-2 lg:text-[54px] lg:leading-[.92] lg:tracking-[-0.035em] xl:text-[66px] xl:leading-[.89] min-[1440px]:text-[76px] min-[1440px]:leading-[.88]"
+                        className="line-clamp-3 max-w-[16ch] text-balance font-display text-[34px] leading-none tracking-[-0.02em] text-nx-text drop-shadow-[0_8px_28px_rgba(0,0,0,0.7)] sm:text-[42px] lg:line-clamp-2 lg:text-[54px] lg:leading-[.92] lg:tracking-[-0.035em] xl:text-[64px] xl:leading-[.89]"
                     >
                         {activeContent.title}
                     </h1>
                 )}
 
+                {metaParts.length > 0 && (
+                    <p className="mt-5 flex flex-wrap items-center gap-x-2.5 gap-y-1 font-mono text-[10.5px] tracking-[0.1em] text-nx-text-2 sm:text-[11px]">
+                        {metaParts.map((part, index) => (
+                            <span key={part} className="flex items-center gap-2.5">
+                                {index > 0 && <span aria-hidden="true" className="text-nx-border">·</span>}
+                                {part}
+                            </span>
+                        ))}
+                        {activeContent.score && (
+                            <span className="flex items-center gap-2.5">
+                                <span aria-hidden="true" className="text-nx-border">·</span>
+                                <span className="text-nx-accent-2">★ {activeContent.score}</span>
+                            </span>
+                        )}
+                    </p>
+                )}
+
                 {activeContent.description && (
-                    <p className="mt-4 line-clamp-3 max-w-[46ch] text-[15px] leading-[1.65] text-nx-text-2 lg:line-clamp-4 lg:text-[15.5px] lg:leading-[1.68] xl:text-base xl:leading-[1.7]">
+                    <p className="mt-4 line-clamp-2 max-w-[52ch] text-[15px] leading-[1.62] text-[color-mix(in_srgb,var(--nx-text)_82%,transparent)] [text-shadow:0_2px_12px_rgba(0,0,0,0.6)] lg:text-[15.5px]">
                         {activeContent.description}
                     </p>
                 )}
 
-                <button
-                    type="button"
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        openEpisode();
-                    }}
-                    className="mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-nx-accent px-6 text-[15px] font-semibold text-nx-on-accent outline-none transition-[transform,background-color] duration-140 hover:bg-[color-mix(in_srgb,var(--nx-accent)_88%,var(--nx-text))] active:scale-[.98] focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent motion-reduce:transition-none sm:w-fit"
-                >
-                    <Play size={18} fill="currentColor" />
-                    {activeContent.isResume
-                        ? `Wznów odcinek ${activeContent.episodeNumber}`
-                        : `Odtwórz odcinek ${activeContent.episodeNumber}`}
-                </button>
-                {activeContent.previewSource && (
+                {activeContent.progressPercent !== null && (
+                    <div className="mt-6 flex max-w-[380px] items-center gap-3.5">
+                        <span
+                            role="progressbar"
+                            aria-label={`Postęp odcinka ${activeContent.episodeNumber}`}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={activeContent.progressPercent}
+                            className="relative h-[3px] flex-1 overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--nx-text)_18%,transparent)]"
+                        >
+                            <span
+                                className="absolute inset-y-0 left-0 rounded-full bg-nx-accent"
+                                style={{ width: `${activeContent.progressPercent}%` }}
+                            />
+                        </span>
+                        {activeContent.remainingMinutes !== null && activeContent.remainingMinutes !== undefined && (
+                            <span className="shrink-0 font-mono text-[10.5px] tracking-[0.1em] text-nx-text-2">
+                                Pozostało {activeContent.remainingMinutes} min
+                            </span>
+                        )}
+                    </div>
+                )}
+
+                <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
                     <button
                         type="button"
-                        onClick={preview.startManual}
-                        className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-nx-border bg-nx-panel px-5 text-sm font-semibold text-nx-text outline-none hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent [@media(pointer:fine)]:w-fit"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            openEpisode();
+                        }}
+                        className="flex h-12 w-full items-center justify-center gap-2.5 rounded-full bg-nx-accent px-6 text-[15px] font-semibold text-nx-on-accent outline-none transition-[transform,background-color] duration-140 hover:bg-[color-mix(in_srgb,var(--nx-accent)_86%,var(--nx-text))] active:scale-[.98] focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent motion-reduce:transition-none sm:w-auto"
                     >
-                        <Play size={16} aria-hidden="true" />
-                        Podgląd
+                        <Play size={17} fill="currentColor" />
+                        {activeContent.isResume
+                            ? `Wznów odcinek ${activeContent.episodeNumber}`
+                            : `Odtwórz odcinek ${activeContent.episodeNumber}`}
                     </button>
-                )}
-            </div>
 
-            {activeContent.progressPercent !== null && (
-                <span className="absolute inset-x-0 bottom-0 z-30 h-0.5 bg-nx-border">
-                    <span
-                        className="block h-full bg-nx-accent"
-                        style={{ width: `${activeContent.progressPercent}%` }}
-                    />
-                </span>
-            )}
+                    <div className="flex gap-3">
+                        {activeContent.infoId !== null && activeContent.infoId !== undefined && (
+                            <button
+                                type="button"
+                                onClick={openInfo}
+                                className="flex h-12 flex-1 items-center justify-center gap-2.5 rounded-full border border-nx-border bg-[color-mix(in_srgb,var(--nx-panel)_74%,transparent)] px-6 text-[15px] font-semibold text-nx-text outline-none backdrop-blur-md transition-colors duration-140 hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent sm:flex-none"
+                            >
+                                <Info size={17} aria-hidden="true" />
+                                Informacje
+                            </button>
+                        )}
+
+                        {activeContent.previewSource && (
+                            <button
+                                type="button"
+                                onClick={preview.startManual}
+                                className="flex h-12 flex-1 items-center justify-center gap-2.5 rounded-full border border-nx-border bg-[color-mix(in_srgb,var(--nx-panel)_74%,transparent)] px-6 text-[15px] font-semibold text-nx-text outline-none backdrop-blur-md hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent sm:flex-none [@media(pointer:fine)]:hidden"
+                            >
+                                <Play size={16} aria-hidden="true" />
+                                Podgląd
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
         </section>
     );
 };

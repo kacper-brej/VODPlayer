@@ -66,14 +66,18 @@ const NavRailItems = ({ orientation }: NavRailItemsProps) => {
                             href={href}
                             aria-current={isActive ? "page" : undefined}
                             onKeyDown={(event) => handleKeyDown(event, index)}
-                            className={`relative flex flex-col items-center gap-1 rounded-lg px-2 py-2.5 text-center outline-none transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary ${
+                            className={`relative flex flex-col items-center gap-1 rounded-lg px-2 py-2.5 text-center outline-none transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-primary ${
                                 isActive ? "text-foreground" : "text-muted hover:bg-surface-light hover:text-foreground"
                             }`}
                         >
                             {isActive && (
                                 <span
                                     aria-hidden="true"
-                                    className="absolute left-0 top-1/2 h-8 w-[2px] -translate-y-1/2 rounded-full bg-primary"
+                                    className={
+                                        orientation === "vertical"
+                                            ? "absolute left-0 top-1/2 h-8 w-[2px] -translate-y-1/2 rounded-full bg-primary"
+                                            : "absolute inset-x-3 top-0 h-[2px] rounded-full bg-primary"
+                                    }
                                 />
                             )}
                             <Icon size={20} strokeWidth={2} aria-hidden="true" />
@@ -96,7 +100,7 @@ const Sidebar = () => {
                     <Link
                         href="/"
                         aria-label="Nocturna — strona główna"
-                        className="flex size-11 items-center justify-center rounded-lg font-display text-[28px] text-foreground outline-none transition-colors hover:bg-surface-light focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
+                        className="flex size-11 items-center justify-center rounded-lg font-display text-[28px] text-foreground outline-none transition-colors hover:bg-surface-light focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-primary"
                     >
                         N
                     </Link>
@@ -110,7 +114,7 @@ const Sidebar = () => {
                     <button
                         type="button"
                         onClick={openCommandPalette}
-                        className="flex cursor-pointer flex-col items-center gap-1 rounded-lg px-2 py-2 text-muted outline-none transition-colors hover:bg-surface-light hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
+                        className="flex cursor-pointer flex-col items-center gap-1 rounded-lg px-2 py-2 text-muted outline-none transition-colors hover:bg-surface-light hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-primary"
                     >
                         <Command size={18} strokeWidth={2} aria-hidden="true" />
                         <span className="font-mono text-[9px] tracking-[0.14em] uppercase">Ctrl K</span>
@@ -123,13 +127,15 @@ const Sidebar = () => {
 
             <nav
                 aria-label="Główna nawigacja mobilna"
-                className="fixed inset-x-0 bottom-0 z-40 flex items-center border-t border-border px-2 lg:hidden"
+                className="fixed inset-x-0 bottom-0 z-40 flex items-center border-t border-border lg:hidden"
                 style={{
                     backgroundColor: "rgba(21,18,28,0.86)",
                     backdropFilter: "blur(26px)",
                     WebkitBackdropFilter: "blur(26px)",
-                    height: "calc(64px + env(safe-area-inset-bottom))",
+                    height: "var(--nx-mobile-nav-h)",
                     paddingBottom: "env(safe-area-inset-bottom)",
+                    paddingLeft: "max(8px, env(safe-area-inset-left))",
+                    paddingRight: "max(8px, env(safe-area-inset-right))",
                 }}
             >
                 <NavRailItems orientation="horizontal" />

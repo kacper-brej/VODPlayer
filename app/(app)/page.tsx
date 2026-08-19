@@ -6,18 +6,40 @@ import ContentRowSkeleton from "@/components/series/ContentRowSkeleton";
 import SeriesModal from "@/components/series/SeriesModal";
 import { DataErrorState } from "@/components/data/DataState";
 import { getCatalog, type CatalogSeries } from "@/lib/catalog/catalog";
-import { collapseSeriesGroups, getNewestSeries } from "@/lib/catalog/catalogRows";
+import { collapseSeriesGroups } from "@/lib/catalog/catalogRows";
 import { getContinueWatching, getLatestResume, getResumeMap } from "@/lib/progress/continueWatching";
-import { getWeeklyRanking, RANKING_MIN_ITEMS } from "@/lib/rankings/rankings";
 import { getWatchlist } from "@/lib/watchlist/watchlist";
 import { toContentCard, toResumeCard } from "@/lib/catalog/contentCards";
-import { seriesPath, watchPath } from "@/lib/core/routes";
+import { selectFallbackHero, selectResumeHero } from "@/lib/home/homeHero";
+import { HOME_SECTION_PRESENTATION, type HomeSectionId, type HomeSectionRow } from "@/lib/home/homeLayout";
+import { getHomeRowSections } from "@/lib/home/homeSections";
+import { buildNewestHomeRow } from "@/lib/home/publicHomeRows";
+import { buildWatchlistHomeRow } from "@/lib/home/personalizedHomeRows";
+import { watchPath } from "@/lib/core/routes";
 import type { ResumePoint } from "@/lib/core/contracts";
 import { resolvePreviewSource } from "@/lib/player/videoAccess";
 import { getSessionUser } from "@/lib/auth/session";
 
-const watchlistKeys = (items: { seriesKey: string }[]) =>
-    new Set(items.map((item) => item.seriesKey));
+interface ViewerRowContext {
+    resumeMap: Map<string, ResumePoint>;
+    listed: Set<string>;
+}
+
+const getViewerRowContext = async (): Promise<ViewerRowContext> => {
+    const [resumeResult, watchlistResult] = await Promise.all([
+        getResumeMap(),
+        getWatchlist(),
+    ]);
+
+    return {
+        resumeMap: resumeResult.kind === "error" ? new Map<string, ResumePoint>() : resumeResult.data,
+        listed: new Set(
+            watchlistResult.kind === "success"
+                ? watchlistResult.data.map((item) => item.seriesKey)
+                : [],
+        ),
+    };
+};
 
 const heroData = (
     series: CatalogSeries,
@@ -33,6 +55,9 @@ const heroData = (
     const percent = resume && hasDuration
         ? Math.min(100, Math.round((resume.positionSeconds / resume.durationSeconds!) * 100))
         : null;
+    const remainingMinutes = resume && hasDuration
+        ? Math.max(0, Math.ceil((resume.durationSeconds! - resume.positionSeconds) / 60))
+        : null;
 
     return {
         seriesKey: series.key,
@@ -41,6 +66,14 @@ const heroData = (
         episodeNumber: episode.number,
         lastWatchedTime: resume?.positionSeconds ?? 0,
         progressPercent: percent,
+        remainingMinutes,
+        infoId: series.id,
+        year: series.year,
+        score: series.sourceRating,
+        ageRating: series.ageRating,
+        seasonNumber: series.seasonNumber,
+        episodeCount: series.episodes.length,
+        genres: series.genres.map((genre) => genre.name),
         poster: series.sourceCoverImage,
         backdrop: series.backdropImage,
         logo: series.logoImage,
@@ -66,26 +99,56 @@ const heroData = (
 const HeroSection = async ({ catalog }: { catalog: CatalogSeries[] }) => {
     const resumeResult = await getLatestResume();
     const resume = resumeResult.kind === "success" ? resumeResult.data : null;
-    const resumedSeries = resume
-        ? catalog.find((series) => series.key === resume.seriesKey) ?? null
-        : null;
-    const recommendedSeries = getNewestSeries(catalog)
-        .find((series) => series.episodes.length > 0)
-        ?? catalog.find((series) => series.episodes.length > 0)
-        ?? null;
-    const content = resumedSeries
-        ? heroData(resumedSeries, resume)
-        : recommendedSeries
-            ? heroData(recommendedSeries, null)
-            : null;
+    const resumedSeries = selectResumeHero(catalog, resume);
 
-    return <HeroBanerSection lastWatchedData={content} />;
+    if (resumedSeries) {
+        return <HeroBanerSection lastWatchedData={heroData(resumedSeries, resume)} />;
+    }
+
+    const sections = await getHomeRowSections();
+    const recommendedSeries = selectFallbackHero(
+        catalog,
+        sections.get("trending-today")?.items ?? [],
+    );
+
+    return (
+        <HeroBanerSection
+            lastWatchedData={recommendedSeries ? heroData(recommendedSeries, null) : null}
+        />
+    );
 };
 
+const RowSection = ({
+    section,
+    context,
+}: {
+    section: HomeSectionRow;
+    context: ViewerRowContext;
+}) => (
+    <ContentRowSection
+        title={section.title}
+        numbered
+        variant={section.variant}
+        items={section.items.map((series) => toContentCard(series, {
+            resume: context.resumeMap.get(series.key),
+            inWatchlist: context.listed.has(series.key),
+            allowNew: section.variant !== "ranking",
+        }))}
+    />
+);
+
+const RowFallback = ({ id }: { id: HomeSectionId }) => (
+    <ContentRowSkeleton
+        title={HOME_SECTION_PRESENTATION[id].title}
+        variant={HOME_SECTION_PRESENTATION[id].variant}
+        numbered
+    />
+);
+
 const ContinueSection = async ({ catalog }: { catalog: CatalogSeries[] }) => {
-    const [continueResult, watchlistResult] = await Promise.all([
+    const [continueResult, context] = await Promise.all([
         getContinueWatching(),
-        getWatchlist(),
+        getViewerRowContext(),
     ]);
 
     if (continueResult.kind === "error") {
@@ -96,137 +159,65 @@ const ContinueSection = async ({ catalog }: { catalog: CatalogSeries[] }) => {
     if (continueResult.kind === "empty") return null;
 
     const byKey = new Map(catalog.map((series) => [series.key, series]));
-    const listed = watchlistKeys(
-        watchlistResult.kind === "success" ? watchlistResult.data : [],
-    );
     const cards = continueResult.data
         .map((resume) => {
             const series = byKey.get(resume.seriesKey);
-            return series ? toResumeCard(series, resume, listed.has(series.key)) : null;
+            return series ? toResumeCard(series, resume, context.listed.has(series.key)) : null;
         })
         .filter((card) => card !== null);
 
     return (
         <ContentRowSection
-            title="Kontynuuj oglądanie"
-            kicker="N° 01"
-            variant="progress"
+            title={HOME_SECTION_PRESENTATION.continue.title}
+            numbered
+            variant={HOME_SECTION_PRESENTATION.continue.variant}
             items={cards}
         />
     );
 };
 
-const RankingSection = async ({ catalog }: { catalog: CatalogSeries[] }) => {
-    const [rankingResult, resumeResult, watchlistResult] = await Promise.all([
-        getWeeklyRanking(),
-        getResumeMap(),
-        getWatchlist(),
+const TmdbRowSection = async ({ id }: { id: HomeSectionId }) => {
+    const [sections, context] = await Promise.all([
+        getHomeRowSections(),
+        getViewerRowContext(),
     ]);
+    const section = sections.get(id);
 
-    if (rankingResult.kind === "error") {
-        if (rankingResult.reason === "unauthorized") return null;
-        return <DataErrorState reason={rankingResult.reason} compact />;
-    }
+    if (!section) return null;
 
-    if (rankingResult.kind === "empty") return null;
-
-    const byKey = new Map(catalog.map((series) => [series.key, series]));
-    const resumeMap = resumeResult.kind === "error"
-        ? new Map<string, ResumePoint>()
-        : resumeResult.data;
-    const listed = watchlistKeys(
-        watchlistResult.kind === "success" ? watchlistResult.data : [],
-    );
-    const cards = rankingResult.data
-        .slice(0, 10)
-        .map((ranking) => {
-            const series = byKey.get(ranking.seriesKey);
-            return series
-                ? toContentCard(series, {
-                    resume: resumeMap.get(series.key),
-                    inWatchlist: listed.has(series.key),
-                    allowNew: false,
-                })
-                : null;
-        })
-        .filter((card) => card !== null);
-
-    if (cards.length < RANKING_MIN_ITEMS) return null;
-
-    return (
-        <ContentRowSection
-            title="Dziesiątka tej nocy"
-            kicker="N° 02"
-            variant="ranking"
-            items={cards}
-        />
-    );
+    return <RowSection section={section} context={context} />;
 };
 
-const SelectedSection = async ({ catalog }: { catalog: CatalogSeries[] }) => {
-    const [resumeResult, watchlistResult] = await Promise.all([
-        getResumeMap(),
+const NewestSection = async ({ catalog }: { catalog: CatalogSeries[] }) => {
+    const result = buildNewestHomeRow(catalog);
+
+    if (result.kind !== "ready") return null;
+
+    return <RowSection section={result.row} context={await getViewerRowContext()} />;
+};
+
+const WatchlistSection = async ({ catalog }: { catalog: CatalogSeries[] }) => {
+    const [watchlistResult, context] = await Promise.all([
         getWatchlist(),
+        getViewerRowContext(),
     ]);
-    const resumeMap = resumeResult.kind === "error"
-        ? new Map<string, ResumePoint>()
-        : resumeResult.data;
-    const listed = watchlistKeys(
-        watchlistResult.kind === "success" ? watchlistResult.data : [],
-    );
-    const collapsed = getNewestSeries(collapseSeriesGroups(catalog), 20);
-    const selected = [
-        ...collapsed.filter((series) => listed.has(series.key)),
-        ...collapsed.filter((series) => !listed.has(series.key) && !resumeMap.has(series.key)),
-        ...collapsed.filter((series) => !listed.has(series.key) && resumeMap.has(series.key)),
-    ].filter((series, index, all) =>
-        all.findIndex((item) => item.key === series.key) === index
-    ).slice(0, 4);
-    const cards = selected.map((series) =>
-        toContentCard(series, {
-            resume: resumeMap.get(series.key),
-            inWatchlist: listed.has(series.key),
-        })
-    );
+    const result = buildWatchlistHomeRow(catalog, watchlistResult);
 
-    return (
-        <ContentRowSection
-            title="Wybrane dla Ciebie"
-            kicker="N° 03"
-            variant="mosaic"
-            items={cards}
-        />
-    );
+    if (result.kind !== "ready") return null;
+
+    return <RowSection section={result.row} context={context} />;
 };
 
-const LibrarySection = async ({ catalog }: { catalog: CatalogSeries[] }) => {
-    const [resumeResult, watchlistResult] = await Promise.all([
-        getResumeMap(),
-        getWatchlist(),
-    ]);
-    const resumeMap = resumeResult.kind === "error"
-        ? new Map<string, ResumePoint>()
-        : resumeResult.data;
-    const listed = watchlistKeys(
-        watchlistResult.kind === "success" ? watchlistResult.data : [],
-    );
-    const cards = collapseSeriesGroups(catalog).map((series) =>
-        toContentCard(series, {
-            resume: resumeMap.get(series.key),
-            inWatchlist: listed.has(series.key),
-            href: seriesPath(series.key),
-        })
-    );
-
-    return (
-        <ContentRowSection
-            title="Biblioteka"
-            kicker="N° 04"
-            variant="classic"
-            items={cards}
-        />
-    );
-};
+const LibrarySection = async ({ catalog }: { catalog: CatalogSeries[] }) => (
+    <RowSection
+        section={{
+            id: "library",
+            ...HOME_SECTION_PRESENTATION.library,
+            items: collapseSeriesGroups(catalog),
+        }}
+        context={await getViewerRowContext()}
+    />
+);
 
 const EmptyArchive = ({ canManageLibrary }: { canManageLibrary: boolean }) => (
     <div className="mx-auto flex min-h-[70vh] w-full max-w-3xl flex-col items-start justify-center px-5 sm:px-8">
@@ -244,7 +235,7 @@ const EmptyArchive = ({ canManageLibrary }: { canManageLibrary: boolean }) => (
         {canManageLibrary && (
             <Link
                 href="/admin/upload"
-                className="mt-7 flex min-h-12 items-center rounded-full bg-nx-accent px-6 text-[15px] font-semibold text-nx-on-accent outline-none transition-colors duration-140 hover:bg-[color-mix(in_srgb,var(--nx-accent)_88%,var(--nx-text))] focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-nx-accent"
+                className="mt-7 flex min-h-12 items-center rounded-full bg-nx-accent px-6 text-[15px] font-semibold text-nx-on-accent outline-none transition-colors duration-140 hover:bg-[color-mix(in_srgb,var(--nx-accent)_88%,var(--nx-text))] focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent"
             >
                 Otwórz panel mediów
             </Link>
@@ -278,20 +269,40 @@ const HomeDashboard = async () => {
                 <HeroSection catalog={catalog} />
             </Suspense>
 
-            <div className="flex flex-col gap-12 px-5 py-12 sm:px-8 lg:gap-[72px] lg:py-[72px] xl:gap-[88px] xl:px-10 xl:py-[88px] min-[1440px]:gap-24 min-[1440px]:px-12 min-[1440px]:py-24">
-                <Suspense fallback={<ContentRowSkeleton title="Kontynuuj oglądanie" kicker="N° 01" variant="progress" />}>
+            <div className="nx-home-rows flex flex-col gap-12 px-5 py-12 sm:px-8 lg:gap-[72px] lg:py-[72px] xl:gap-[88px] xl:px-10 xl:py-[88px] min-[1440px]:gap-24 min-[1440px]:px-12 min-[1440px]:py-24">
+                <Suspense fallback={<RowFallback id="continue" />}>
                     <ContinueSection catalog={catalog} />
                 </Suspense>
 
-                <Suspense fallback={<ContentRowSkeleton title="Dziesiątka tej nocy" kicker="N° 02" variant="ranking" />}>
-                    <RankingSection catalog={catalog} />
+                <Suspense fallback={<RowFallback id="trending-today" />}>
+                    <TmdbRowSection id="trending-today" />
                 </Suspense>
 
-                <Suspense fallback={<ContentRowSkeleton title="Wybrane dla Ciebie" kicker="N° 03" variant="mosaic" />}>
-                    <SelectedSection catalog={catalog} />
+                <Suspense fallback={<RowFallback id="newest-local" />}>
+                    <NewestSection catalog={catalog} />
                 </Suspense>
 
-                <Suspense fallback={<ContentRowSkeleton title="Biblioteka" kicker="N° 04" variant="classic" />}>
+                <Suspense fallback={<RowFallback id="popular-now" />}>
+                    <TmdbRowSection id="popular-now" />
+                </Suspense>
+
+                <Suspense fallback={<RowFallback id="watchlist" />}>
+                    <WatchlistSection catalog={catalog} />
+                </Suspense>
+
+                <Suspense fallback={<RowFallback id="recommendations" />}>
+                    <TmdbRowSection id="recommendations" />
+                </Suspense>
+
+                <Suspense fallback={<RowFallback id="top-rated" />}>
+                    <TmdbRowSection id="top-rated" />
+                </Suspense>
+
+                <Suspense fallback={<RowFallback id="on-the-air" />}>
+                    <TmdbRowSection id="on-the-air" />
+                </Suspense>
+
+                <Suspense fallback={<RowFallback id="library" />}>
                     <LibrarySection catalog={catalog} />
                 </Suspense>
             </div>
@@ -301,8 +312,8 @@ const HomeDashboard = async () => {
 
 export default function Home() {
     return (
-        <div className="min-h-screen w-full min-w-0 overflow-x-hidden bg-nx-bg">
-            <Suspense fallback={<div className="min-h-screen bg-nx-bg" />}>
+        <div className="min-h-dvh w-full min-w-0 overflow-x-hidden bg-nx-bg">
+            <Suspense fallback={<div className="min-h-dvh bg-nx-bg" />}>
                 <HomeDashboard />
             </Suspense>
 

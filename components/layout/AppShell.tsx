@@ -1,9 +1,12 @@
 "use client"
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { WifiOff } from "lucide-react";
 import Sidebar from "@/components/layout/Sidebar";
+import TmdbLogo from "@/components/layout/TmdbLogo";
 import SearchBar from "@/components/layout/SearchBar";
+import ProfileMenu from "@/components/layout/ProfileMenu";
 import CommandPaletteLauncher from "@/components/layout/CommandPaletteLauncher";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { ContentSkeleton, DataErrorState } from "@/components/data/DataState";
@@ -37,7 +40,7 @@ const SessionExpiredBanner = ({ onSignIn }: { onSignIn: () => void }) => (
         <button
             type="button"
             onClick={onSignIn}
-            className="shrink-0 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-accent outline-none transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
+            className="shrink-0 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-accent outline-none transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-primary"
         >
             Zaloguj się ponownie
         </button>
@@ -45,24 +48,25 @@ const SessionExpiredBanner = ({ onSignIn }: { onSignIn: () => void }) => (
 );
 
 const AttributionFooter = () => (
-    <p className="px-4 py-3 text-center text-xs text-muted sm:px-8">
-        Metadane i grafika częściowo dostarczane przez{" "}
+    <footer className="flex flex-col items-center justify-center gap-x-2.5 gap-y-1 px-4 py-3 text-center text-[10px] leading-[1.45] text-muted/70 sm:flex-row sm:px-8">
         <a
             href="https://www.themoviedb.org/"
             target="_blank"
             rel="noreferrer"
-            className="underline decoration-dotted underline-offset-2 hover:text-foreground"
+            className="shrink-0 rounded-sm opacity-70 outline-none transition-opacity hover:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent"
         >
-            TMDB
+            <TmdbLogo className="h-2 w-auto" />
         </a>
-        . Ten produkt korzysta z TMDB API, ale nie jest wspierany ani certyfikowany przez TMDB.
-    </p>
+        <p className="max-w-[52ch] text-balance">
+            Ten produkt korzysta z API TMDB, ale nie jest zatwierdzony ani certyfikowany przez TMDB.
+        </p>
+    </footer>
 );
 
 const OfflineBanner = () => (
     <div
         role="status"
-        className="sticky bottom-0 z-30 flex items-center justify-center gap-2 border-t border-border bg-surface-light px-4 py-2.5 text-sm text-foreground"
+        className="sticky bottom-[var(--nx-mobile-nav-h)] z-30 flex items-center justify-center gap-2 border-t border-border bg-surface-light px-4 py-2.5 text-sm text-foreground"
     >
         <WifiOff size={16} className="text-danger" aria-hidden="true" />
         Brak połączenia
@@ -76,7 +80,7 @@ interface AppShellProps {
 const SkipLink = () => (
     <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[1000] focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-on-accent focus:outline-2 focus:outline-offset-[3px] focus:outline-primary"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[1000] focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-on-accent focus:outline-2 focus:outline-offset-3 focus:outline-primary"
     >
         Przejdź do treści
     </a>
@@ -129,20 +133,35 @@ const AppShell = ({ children }: AppShellProps) => {
             <div className="relative z-10 flex w-full">
                 <Sidebar />
                 <div className="flex min-h-dvh min-w-0 flex-1 flex-col overflow-x-hidden">
-                    <header className="sticky top-0 z-40 flex h-[76px] w-full shrink-0 items-center justify-center border-b border-nx-border/70 bg-[color-mix(in_srgb,var(--nx-bg)_94%,transparent)] px-5 backdrop-blur-none sm:bg-[color-mix(in_srgb,var(--nx-bg)_88%,transparent)] sm:px-8 sm:backdrop-blur-xl">
-                        <div className="flex w-full max-w-[1440px] justify-center">
-                            <SearchBar />
+                    <header className="sticky top-0 z-40 flex h-[var(--nx-header-offset)] w-full shrink-0 items-center justify-center border-b border-nx-border/70 bg-[color-mix(in_srgb,var(--nx-bg)_94%,transparent)] px-4 pt-[env(safe-area-inset-top)] backdrop-blur-none sm:bg-[color-mix(in_srgb,var(--nx-bg)_88%,transparent)] sm:px-8 sm:backdrop-blur-xl">
+                        <div className="mx-auto flex w-full max-w-[1440px] items-center gap-3">
+                            <Link
+                                href="/"
+                                aria-label="Nocturna — strona główna"
+                                className="flex size-10 shrink-0 items-center justify-center rounded-lg font-display text-[26px] text-foreground outline-none transition-colors hover:bg-surface-light focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-primary lg:hidden"
+                            >
+                                N
+                            </Link>
+
+                            <div className="flex min-w-0 flex-1 justify-end sm:justify-center">
+                                <SearchBar />
+                            </div>
+
+                            <div className="shrink-0 lg:hidden">
+                                <ProfileMenu placement="header" />
+                            </div>
                         </div>
                     </header>
                     <main
                         id="main-content"
                         tabIndex={-1}
-                        className="flex-1 min-h-dvh pb-[calc(64px+env(safe-area-inset-bottom))] outline-none lg:pb-0"
+                        className="flex-1 outline-none"
                     >
                         {mainContent}
                     </main>
                     <AttributionFooter />
                     {!isOnline && <OfflineBanner />}
+                    <div aria-hidden="true" className="h-[var(--nx-mobile-nav-h)] shrink-0" />
                 </div>
             </div>
 

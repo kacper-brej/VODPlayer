@@ -115,7 +115,7 @@ describe("wysyłanie wiadomości", () => {
     it("treść ze znacznikami HTML trafia do zapisu bez żadnej zmiany", async () => {
         await postPartyMessage(user, "KXRT49", '<b>cześć</b> & <script>alert(1)</script>');
 
-        expect(insertMessage).toHaveBeenCalledWith(5, 10, '<b>cześć</b> & <script>alert(1)</script>');
+        expect(insertMessage).toHaveBeenCalledWith(5, 10, '<b>cześć</b> & <script>alert(1)</script>', null);
     });
 
     it("znacznik czasu zdarzenia pochodzi z zegara bazy, nie z Date.now()", async () => {
@@ -148,6 +148,6 @@ describe("wysyłanie wiadomości", () => {
         await postPartyMessage(user, "KXRT49", "cześć");
 
         expect(findMemberRole).toHaveBeenCalledWith(5, 10);
-        expect(insertMessage).toHaveBeenCalledWith(5, 10, "cześć");
+        expect(insertMessage).toHaveBeenCalledWith(5, 10, "cześć", null);
     });
 });

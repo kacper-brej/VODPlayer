@@ -10,11 +10,11 @@ beforeEach(() => execute.mockReset());
 describe("listMediaAssetsWithRenditions", () => {
     it("laczy renditiony do wlasciwego assetu po asset_id, formatuje updated_at jako string bez konwersji przez sterownik", async () => {
         execute.mockResolvedValueOnce([[
-            { id: 1, series_key: "Naruto", episode_key: "01.mp4", status: "ready", duration_seconds: 1200, total_size_bytes: 500, preview_clip_key: null, error_message: null, updated_at: "2026-08-07 12:00:00" },
+            { id: "1", series_key: "Naruto", episode_key: "01.mp4", status: "ready", delivery: "hls", duration_seconds: 1200, total_size_bytes: "500", preview_clip_key: null, error_message: null, updated_at: "2026-08-07 12:00:00" },
         ]]);
         execute.mockResolvedValueOnce([[
-            { asset_id: 1, height: 1080, width: 1920, bitrate_kbps: 5000, playlist_key: "media/naruto/01/1080.m3u8", segment_count: 100, size_bytes: 300 },
-            { asset_id: 1, height: 720, width: 1280, bitrate_kbps: 2500, playlist_key: "media/naruto/01/720.m3u8", segment_count: 100, size_bytes: 200 },
+            { asset_id: "1", height: 1080, width: 1920, bitrate_kbps: 5000, playlist_key: "media/naruto/01/1080.m3u8", segment_count: 100, size_bytes: "300" },
+            { asset_id: "1", height: 720, width: 1280, bitrate_kbps: 2500, playlist_key: "media/naruto/01/720.m3u8", segment_count: 100, size_bytes: "200" },
         ]]);
 
         const result = await listMediaAssetsWithRenditions();
@@ -23,6 +23,7 @@ describe("listMediaAssetsWithRenditions", () => {
             seriesKey: "Naruto",
             episodeKey: "01.mp4",
             status: "ready",
+            delivery: "hls",
             durationSeconds: 1200,
             totalSizeBytes: 500,
             previewClipKey: null,
@@ -37,7 +38,7 @@ describe("listMediaAssetsWithRenditions", () => {
 
     it("asset bez renditionow dostaje pusta tablice, nie undefined", async () => {
         execute.mockResolvedValueOnce([[
-            { id: 2, series_key: "Bleach", episode_key: "01.mp4", status: "processing", duration_seconds: null, total_size_bytes: null, preview_clip_key: null, error_message: null, updated_at: "2026-08-07 12:00:00" },
+            { id: "2", series_key: "Bleach", episode_key: "01.mp4", status: "processing", delivery: "file", duration_seconds: null, total_size_bytes: null, preview_clip_key: null, error_message: null, updated_at: "2026-08-07 12:00:00" },
         ]]);
         execute.mockResolvedValueOnce([[]]);
 

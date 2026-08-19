@@ -2,7 +2,13 @@ import ProfileSelector from "@/components/profiles/ProfileSelector";
 import { getProfiles } from "@/lib/profiles/profiles";
 import { DataErrorState } from "@/components/data/DataState";
 
-export default async function ProfilesPage() {
+export default async function ProfilesPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ manage?: string | string[] }>;
+}) {
+    const params = await searchParams;
+    const initiallyManaging = params.manage === "1";
     const result = await getProfiles();
 
     if (result.kind === "error") {
@@ -21,5 +27,5 @@ export default async function ProfilesPage() {
         );
     }
 
-    return <ProfileSelector profiles={result.data} />;
+    return <ProfileSelector profiles={result.data} initiallyManaging={initiallyManaging} />;
 }

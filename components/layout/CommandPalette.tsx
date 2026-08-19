@@ -1,7 +1,9 @@
 "use client"
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Compass, History, LogOut, RefreshCw, Search, type LucideIcon } from "lucide-react";
+import { imageLoader } from "@/lib/catalog/imageDelivery";
+import { Compass, Globe, History, LogOut, Search, type LucideIcon } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ADMIN_QUICK_JUMP_ITEM, QUICK_JUMP_ITEMS } from "@/config/menu";
 import { COMMAND_PALETTE_OPEN_EVENT } from "@/lib/search/commandPalette";
@@ -10,7 +12,7 @@ import { addRecentSearch, getRecentSearches } from "@/lib/search/recentSearches"
 import { seriesPath } from "@/lib/core/routes";
 import { DataErrorState } from "@/components/data/DataState";
 import type { DataResult } from "@/lib/core/dataResult";
-import revalidateCatalogAction from "@/lib/catalog/revalidateCatalogAction";
+import searchTmdbAction, { type TmdbSearchHit } from "@/lib/search/searchTmdbAction";
 import { useModalFocus } from "@/lib/core/useModalFocus";
 import { searchEntries, type SearchRange } from "@/lib/search";
 import type { SearchIndexEntry } from "@/lib/search/searchIndex";
@@ -24,7 +26,6 @@ type PaletteAction =
     | { kind: "navigate"; href: string }
     | { kind: "select-result"; href: string; title: string }
     | { kind: "select-recent"; query: string }
-    | { kind: "refresh-catalog" }
     | { kind: "logout" };
 
 interface PaletteItem {
@@ -32,6 +33,7 @@ interface PaletteItem {
     label: string;
     hint?: string | null;
     icon: LucideIcon;
+    poster?: string | null;
     shortcut?: string;
     action: PaletteAction;
     match?: {
@@ -81,8 +83,8 @@ const CommandPalette = ({ searchIndex, initiallyOpen = false }: CommandPalettePr
         initiallyOpen ? getRecentSearches() : []
     );
     const [viewportHeight, setViewportHeight] = useState<number | null>(null);
-    const [isRefreshing, setIsRefreshing] = useState(false);
     const [logoutFailed, setLogoutFailed] = useState(false);
+    const [tmdbSearch, setTmdbSearch] = useState<{ query: string; hits: TmdbSearchHit[] }>({ query: "", hits: [] });
 
     const inputRef = useRef<HTMLInputElement>(null);
     const itemRefs = useRef<(HTMLLIElement | null)[]>([]);
@@ -139,6 +141,48 @@ const CommandPalette = ({ searchIndex, initiallyOpen = false }: CommandPalettePr
         return searchEntries(searchIndex.data, trimmedQuery);
     }, [trimmedQuery, searchIndex]);
 
+    useEffect(() => {
+        if (!isOpen || trimmedQuery.length < 2) return;
+
+        let active = true;
+        searchTmdbAction(trimmedQuery)
+            .then((hits) => {
+                if (active) setTmdbSearch({ query: trimmedQuery, hits });
+            })
+            .catch(() => {
+                if (active) setTmdbSearch({ query: trimmedQuery, hits: [] });
+            });
+
+        return () => {
+            active = false;
+        };
+    }, [isOpen, trimmedQuery]);
+
+    const tmdbHits = useMemo(
+        () => tmdbSearch.query === trimmedQuery ? tmdbSearch.hits : [],
+        [tmdbSearch, trimmedQuery],
+    );
+    const tmdbPending = trimmedQuery.length >= 2 && tmdbSearch.query !== trimmedQuery;
+
+    const localKeys = useMemo(
+        () => new Set(searchResults.map((result) => result.entry.key)),
+        [searchResults],
+    );
+
+    const tmdbItems: PaletteItem[] = useMemo(
+        () => tmdbHits
+            .filter((hit) => !localKeys.has(`tmdb:${hit.id}`))
+            .map((hit) => ({
+                id: `tmdb-${hit.id}`,
+                label: hit.title,
+                hint: hit.year ? String(hit.year) : null,
+                icon: Globe,
+                poster: hit.poster,
+                action: { kind: "select-result", href: hit.href, title: hit.title } as const,
+            })),
+        [tmdbHits, localKeys],
+    );
+
     const resultItems: PaletteItem[] = useMemo(() => {
         return searchResults
             .slice(0, 8)
@@ -178,12 +222,6 @@ const CommandPalette = ({ searchIndex, initiallyOpen = false }: CommandPalettePr
 
     const actionItems: PaletteItem[] = useMemo(
         () => [
-            ...(user?.role === "admin" ? [{
-                id: "action-refresh-catalog",
-                label: isRefreshing ? "Odświeżanie katalogu…" : "Odśwież katalog",
-                icon: RefreshCw,
-                action: { kind: "refresh-catalog" } as const,
-            }] : []),
             {
                 id: "action-logout",
                 label: logoutFailed ? "Wylogowanie nie powiodło się — spróbuj ponownie" : "Wyloguj",
@@ -191,7 +229,7 @@ const CommandPalette = ({ searchIndex, initiallyOpen = false }: CommandPalettePr
                 action: { kind: "logout" } as const,
             },
         ],
-        [isRefreshing, logoutFailed, user?.role],
+        [logoutFailed],
     );
 
     const recentItems: PaletteItem[] = useMemo(
@@ -214,11 +252,12 @@ const CommandPalette = ({ searchIndex, initiallyOpen = false }: CommandPalettePr
                 items: resultItems,
                 moreCount: Math.max(0, searchResults.length - resultItems.length),
             }] : []),
+            ...(tmdbItems.length ? [{ title: "Z bazy TMDB", items: tmdbItems }] : []),
             { title: "Szybkie przejście", items: quickJumpItems },
             { title: "Akcje", items: actionItems },
             ...(recentItems.length ? [{ title: "Ostatnie wyszukiwania", items: recentItems }] : []),
         ],
-        [trimmedQuery, onlyFuzzyResults, searchResults.length, resultItems, quickJumpItems, actionItems, recentItems],
+        [trimmedQuery, onlyFuzzyResults, searchResults.length, resultItems, tmdbItems, quickJumpItems, actionItems, recentItems],
     );
 
     const flatItems = useMemo(() => sections.flatMap((section) => section.items), [sections]);
@@ -242,13 +281,6 @@ const CommandPalette = ({ searchIndex, initiallyOpen = false }: CommandPalettePr
             router.push(action.href);
         } else if (action.kind === "select-recent") {
             setQuery(action.query);
-        } else if (action.kind === "refresh-catalog") {
-            if (isRefreshing) return;
-            setIsRefreshing(true);
-            revalidateCatalogAction()
-                .then(() => router.refresh())
-                .finally(() => setIsRefreshing(false));
-            close();
         } else if (action.kind === "logout") {
             setLogoutFailed(false);
             logout().then((revoked) => {
@@ -262,7 +294,11 @@ const CommandPalette = ({ searchIndex, initiallyOpen = false }: CommandPalettePr
         }
     };
 
-    const showNoResults = trimmedQuery.length > 0 && searchIndex.kind !== "error" && searchResults.length === 0;
+    const showNoResults = trimmedQuery.length > 0
+        && searchIndex.kind !== "error"
+        && searchResults.length === 0
+        && tmdbItems.length === 0
+        && !tmdbPending;
     const showIndexError = trimmedQuery.length > 0 && searchIndex.kind === "error";
 
     const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -359,7 +395,7 @@ const CommandPalette = ({ searchIndex, initiallyOpen = false }: CommandPalettePr
                                     <button
                                         type="button"
                                         onClick={() => runAction({ kind: "navigate", href: "/explore" })}
-                                        className="text-sm text-primary underline outline-none decoration-primary/40 underline-offset-2 hover:decoration-primary focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
+                                        className="text-sm text-primary underline outline-none decoration-primary/40 underline-offset-2 hover:decoration-primary focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-primary"
                                     >
                                         Przeglądaj katalog
                                     </button>
@@ -396,7 +432,18 @@ const CommandPalette = ({ searchIndex, initiallyOpen = false }: CommandPalettePr
                                                         }`}
                                                         style={isActive ? { boxShadow: "inset 2px 0 0 0 var(--primary)" } : undefined}
                                                     >
-                                                        <Icon size={16} className="shrink-0 text-muted" aria-hidden="true" />
+                                                        {item.poster ? (
+                                                            <Image
+                                                                src={item.poster}
+                                                                alt=""
+                                                                width={32}
+                                                                height={48}
+                                                                loader={imageLoader(item.poster, "poster")}
+                                                                className="h-12 w-8 shrink-0 rounded-sm border border-border object-cover"
+                                                            />
+                                                        ) : (
+                                                            <Icon size={16} className="shrink-0 text-muted" aria-hidden="true" />
+                                                        )}
                                                         <span className="min-w-0 flex-1 text-sm text-foreground">
                                                             {item.match?.kind === "alternative" ? (
                                                                 <>

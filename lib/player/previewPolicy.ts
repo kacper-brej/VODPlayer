@@ -71,9 +71,8 @@ export const decidePreview = (input: PreviewPolicyInput): PreviewDecision | null
     const progress = validProgress(input.progress, input.assetVersion, durationSeconds)
         ? input.progress
         : null;
-    const completed = progress !== null && (
-        progress.completed || isEpisodeComplete(progress.positionSeconds, durationSeconds)
-    );
+    const completed = progress !== null
+        && isEpisodeComplete(progress.positionSeconds, durationSeconds);
 
     if (completed) {
         return {

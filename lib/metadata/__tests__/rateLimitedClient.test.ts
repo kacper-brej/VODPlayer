@@ -64,6 +64,37 @@ describe("fresh hit — wpis trwaly mlodszy niz TTL", () => {
         expect(fetch).toHaveBeenCalledOnce();
         expect(getCachedResponse).toHaveBeenCalledOnce();
     });
+
+    it("respektuje krotszy TTL ustawiony dla konkretnego endpointu", async () => {
+        getCachedResponse.mockResolvedValue({ data: { title: "stary" }, fetchedAtMs: Date.now() - 45_000 });
+        vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ title: "nowy" }));
+        const client = createRateLimitedClient(baseConfig);
+
+        const result = await client.fetchResult(
+            "/tv/1",
+            undefined,
+            undefined,
+            { cacheTtlMs: 30_000 },
+        );
+
+        expect(fetch).toHaveBeenCalledOnce();
+        expect(result).toEqual({ kind: "success", data: { title: "nowy" } });
+    });
+
+    it("respektuje dluzszy TTL ustawiony dla konkretnego endpointu", async () => {
+        getCachedResponse.mockResolvedValue({ data: { title: "z cache" }, fetchedAtMs: Date.now() - 90_000 });
+        const client = createRateLimitedClient(baseConfig);
+
+        const result = await client.fetchResult(
+            "/tv/1",
+            undefined,
+            undefined,
+            { cacheTtlMs: 120_000 },
+        );
+
+        expect(fetch).not.toHaveBeenCalled();
+        expect(result).toEqual({ kind: "success", data: { title: "z cache" } });
+    });
 });
 
 describe("stale hit — wpis trwaly starszy niz TTL, provider odpowiada", () => {
@@ -142,6 +173,27 @@ describe("timeout providera", () => {
         const result = await client.fetchResult("/tv/1");
 
         expect(result).toEqual({ kind: "success", data: { title: "stary" } });
+    });
+});
+
+describe("limit prob dla konkretnego endpointu", () => {
+    it("obniza liczbe podejsc ponizej globalnego limitu", async () => {
+        vi.mocked(fetch).mockResolvedValue(jsonResponse({ error: "boom" }, 500));
+        const client = createRateLimitedClient({ ...baseConfig, maxRetries: 3 });
+
+        const result = await client.fetchResult("/tv/1", undefined, undefined, { maxRetries: 1 });
+
+        expect(fetch).toHaveBeenCalledTimes(2);
+        expect(result.kind).toBe("error");
+    });
+
+    it("nie moze podniesc globalnego limitu prob", async () => {
+        vi.mocked(fetch).mockResolvedValue(jsonResponse({ error: "boom" }, 429));
+        const client = createRateLimitedClient({ ...baseConfig, maxRetries: 1 });
+
+        await client.fetchResult("/tv/1", undefined, undefined, { maxRetries: 9 });
+
+        expect(fetch).toHaveBeenCalledTimes(2);
     });
 });
 

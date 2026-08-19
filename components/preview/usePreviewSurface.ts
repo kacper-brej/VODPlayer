@@ -8,6 +8,7 @@ import {
     cancelPreview,
     requestPreview,
     schedulePreview,
+    trackUserActivation,
 } from "@/components/series/previewController";
 
 export const PREVIEW_INTENT_MS = 300;
@@ -54,6 +55,8 @@ export const usePreviewSurface = (source: PreviewSource | null | undefined) => {
         if (!request) return;
         void requestPreview(request, { intent: "manual", autoPreviewsEnabled, reduceData });
     }, [autoPreviewsEnabled, makeRequest, reduceData]);
+
+    useEffect(trackUserActivation, []);
 
     useEffect(() => stop, [stop, pathname, source?.src]);
 

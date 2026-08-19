@@ -2,15 +2,9 @@ import { DataErrorState } from "@/components/data/DataState";
 import EpisodeDeleteButton from "@/components/admin/EpisodeDeleteButton";
 import { getMediaStorageStatus } from "@/lib/admin/mediaStorageStatus";
 import { getStorageUsageAction } from "@/lib/admin/adminStorageActions";
+import { B2_FREE_TIER_STORAGE_GB, formatB2Bytes, getB2FreeTierUsedPercent } from "@/lib/admin/b2Storage";
 
-const B2_FREE_TIER_STORAGE_GB = 10;
 const STORAGE_HISTORY_DAYS_SHOWN = 14;
-
-const formatBytes = (bytes: number): string => {
-    if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
-    if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
-    return `${(bytes / 1024).toFixed(0)} KB`;
-};
 
 const formatDayLabel = (isoDate: string): string => {
     const parsed = new Date(`${isoDate}T00:00:00`);
@@ -24,7 +18,7 @@ const AdminStoragePage = async () => {
     ]);
 
     const readyAssets = mediaStorageResult.kind === "success"
-        ? mediaStorageResult.data.assets.filter((asset) => asset.status === "ready")
+        ? mediaStorageResult.data.assets.filter((asset) => asset.delivery === "hls" && asset.status === "ready")
         : [];
     const sortedAssets = [...readyAssets].sort((a, b) => (b.totalSizeBytes ?? 0) - (a.totalSizeBytes ?? 0));
 
@@ -32,9 +26,8 @@ const AdminStoragePage = async () => {
     const currentMonthAverageBytes = usageResult.kind === "success" ? usageResult.data.currentMonthAverageBytes : null;
     const history = usageResult.kind === "success" ? usageResult.data.history.slice(-STORAGE_HISTORY_DAYS_SHOWN) : [];
     const maxHistoryBytes = Math.max(1, ...history.map((entry) => entry.totalBytes));
-    const freeTierBytes = B2_FREE_TIER_STORAGE_GB * 1024 ** 3;
     const freeTierUsedPercent = currentTotalBytes !== null
-        ? Math.min(100, Math.round((currentTotalBytes / freeTierBytes) * 100))
+        ? getB2FreeTierUsedPercent(currentTotalBytes)
         : null;
 
     return (
@@ -65,7 +58,7 @@ const AdminStoragePage = async () => {
                             Zużycie dzisiaj
                         </p>
                         <p className="mt-2 font-display text-[clamp(1.75rem,3vw,2.25rem)] leading-none tracking-[-0.025em] text-nx-text [font-variant-numeric:tabular-nums]">
-                            {formatBytes(currentTotalBytes)}
+                            {formatB2Bytes(currentTotalBytes, 2)}
                         </p>
                         <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-nx-border">
                             <div
@@ -83,7 +76,7 @@ const AdminStoragePage = async () => {
                             Średnia w tym miesiącu
                         </p>
                         <p className="mt-2 font-display text-[clamp(1.75rem,3vw,2.25rem)] leading-none tracking-[-0.025em] text-nx-text [font-variant-numeric:tabular-nums]">
-                            {currentMonthAverageBytes !== null ? formatBytes(currentMonthAverageBytes) : "Brak"}
+                            {currentMonthAverageBytes !== null ? formatB2Bytes(currentMonthAverageBytes, 2) : "Brak"}
                         </p>
                         <p className="mt-4 text-xs leading-5 text-nx-text-2">
                             Wartość jest liczona z dziennych migawek zapisywanych przy każdym otwarciu tej
@@ -103,7 +96,7 @@ const AdminStoragePage = async () => {
                             <div
                                 key={entry.date}
                                 className="group/bar relative flex flex-1 cursor-help flex-col items-center justify-end gap-1"
-                                title={`${formatDayLabel(entry.date)}: ${formatBytes(entry.totalBytes)}`}
+                                title={`${formatDayLabel(entry.date)}: ${formatB2Bytes(entry.totalBytes, 2)}`}
                             >
                                 <div
                                     className="w-full rounded-t-sm bg-nx-accent transition-opacity duration-140 group-hover/bar:opacity-80"
@@ -146,7 +139,7 @@ const AdminStoragePage = async () => {
                                     {asset.seriesKey}/{asset.episodeKey}
                                 </span>
                                 <span className="mt-0.5 block font-mono text-[10px] tracking-[0.08em] text-nx-text-2">
-                                    {asset.totalSizeBytes !== null ? formatBytes(asset.totalSizeBytes) : "Brak danych"}
+                                    {asset.totalSizeBytes !== null ? formatB2Bytes(asset.totalSizeBytes, 2) : "Brak danych"}
                                 </span>
                             </span>
                             <EpisodeDeleteButton seriesKey={asset.seriesKey} episodeKey={asset.episodeKey} />

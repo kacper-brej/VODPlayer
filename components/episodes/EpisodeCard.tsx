@@ -44,6 +44,8 @@ const EpisodeCard = ({
 }: EpisodeCardProps) => {
     const [imageFailed, setImageFailed] = useState(false);
     const preview = usePreviewSurface(episode.previewSource);
+    const caption = episode.remainingTime
+        ?? (/\.[a-z0-9]{2,4}$/i.test(episode.fileName) ? episode.fileName : null);
 
     return (
         <article
@@ -126,9 +128,11 @@ const EpisodeCard = ({
                 <span className="mt-1 line-clamp-2 block text-[15px] font-semibold leading-[1.35] text-nx-text">
                     {episode.title}
                 </span>
-                <span className="mt-2 line-clamp-1 block font-mono text-[10px] tracking-[0.08em] text-nx-text-2">
-                    {episode.remainingTime ?? episode.fileName}
-                </span>
+                {caption && (
+                    <span className="mt-2 line-clamp-1 block font-mono text-[10px] tracking-[0.08em] text-nx-text-2">
+                        {caption}
+                    </span>
+                )}
             </span>
             </button>
 
