@@ -15,11 +15,21 @@ const geistMono = localFont({
 });
 
 const bodoniModa = localFont({
-  src: "./fonts/BodoniModa-Variable.woff2",
+  src: "./fonts/BodoniModa-Latin-Variable.woff2",
   variable: "--font-bodoni-moda",
   weight: "400 900",
   style: "normal",
   display: "swap",
+  adjustFontFallback: false,
+});
+
+const bodoniModaExt = localFont({
+  src: "./fonts/BodoniModa-LatinExt-Variable.woff2",
+  variable: "--font-bodoni-moda-ext",
+  weight: "400 900",
+  style: "normal",
+  display: "swap",
+  adjustFontFallback: "Times New Roman",
 });
 
 export const metadata: Metadata = {
@@ -43,7 +53,7 @@ export default function RootLayout({
   return (
       <html
           lang="pl"
-          className={`${geistSans.variable} ${geistMono.variable} ${bodoniModa.variable} h-full`}
+          className={`${geistSans.variable} ${geistMono.variable} ${bodoniModa.variable} ${bodoniModaExt.variable} h-full`}
       >
       <body className="font-ui bg-background text-foreground antialiased selection:bg-primary/30">
       {children}

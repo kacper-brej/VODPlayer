@@ -29,8 +29,13 @@ export const useModalFocus = <T extends HTMLElement>(
         previousFocusRef.current = document.activeElement instanceof HTMLElement
             ? document.activeElement
             : null;
-        const previousOverflow = document.body.style.overflow;
-        document.body.style.overflow = "hidden";
+        const root = document.documentElement;
+        const previousOverflow = root.style.overflow;
+        const previousPaddingRight = root.style.paddingRight;
+        const widthBeforeLock = root.clientWidth;
+        root.style.overflow = "hidden";
+        const scrollbarGap = root.clientWidth - widthBeforeLock;
+        if (scrollbarGap > 0) root.style.paddingRight = `${scrollbarGap}px`;
 
         const focusDialog = window.setTimeout(() => {
             const first = dialogRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
@@ -73,7 +78,8 @@ export const useModalFocus = <T extends HTMLElement>(
         return () => {
             window.clearTimeout(focusDialog);
             document.removeEventListener("keydown", handleKeyDown);
-            document.body.style.overflow = previousOverflow;
+            root.style.overflow = previousOverflow;
+            root.style.paddingRight = previousPaddingRight;
             previousFocusRef.current?.focus();
         };
     }, [open]);

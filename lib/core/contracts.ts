@@ -1510,6 +1510,170 @@ export const validateTmdbTvListResponse = (value: unknown): ContractResult<TmdbT
         ? valid(value)
         : invalid("TMDB tv list response");
 
+export interface TmdbMovieListItem {
+    id: number;
+    title: string;
+    popularity: number;
+    vote_average: number;
+    vote_count: number;
+    release_date: string | null;
+    genre_ids: number[];
+    overview?: string | null;
+    poster_path?: string | null;
+    backdrop_path?: string | null;
+}
+
+export interface TmdbMovieListResponse {
+    page: number;
+    results: TmdbMovieListItem[];
+    total_pages: number;
+    total_results: number;
+}
+
+const isTmdbMovieListItem = (value: unknown): value is TmdbMovieListItem =>
+    isObject(value)
+    && isPositiveInteger(value.id)
+    && isString(value.title)
+    && isNumber(value.popularity)
+    && value.popularity >= 0
+    && isNumber(value.vote_average)
+    && value.vote_average >= 0
+    && value.vote_average <= 10
+    && isNonNegativeInteger(value.vote_count)
+    && isNullableString(value.release_date)
+    && Array.isArray(value.genre_ids)
+    && value.genre_ids.every(isPositiveInteger)
+    && isOptionalNullableString(value.overview)
+    && isOptionalNullableString(value.poster_path)
+    && isOptionalNullableString(value.backdrop_path);
+
+const isTmdbMovieListResponse = (value: unknown): value is TmdbMovieListResponse =>
+    isObject(value)
+    && isPositiveInteger(value.page)
+    && Array.isArray(value.results)
+    && value.results.every(isTmdbMovieListItem)
+    && isNonNegativeInteger(value.total_pages)
+    && isNonNegativeInteger(value.total_results);
+
+export const validateTmdbMovieListResponse = (value: unknown): ContractResult<TmdbMovieListResponse> =>
+    isTmdbMovieListResponse(value)
+        ? valid(value)
+        : invalid("TMDB movie list response");
+
+export interface TmdbSearchItem {
+    id: number;
+    name?: string | null;
+    title?: string | null;
+    overview?: string | null;
+    poster_path?: string | null;
+    backdrop_path?: string | null;
+    vote_average?: number | null;
+    vote_count?: number | null;
+    popularity?: number | null;
+    first_air_date?: string | null;
+    release_date?: string | null;
+    genre_ids?: number[] | null;
+}
+
+export interface TmdbSearchResponse {
+    results: TmdbSearchItem[];
+}
+
+const isTmdbSearchItem = (value: unknown): value is TmdbSearchItem =>
+    isObject(value)
+    && isPositiveInteger(value.id)
+    && isOptionalNullableString(value.name)
+    && isOptionalNullableString(value.title)
+    && isOptionalNullableString(value.overview)
+    && isOptionalNullableString(value.poster_path)
+    && isOptionalNullableString(value.backdrop_path)
+    && isOptionalNullableNumber(value.vote_average)
+    && isOptionalNullableNumber(value.vote_count)
+    && isOptionalNullableNumber(value.popularity)
+    && isOptionalNullableString(value.first_air_date)
+    && isOptionalNullableString(value.release_date)
+    && (value.genre_ids === undefined
+        || value.genre_ids === null
+        || (Array.isArray(value.genre_ids) && value.genre_ids.every(isNumber)));
+
+const isTmdbSearchResponse = (value: unknown): value is TmdbSearchResponse =>
+    isObject(value)
+    && Array.isArray(value.results)
+    && value.results.every(isTmdbSearchItem);
+
+export const validateTmdbSearchResponse = (value: unknown): ContractResult<TmdbSearchResponse> =>
+    isTmdbSearchResponse(value)
+        ? valid(value)
+        : invalid("TMDB search response");
+
+export interface TmdbGenreListResponse {
+    genres: TmdbGenre[];
+}
+
+const isTmdbGenreListResponse = (value: unknown): value is TmdbGenreListResponse =>
+    isObject(value) && Array.isArray(value.genres) && value.genres.every(isTmdbGenre);
+
+export const validateTmdbGenreListResponse = (value: unknown): ContractResult<TmdbGenreListResponse> =>
+    isTmdbGenreListResponse(value)
+        ? valid(value)
+        : invalid("TMDB genre list response");
+
+export interface TmdbMovieReleaseDate {
+    certification: string | null;
+}
+
+export interface TmdbMovieReleaseDateResult {
+    iso_3166_1: string;
+    release_dates: TmdbMovieReleaseDate[];
+}
+
+export interface TmdbMovieDetails {
+    id: number;
+    title: string;
+    original_title: string;
+    overview: string | null;
+    release_date: string | null;
+    runtime: number | null;
+    genres: TmdbGenre[];
+    production_companies: TmdbProductionCompany[];
+    vote_average: number | null;
+    poster_path: string | null;
+    backdrop_path: string | null;
+    release_dates: { results: TmdbMovieReleaseDateResult[] } | null;
+}
+
+const isTmdbMovieReleaseDateResult = (value: unknown): value is TmdbMovieReleaseDateResult =>
+    isObject(value)
+    && isString(value.iso_3166_1)
+    && Array.isArray(value.release_dates)
+    && value.release_dates.every((entry) => isObject(entry) && isOptionalNullableString(entry.certification));
+
+const isTmdbMovieDetails = (value: unknown): value is TmdbMovieDetails =>
+    isObject(value)
+    && isPositiveInteger(value.id)
+    && isString(value.title)
+    && isOptionalNullableString(value.original_title)
+    && isOptionalNullableString(value.overview)
+    && isOptionalNullableString(value.release_date)
+    && isOptionalNullableNumber(value.runtime)
+    && Array.isArray(value.genres)
+    && value.genres.every(isTmdbGenre)
+    && Array.isArray(value.production_companies)
+    && value.production_companies.every((entry) => isObject(entry) && isString(entry.name))
+    && isOptionalNullableNumber(value.vote_average)
+    && isOptionalNullableString(value.poster_path)
+    && isOptionalNullableString(value.backdrop_path)
+    && (value.release_dates === undefined
+        || value.release_dates === null
+        || (isObject(value.release_dates)
+            && Array.isArray(value.release_dates.results)
+            && value.release_dates.results.every(isTmdbMovieReleaseDateResult)));
+
+export const validateTmdbMovieDetails = (value: unknown): ContractResult<TmdbMovieDetails> =>
+    isTmdbMovieDetails(value)
+        ? valid(value)
+        : invalid("TMDB movie details");
+
 export interface TmdbSeasonEpisode {
     episode_number: number;
     name: string | null;

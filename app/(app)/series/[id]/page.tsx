@@ -8,7 +8,7 @@ import { getCatalog, resolveCatalogSeries, type CatalogSeries } from "@/lib/cata
 import {
     getVirtualTmdbEpisodes,
     getVirtualTmdbSeasons,
-    isVirtualTmdbKey,
+    isVirtualTmdbTvKey,
 } from "@/lib/catalog/tmdbVirtualSeries";
 import { getProgressSnapshotAction } from "@/lib/progress/getProgressAction";
 import { seriesPath } from "@/lib/core/routes";
@@ -57,7 +57,7 @@ const resolveSeasons = async (
 ): Promise<SeriesSeason[]> => {
     const local = getSeriesSeasons(catalog, series);
 
-    if (!isVirtualTmdbKey(series.key) || series.tmdbExternalId === null) return local;
+    if (!isVirtualTmdbTvKey(series.key) || series.tmdbExternalId === null) return local;
 
     const available = await getVirtualTmdbSeasons(series.tmdbExternalId);
     if (available.length === 0) return local;

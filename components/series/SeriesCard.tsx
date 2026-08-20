@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
-import { Check, Clock3, Info, MoreVertical, Play, Plus, Star } from "lucide-react";
+import { Check, Clock3, Info, MoreVertical, Plus, Star } from "lucide-react";
 import toggleWatchlistAction from "@/lib/watchlist/toggleWatchlistAction";
 import { blurProps, imageLoader, safeArtworkColor } from "@/lib/catalog/imageDelivery";
 import type { PreviewSource } from "@/lib/player/videoAccess";
@@ -335,16 +335,6 @@ const SeriesCard = ({
                 if (!event.currentTarget.contains(event.relatedTarget)) setIsMoreMenuOpen(false);
             }}
         >
-            {item.previewSource && variant !== "poster" && (
-                <button
-                    type="button"
-                    onClick={preview.startManual}
-                    aria-label={`Odtwórz podgląd: ${item.title}`}
-                    className="flex size-11 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text opacity-0 outline-none transition-[opacity,background-color] hover:bg-nx-raised focus:opacity-100 focus-visible:outline-2 focus-visible:outline-nx-accent group-hover/card:opacity-100 [@media(pointer:coarse)]:opacity-100 sm:size-12"
-                >
-                    <Play size={17} fill="currentColor" aria-hidden="true" />
-                </button>
-            )}
             <button
                 type="button"
                 tabIndex={variant === "row" ? 0 : -1}

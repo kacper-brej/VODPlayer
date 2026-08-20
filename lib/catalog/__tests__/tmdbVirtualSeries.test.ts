@@ -12,10 +12,15 @@ vi.mock("@/lib/player/videoAccess", () => ({ signedManifestUrl: () => "/hls?demo
 
 const {
     TMDB_VIRTUAL_ID_OFFSET,
+    TMDB_VIRTUAL_MOVIE_ID_OFFSET,
     isVirtualTmdbKey,
+    isVirtualTmdbMovieKey,
+    isVirtualTmdbTvKey,
     parseVirtualTmdbRef,
     virtualSeriesFromListItem,
+    virtualSeriesFromMovieListItem,
     virtualTmdbKey,
+    virtualTmdbMovieKey,
     virtualTmdbSeriesId,
 } = await import("@/lib/catalog/tmdbVirtualSeries");
 
@@ -46,8 +51,8 @@ describe("tozsamosc wirtualnych tytulow TMDB", () => {
     });
 
     it("odczytuje identyfikator zarowno z klucza jak i z liczby", () => {
-        expect(parseVirtualTmdbRef("tmdb:1399")).toBe(1399);
-        expect(parseVirtualTmdbRef(String(TMDB_VIRTUAL_ID_OFFSET + 1399))).toBe(1399);
+        expect(parseVirtualTmdbRef("tmdb:1399")).toEqual({ kind: "tv", id: 1399 });
+        expect(parseVirtualTmdbRef(String(TMDB_VIRTUAL_ID_OFFSET + 1399))).toEqual({ kind: "tv", id: 1399 });
     });
 
     it("nie przechwytuje identyfikatorow lokalnych ani spoza zakresu", () => {
@@ -109,5 +114,61 @@ describe("kafelek z listy TMDB", () => {
 
         expect(series.sourceRating).toBeNull();
         expect(series.synopsis).toBeNull();
+    });
+});
+
+const movieItem = (overrides: Record<string, unknown> = {}) => ({
+    id: 603,
+    title: "Matrix",
+    popularity: 90,
+    vote_average: 8.222,
+    vote_count: 500,
+    release_date: "1999-03-30",
+    genre_ids: [28],
+    overview: "Opis filmu.",
+    poster_path: "/movie-poster.jpg",
+    backdrop_path: "/movie-backdrop.jpg",
+    ...overrides,
+});
+
+describe("wirtualne filmy TMDB", () => {
+    it("rozdziela klucze filmow i seriali", () => {
+        expect(virtualTmdbMovieKey(603)).toBe("tmdb:movie:603");
+        expect(isVirtualTmdbMovieKey("tmdb:movie:603")).toBe(true);
+        expect(isVirtualTmdbTvKey("tmdb:movie:603")).toBe(false);
+        expect(isVirtualTmdbTvKey("tmdb:603")).toBe(true);
+        expect(isVirtualTmdbKey("tmdb:movie:603")).toBe(true);
+    });
+
+    it("nie myli filmu z serialem o tym samym numerze TMDB", () => {
+        expect(parseVirtualTmdbRef("tmdb:movie:603")).toEqual({ kind: "movie", id: 603 });
+        expect(parseVirtualTmdbRef("tmdb:603")).toEqual({ kind: "tv", id: 603 });
+        expect(parseVirtualTmdbRef(String(TMDB_VIRTUAL_MOVIE_ID_OFFSET + 603)))
+            .toEqual({ kind: "movie", id: 603 });
+
+        const movie = virtualSeriesFromMovieListItem(movieItem(), null);
+        const series = virtualSeriesFromListItem(listItem({ id: 603 }), null);
+        expect(movie.id).not.toBe(series.id);
+        expect(movie.key).not.toBe(series.key);
+    });
+
+    it("mapuje film z listy na kafelek katalogu", () => {
+        const movie = virtualSeriesFromMovieListItem(
+            movieItem(),
+            "https://image.tmdb.org/t/p/",
+            ["Akcja"],
+        );
+
+        expect(movie).toMatchObject({
+            key: "tmdb:movie:603",
+            title: "Matrix",
+            synopsis: "Opis filmu.",
+            year: 1999,
+            sourceRating: "8.2",
+            access: "demo",
+            tmdbExternalId: 603,
+        });
+        expect(movie.genres).toEqual([{ name: "Akcja", slug: "akcja" }]);
+        expect(movie.posterImage).toBe("https://image.tmdb.org/t/p/w780/movie-poster.jpg");
     });
 });

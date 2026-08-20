@@ -100,7 +100,7 @@
   --font-ui: var(--font-geist-sans);
   --font-sans: var(--font-ui);
   --font-mono: var(--font-geist-mono);
-  --font-display: var(--font-bodoni-moda);
+  --font-display: var(--font-bodoni-moda), var(--font-bodoni-moda-ext);
 }
 
 html {

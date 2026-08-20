@@ -137,7 +137,7 @@ const SeriesModal = () => {
                 aria-label="Szczegóły serialu"
                 tabIndex={-1}
                 onClick={(e) => e.stopPropagation()}
-                className={`relative max-h-dvh w-full overflow-y-auto bg-surface shadow-2xl outline-none transition-[transform,opacity] duration-200 ease-out scrollbar-hide md:max-h-[90vh] md:max-w-4xl md:rounded-xl ${showAnimation ? "translate-y-0 scale-100 opacity-100" : "translate-y-8 scale-[.97] opacity-0"}`}
+                className={`relative flex max-h-dvh w-full flex-col overflow-hidden bg-surface shadow-2xl outline-none transition-[transform,opacity] duration-200 ease-out md:max-h-[90vh] md:max-w-4xl md:rounded-xl ${showAnimation ? "translate-y-0 scale-100 opacity-100" : "translate-y-8 scale-[.97] opacity-0"}`}
             >
                 <button
                     type="button"
@@ -164,11 +164,11 @@ const SeriesModal = () => {
                         />
                     </div>
                 ) : loading || !details ? (
-                    <div className="w-full pb-[calc(32px+env(safe-area-inset-bottom))] text-foreground">
-                        <div className="w-full h-62.5 md:h-100 shrink-0 bg-surface-light animate-pulse relative">
+                    <div className="flex min-h-0 w-full flex-1 flex-col pb-[calc(32px+env(safe-area-inset-bottom))] text-foreground">
+                        <div className="w-full h-62.5 md:h-100 min-h-35 md:min-h-45 bg-surface-light animate-pulse relative">
                             <div className="absolute inset-0 bg-linear-to-t from-surface via-surface/40 to-transparent" />
                         </div>
-                        <div className="px-4 md:px-8 mt-4 relative z-10">
+                        <div className="px-4 md:px-8 mt-4 relative z-10 flex min-h-0 flex-1 flex-col">
                             <div className="h-8 md:h-10 bg-surface-light/60 animate-pulse rounded-md w-2/3 mb-4"></div>
                             <div className="space-y-3 mb-8">
                                 <div className="h-4 bg-surface-light/50 animate-pulse rounded-md w-full"></div>
@@ -176,7 +176,7 @@ const SeriesModal = () => {
                                 <div className="h-4 bg-surface-light/50 animate-pulse rounded-md w-4/6"></div>
                             </div>
                             <div className="h-6 bg-surface-light/60 animate-pulse rounded-md w-32 mb-4"></div>
-                            <div className="flex flex-col gap-3">
+                            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
                                 {[1, 2, 3].map((i) => (
                                     <div key={i} className="flex items-center gap-4 p-3 md:p-4 bg-surface-light/30 rounded-lg border border-border">
                                         <div className="relative w-32 h-20 md:w-40 md:h-24 shrink-0 rounded-md bg-surface-light/60 animate-pulse"></div>
@@ -190,8 +190,8 @@ const SeriesModal = () => {
                         </div>
                     </div>
                 ) : (
-                    <div className="w-full pb-[calc(32px+env(safe-area-inset-bottom))] text-foreground">
-                        <div className="w-full h-62.5 md:h-100 shrink-0 bg-surface-light relative">
+                    <div className="flex min-h-0 w-full flex-1 flex-col text-foreground">
+                        <div className="w-full h-62.5 md:h-100 min-h-35 md:min-h-45 bg-surface-light relative">
                             {details.bannerImage && (
                                 <Image
                                     src={details.bannerImage}
@@ -205,15 +205,15 @@ const SeriesModal = () => {
                             <div className="absolute inset-0 bg-linear-to-t from-surface via-surface/40 to-transparent" />
                         </div>
 
-                        <div className="px-4 md:px-8 mt-4 relative z-10">
-                            <h2 id="series-modal-title" className="mb-2 text-2xl font-bold text-foreground drop-shadow-lg md:font-display md:text-4xl">
+                        <div className="px-4 md:px-8 mt-4 relative z-10 flex min-h-0 flex-1 flex-col">
+                            <h2 id="series-modal-title" className="mb-2 shrink-0 text-2xl font-bold text-foreground drop-shadow-lg md:font-display md:text-4xl">
                                 {details.title}
                             </h2>
-                            <p className="text-sm md:text-base text-muted mb-6 line-clamp-4 md:line-clamp-none">
+                            <p className="shrink-0 text-sm md:text-base text-muted mb-6 line-clamp-4">
                                 {details.synopsis}
                             </p>
 
-                            <div className="mb-8 flex flex-wrap items-center gap-3">
+                            <div className="mb-8 flex shrink-0 flex-wrap items-center gap-3">
                                 <button
                                     onClick={goToSeriesPage}
                                     className="flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface-light px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:border-primary hover:bg-primary hover:text-on-accent focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-primary md:px-5 md:py-2.5 md:text-base"
@@ -237,11 +237,11 @@ const SeriesModal = () => {
                                 <p role="alert" className="-mt-4 mb-6 text-sm text-nx-critical">{partyError}</p>
                             )}
 
-                            <h3 className="mb-4 text-lg font-semibold text-foreground md:text-xl">
+                            <h3 className="mb-4 shrink-0 text-lg font-semibold text-foreground md:text-xl">
                                 Odcinki ({details.episodes.length})
                             </h3>
 
-                            <div className="-mr-1 flex flex-col gap-3 pr-1 scrollbar-hide md:max-h-[40vh] md:overflow-y-auto">
+                            <div className="-mr-1 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain pb-[calc(24px+env(safe-area-inset-bottom))] pr-1 scrollbar-hide">
                                 {details.episodes.map((episode) => (
                                     <button
                                         type="button"

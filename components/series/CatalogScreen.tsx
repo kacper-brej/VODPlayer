@@ -6,6 +6,7 @@ import SeriesCard from "@/components/series/SeriesCard";
 import { DataErrorState } from "@/components/data/DataState";
 import { getCatalog, type CatalogSeries } from "@/lib/catalog/catalog";
 import { collapseSeriesGroups, getCatalogGenres, newestEpisodeAddedAt } from "@/lib/catalog/catalogRows";
+import { getTmdbCatalogFeed } from "@/lib/catalog/tmdbCatalogFeed";
 import { getResumeMap } from "@/lib/progress/continueWatching";
 import { getWatchlist } from "@/lib/watchlist/watchlist";
 import { toContentCard } from "@/lib/catalog/contentCards";
@@ -262,7 +263,10 @@ const CatalogScreen = async ({
     const page = Number.isFinite(requestedPage) && requestedPage > 0
         ? Math.min(requestedPage, 100)
         : 1;
-    const collapsed = collapseSeriesGroups(catalogResult.data);
+    const tmdbFeed = mode === "all" || mode === "genres"
+        ? await getTmdbCatalogFeed(catalogResult.data, { query })
+        : [];
+    const collapsed = [...collapseSeriesGroups(catalogResult.data), ...tmdbFeed];
     const listedItems = watchlistResult.kind === "success" ? watchlistResult.data : [];
     const listedKeys = new Set(listedItems.map((item) => item.seriesKey));
     const resumeMap = resumeResult.kind === "error"
@@ -320,7 +324,7 @@ const CatalogScreen = async ({
                 <GenreDirectory catalog={collapsed} genres={genres} basePath={basePath} />
             )}
 
-            {catalogResult.kind === "empty" || source.length === 0 ? (
+            {source.length === 0 ? (
                 <div className="mt-10">
                     <EmptyCatalog
                         mode={mode}

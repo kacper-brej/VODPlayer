@@ -3,6 +3,7 @@ import { resolveCatalogSeries } from "@/lib/catalog/catalog";
 import {
     getVirtualTmdbEpisodes,
     isVirtualTmdbKey,
+    isVirtualTmdbTvKey,
     parseVirtualEpisodeKey,
 } from "@/lib/catalog/tmdbVirtualSeries";
 import { getSeriesResume } from "@/lib/progress/continueWatching";
@@ -44,7 +45,7 @@ const WatchPage = async ({ searchParams }: { searchParams: Promise<{ id?: string
 
     const resolved = seriesResult.data;
     const requestedVirtualEpisode = epQuery ? parseVirtualEpisodeKey(epQuery) : null;
-    const virtualTmdbId = isVirtualTmdbKey(resolved.key) ? resolved.tmdbExternalId : null;
+    const virtualTmdbId = isVirtualTmdbTvKey(resolved.key) ? resolved.tmdbExternalId : null;
 
     const series = requestedVirtualEpisode && virtualTmdbId !== null
         && requestedVirtualEpisode.season !== resolved.seasonNumber

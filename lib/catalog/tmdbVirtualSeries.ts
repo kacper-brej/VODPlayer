@@ -2,9 +2,10 @@ import "server-only";
 import { cache } from "react";
 import { getDemoAsset, type DemoAsset } from "@/lib/access/demoAsset";
 import type { CatalogEpisode, CatalogSeries } from "@/lib/catalog/catalog";
-import type { CatalogGenre, TmdbTvListItem } from "@/lib/core/contracts";
+import type { CatalogGenre, TmdbMovieListItem, TmdbTvListItem } from "@/lib/core/contracts";
 import { dataEmpty, dataSuccess, type DataResult } from "@/lib/core/dataResult";
 import { getTmdbImageBaseUrl } from "@/lib/metadata/tmdbConfig";
+import { getTmdbMovie } from "@/lib/metadata/tmdbMovies";
 import {
     getTmdbSeasonEpisodes,
     getTmdbSeasonSummaries,
@@ -14,33 +15,67 @@ import { signedManifestUrl } from "@/lib/player/videoAccess";
 
 export const TMDB_VIRTUAL_ID_OFFSET = 2_000_000;
 export const TMDB_VIRTUAL_ID_LIMIT = 3_000_000;
+export const TMDB_VIRTUAL_MOVIE_ID_OFFSET = 3_000_000;
+export const TMDB_VIRTUAL_MOVIE_ID_LIMIT = 4_000_000;
 
 const VIRTUAL_KEY_PREFIX = "tmdb:";
+const VIRTUAL_MOVIE_KEY_PREFIX = "tmdb:movie:";
 const VIRTUAL_KEY_PATTERN = /^tmdb:(\d+)$/;
+const VIRTUAL_MOVIE_KEY_PATTERN = /^tmdb:movie:(\d+)$/;
 const FALLBACK_SYNOPSIS = "Ten tytuł pochodzi z katalogu TMDB.";
+
+export type TmdbVirtualKind = "tv" | "movie";
+
+export interface TmdbVirtualRef {
+    kind: TmdbVirtualKind;
+    id: number;
+}
 
 export const virtualTmdbKey = (tmdbId: number): string => `${VIRTUAL_KEY_PREFIX}${tmdbId}`;
 
+export const virtualTmdbMovieKey = (tmdbId: number): string => `${VIRTUAL_MOVIE_KEY_PREFIX}${tmdbId}`;
+
 export const virtualTmdbSeriesId = (tmdbId: number): number => TMDB_VIRTUAL_ID_OFFSET + tmdbId;
 
-export const isVirtualTmdbKey = (key: string): boolean => VIRTUAL_KEY_PATTERN.test(key);
+export const virtualTmdbMovieId = (tmdbId: number): number => TMDB_VIRTUAL_MOVIE_ID_OFFSET + tmdbId;
+
+export const isVirtualTmdbTvKey = (key: string): boolean => VIRTUAL_KEY_PATTERN.test(key);
+
+export const isVirtualTmdbMovieKey = (key: string): boolean => VIRTUAL_MOVIE_KEY_PATTERN.test(key);
+
+export const isVirtualTmdbKey = (key: string): boolean =>
+    isVirtualTmdbTvKey(key) || isVirtualTmdbMovieKey(key);
 
 const isUsableTmdbId = (value: number): boolean =>
     Number.isSafeInteger(value) && value > 0 && value < TMDB_VIRTUAL_ID_LIMIT - TMDB_VIRTUAL_ID_OFFSET;
 
-export const parseVirtualTmdbRef = (query: string): number | null => {
-    const keyMatch = VIRTUAL_KEY_PATTERN.exec(query.trim());
-    if (keyMatch) {
-        const id = Number(keyMatch[1]);
-        return isUsableTmdbId(id) ? id : null;
+export const parseVirtualTmdbRef = (query: string): TmdbVirtualRef | null => {
+    const trimmed = query.trim();
+
+    const movieKeyMatch = VIRTUAL_MOVIE_KEY_PATTERN.exec(trimmed);
+    if (movieKeyMatch) {
+        const id = Number(movieKeyMatch[1]);
+        return isUsableTmdbId(id) ? { kind: "movie", id } : null;
     }
 
-    const numeric = Number(query);
+    const keyMatch = VIRTUAL_KEY_PATTERN.exec(trimmed);
+    if (keyMatch) {
+        const id = Number(keyMatch[1]);
+        return isUsableTmdbId(id) ? { kind: "tv", id } : null;
+    }
+
+    const numeric = Number(trimmed);
     if (!Number.isSafeInteger(numeric)) return null;
+
+    if (numeric >= TMDB_VIRTUAL_MOVIE_ID_OFFSET && numeric < TMDB_VIRTUAL_MOVIE_ID_LIMIT) {
+        const id = numeric - TMDB_VIRTUAL_MOVIE_ID_OFFSET;
+        return isUsableTmdbId(id) ? { kind: "movie", id } : null;
+    }
+
     if (numeric < TMDB_VIRTUAL_ID_OFFSET || numeric >= TMDB_VIRTUAL_ID_LIMIT) return null;
 
     const id = numeric - TMDB_VIRTUAL_ID_OFFSET;
-    return isUsableTmdbId(id) ? id : null;
+    return isUsableTmdbId(id) ? { kind: "tv", id } : null;
 };
 
 const yearFromDate = (date: string | null | undefined): number | null => {
@@ -71,9 +106,10 @@ const demoEpisodeUrl = (demo: DemoAsset | null): string | null =>
 const baseVirtualSeries = (
     tmdbId: number,
     title: string,
+    kind: TmdbVirtualKind = "tv",
 ): CatalogSeries => ({
-    id: virtualTmdbSeriesId(tmdbId),
-    key: virtualTmdbKey(tmdbId),
+    id: kind === "movie" ? virtualTmdbMovieId(tmdbId) : virtualTmdbSeriesId(tmdbId),
+    key: kind === "movie" ? virtualTmdbMovieKey(tmdbId) : virtualTmdbKey(tmdbId),
     title,
     updatedAt: 0,
     groupId: null,
@@ -119,6 +155,7 @@ const baseVirtualSeries = (
 export const virtualSeriesFromListItem = (
     item: TmdbTvListItem,
     imageBaseUrl: string | null,
+    genres: readonly string[] = [],
 ): CatalogSeries => {
     const poster = imageUrl(imageBaseUrl, "w780", item.poster_path);
     const backdrop = imageUrl(imageBaseUrl, "w1280", item.backdrop_path);
@@ -133,6 +170,30 @@ export const virtualSeriesFromListItem = (
         synopsis: item.overview?.trim() || null,
         sourceRating: formatScore(item.vote_average),
         year: yearFromDate(item.first_air_date),
+        genres: toGenres(genres),
+        episodes: [],
+    };
+};
+
+export const virtualSeriesFromMovieListItem = (
+    item: TmdbMovieListItem,
+    imageBaseUrl: string | null,
+    genres: readonly string[] = [],
+): CatalogSeries => {
+    const poster = imageUrl(imageBaseUrl, "w780", item.poster_path);
+    const backdrop = imageUrl(imageBaseUrl, "w1280", item.backdrop_path);
+
+    return {
+        ...baseVirtualSeries(item.id, item.title, "movie"),
+        coverImage: poster ?? "",
+        sourceCoverImage: poster,
+        posterImage: poster,
+        backdropImage: backdrop,
+        bannerImage: backdrop,
+        synopsis: item.overview?.trim() || null,
+        sourceRating: formatScore(item.vote_average),
+        year: yearFromDate(item.release_date),
+        genres: toGenres(genres),
         episodes: [],
     };
 };
@@ -214,7 +275,7 @@ const loadVirtualTmdbSeries = async (tmdbId: number): Promise<DataResult<Catalog
         : virtualEpisodes(episodesResult.data, imageBaseUrl, demo, seasonNumber);
 
     return dataSuccess({
-        ...baseVirtualSeries(tmdbId, details.titles.primary),
+        ...baseVirtualSeries(tmdbId, details.titles.primary, "tv"),
         seasonNumber,
         coverImage: poster ?? "",
         sourceCoverImage: poster,
@@ -282,3 +343,59 @@ const loadVirtualTmdbEpisodes = async (
 };
 
 export const getVirtualTmdbEpisodes = cache(loadVirtualTmdbEpisodes);
+
+const loadVirtualTmdbMovie = async (tmdbId: number): Promise<DataResult<CatalogSeries | null>> => {
+    if (!isUsableTmdbId(tmdbId)) return dataEmpty(null);
+
+    const [movieResult, imageBaseResult, demo] = await Promise.all([
+        getTmdbMovie(tmdbId),
+        getTmdbImageBaseUrl(),
+        getDemoAsset(),
+    ]);
+
+    if (movieResult.kind === "error") return dataEmpty(null);
+
+    const movie = movieResult.data;
+    const imageBaseUrl = imageBaseResult.kind === "error" ? null : imageBaseResult.data;
+    const poster = imageUrl(imageBaseUrl, "w780", movie.posterPath);
+    const backdrop = imageUrl(imageBaseUrl, "w1280", movie.backdropPath);
+    const runtimeSeconds = movie.runtimeMinutes === null ? null : movie.runtimeMinutes * 60;
+
+    const episode: CatalogEpisode = {
+        key: virtualEpisodeKey(1, 1),
+        number: 1,
+        sizeBytes: 0,
+        addedAt: 0,
+        title: movie.title,
+        synopsis: movie.synopsis,
+        durationSeconds: demo?.durationSeconds ?? runtimeSeconds,
+        thumbnail: imageUrl(imageBaseUrl, "w780", movie.backdropPath),
+        media: null,
+        url: demoEpisodeUrl(demo),
+    };
+
+    return dataSuccess({
+        ...baseVirtualSeries(tmdbId, movie.title, "movie"),
+        coverImage: poster ?? "",
+        sourceCoverImage: poster,
+        posterImage: poster,
+        backdropImage: backdrop,
+        bannerImage: backdrop,
+        synopsis: movie.synopsis ?? FALLBACK_SYNOPSIS,
+        sourceRating: formatScore(movie.score),
+        ageRating: movie.ageRating,
+        year: movie.year,
+        studio: movie.studio,
+        genres: toGenres(movie.genres),
+        altTitles: movie.originalTitle && movie.originalTitle !== movie.title ? [movie.originalTitle] : [],
+        episodeCount: 1,
+        episodes: [episode],
+    });
+};
+
+export const getVirtualTmdbMovie = cache(loadVirtualTmdbMovie);
+
+export const getVirtualTmdbTitle = (
+    ref: TmdbVirtualRef,
+): Promise<DataResult<CatalogSeries | null>> =>
+    ref.kind === "movie" ? getVirtualTmdbMovie(ref.id) : getVirtualTmdbSeries(ref.id);

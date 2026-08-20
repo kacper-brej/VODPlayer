@@ -12,7 +12,7 @@ import { getViewerEntitlements, type ViewerEntitlements } from "@/lib/access/ent
 import { getDemoAsset, type DemoAsset } from "@/lib/access/demoAsset";
 import { buildCatalog } from "@/lib/catalog/catalogService";
 import { resolveArtwork } from "@/lib/catalog/imageDelivery";
-import { getVirtualTmdbSeries, parseVirtualTmdbRef } from "@/lib/catalog/tmdbVirtualSeries";
+import { getVirtualTmdbTitle, parseVirtualTmdbRef } from "@/lib/catalog/tmdbVirtualSeries";
 import {
     dataEmpty,
     dataFailure,
@@ -138,8 +138,8 @@ export const resolveCatalogSeries = cache(async (query: string): Promise<DataRes
 
     if (directMatch) return dataSuccess(directMatch);
 
-    const virtualTmdbId = parseVirtualTmdbRef(query);
-    if (virtualTmdbId !== null) return getVirtualTmdbSeries(virtualTmdbId);
+    const virtualRef = parseVirtualTmdbRef(query);
+    if (virtualRef !== null) return getVirtualTmdbTitle(virtualRef);
 
     const legacyId = Number(query);
     const legacyIndex = legacyId - LEGACY_LOCAL_ID_OFFSET;
