@@ -1,5 +1,6 @@
 import type { EpisodeProgress } from "@/lib/core/contracts";
 import type { CatalogSeries } from "@/lib/catalog/catalog";
+import type { DataErrorReason } from "@/lib/core/dataResult";
 
 export interface SeriesSeason {
     id: string;
@@ -11,6 +12,8 @@ export interface SeriesSeason {
     coverImage: string | null;
     episodes: CatalogSeries["episodes"];
     declaredEpisodeCount?: number;
+    loadError?: DataErrorReason;
+    source: CatalogSeries;
 }
 
 const toSeason = (entry: CatalogSeries): SeriesSeason => ({
@@ -22,6 +25,7 @@ const toSeason = (entry: CatalogSeries): SeriesSeason => ({
     title: entry.title,
     coverImage: entry.sourceCoverImage,
     episodes: entry.episodes,
+    source: entry,
 });
 
 export const getSeriesDisplayTitle = (series: CatalogSeries) => series.baseTitle ?? series.title;
@@ -47,6 +51,13 @@ export const getKnownProgressPercent = (progress?: EpisodeProgress) => {
     if (progress.completed) return 100;
     if (!progress.durationSeconds || progress.durationSeconds <= 0) return 0;
     return Math.min(100, Math.round((progress.positionSeconds / progress.durationSeconds) * 100));
+};
+
+export const getSeasonEpisodeCount = (season: SeriesSeason | undefined): number => {
+    if (!season) return 0;
+    return season.episodes.length > 0
+        ? season.episodes.length
+        : season.declaredEpisodeCount ?? 0;
 };
 
 export const formatRemainingTime = (progress?: EpisodeProgress) => {

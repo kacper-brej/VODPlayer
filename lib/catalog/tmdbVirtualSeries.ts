@@ -300,6 +300,9 @@ export interface VirtualTmdbSeason {
     number: number;
     label: string;
     episodeCount: number;
+    year: number | null;
+    synopsis: string | null;
+    rating: string | null;
 }
 
 const loadVirtualTmdbSeasons = async (tmdbId: number): Promise<VirtualTmdbSeason[]> => {
@@ -314,17 +317,20 @@ const loadVirtualTmdbSeasons = async (tmdbId: number): Promise<VirtualTmdbSeason
             number: season.season_number,
             label: season.name?.trim() || `Sezon ${season.season_number}`,
             episodeCount: Number.isSafeInteger(season.episode_count) ? season.episode_count as number : 0,
+            year: yearFromDate(season.air_date),
+            synopsis: season.overview?.trim() || null,
+            rating: formatScore(season.vote_average),
         }))
         .sort((left, right) => left.number - right.number);
 };
 
 export const getVirtualTmdbSeasons = cache(loadVirtualTmdbSeasons);
 
-const loadVirtualTmdbEpisodes = async (
+const loadVirtualTmdbEpisodesResult = async (
     tmdbId: number,
     seasonNumber: number,
-): Promise<CatalogEpisode[]> => {
-    if (!isUsableTmdbId(tmdbId)) return [];
+): Promise<DataResult<CatalogEpisode[]>> => {
+    if (!isUsableTmdbId(tmdbId)) return dataEmpty([]);
 
     const [episodes, imageBaseResult, demo] = await Promise.all([
         getTmdbSeasonEpisodes(`tv:${tmdbId}`, seasonNumber),
@@ -332,17 +338,25 @@ const loadVirtualTmdbEpisodes = async (
         getDemoAsset(),
     ]);
 
-    if (episodes.kind === "error") return [];
+    if (episodes.kind === "error") return episodes;
 
-    return virtualEpisodes(
+    return dataSuccess(virtualEpisodes(
         episodes.data,
         imageBaseResult.kind === "error" ? null : imageBaseResult.data,
         demo,
         seasonNumber,
-    );
+    ));
 };
 
-export const getVirtualTmdbEpisodes = cache(loadVirtualTmdbEpisodes);
+export const getVirtualTmdbEpisodesResult = cache(loadVirtualTmdbEpisodesResult);
+
+export const getVirtualTmdbEpisodes = cache(async (
+    tmdbId: number,
+    seasonNumber: number,
+): Promise<CatalogEpisode[]> => {
+    const result = await getVirtualTmdbEpisodesResult(tmdbId, seasonNumber);
+    return result.kind === "error" ? [] : result.data;
+});
 
 const loadVirtualTmdbMovie = async (tmdbId: number): Promise<DataResult<CatalogSeries | null>> => {
     if (!isUsableTmdbId(tmdbId)) return dataEmpty(null);

@@ -1,6 +1,4 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
 /node_modules
 /.pnp
 .pnp.*
@@ -30,7 +28,6 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
 .env*
 !.env.example
 
@@ -49,9 +46,7 @@ tools/transcode/.b2-server-config-values.txt
 tools/transcode/node_modules/
 tools/transcode/.transcode-work/
 
-# typescript
 *.tsbuildinfo
 next-env.d.ts
 
-# claude code local tooling
 /.claude/

@@ -1296,6 +1296,10 @@ export interface TmdbSeasonSummary {
     season_number: number;
     name: string;
     episode_count?: number | null;
+    air_date?: string | null;
+    overview?: string | null;
+    poster_path?: string | null;
+    vote_average?: number | null;
 }
 
 export interface TmdbTvDetails {
@@ -1386,7 +1390,11 @@ const isTmdbSeasonSummary = (value: unknown): value is TmdbSeasonSummary =>
     isObject(value)
     && isNumber(value.season_number)
     && isString(value.name)
-    && isOptionalNullableNumber(value.episode_count);
+    && isOptionalNullableNumber(value.episode_count)
+    && (value.air_date === undefined || isNullableString(value.air_date))
+    && (value.overview === undefined || isNullableString(value.overview))
+    && (value.poster_path === undefined || isNullableString(value.poster_path))
+    && isOptionalNullableNumber(value.vote_average);
 
 const isTmdbTvDetails = (value: unknown): value is TmdbTvDetails =>
     isObject(value)

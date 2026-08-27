@@ -6,7 +6,7 @@ import SeriesHero from "@/components/series/SeriesHero";
 import SeriesMetadata from "@/components/series/SeriesMetadata";
 import { getCatalog, resolveCatalogSeries, type CatalogSeries } from "@/lib/catalog/catalog";
 import {
-    getVirtualTmdbEpisodes,
+    getVirtualTmdbEpisodesResult,
     getVirtualTmdbSeasons,
     isVirtualTmdbTvKey,
 } from "@/lib/catalog/tmdbVirtualSeries";
@@ -15,6 +15,7 @@ import { seriesPath } from "@/lib/core/routes";
 import {
     getSeriesDisplayTitle,
     getSeriesSeasons,
+    getSeasonEpisodeCount,
     type SeriesSeason,
     currentUnixTime,
     formatEpisodeNumber,
@@ -66,7 +67,8 @@ const resolveSeasons = async (
     const activeNumber = available.some((season) => season.number === requested)
         ? requested
         : available[0].number;
-    const activeEpisodes = await getVirtualTmdbEpisodes(series.tmdbExternalId, activeNumber);
+    const activeEpisodesResult = await getVirtualTmdbEpisodesResult(series.tmdbExternalId, activeNumber);
+    const activeEpisodes = activeEpisodesResult.kind === "error" ? [] : activeEpisodesResult.data;
 
     return available.map((season) => ({
         id: String(season.number),
@@ -78,6 +80,15 @@ const resolveSeasons = async (
         coverImage: series.sourceCoverImage,
         episodes: season.number === activeNumber ? activeEpisodes : [],
         declaredEpisodeCount: season.episodeCount,
+        ...(season.number === activeNumber && activeEpisodesResult.kind === "error"
+            ? { loadError: activeEpisodesResult.reason }
+            : {}),
+        source: {
+            ...series,
+            year: season.year ?? series.year,
+            synopsis: season.synopsis ?? series.synopsis,
+            sourceRating: season.rating ?? series.sourceRating,
+        },
     }));
 };
 
@@ -127,6 +138,8 @@ const SeriesPage = async ({ params, searchParams }: SeriesPageProps) => {
     const initialSeason = seasons.some((season) => season.id === requestedSeason)
         ? requestedSeason as string
         : seasons.find((season) => season.seriesId === series.id)?.id ?? seasons[0]?.id ?? "all";
+    const activeSeason = seasons.find((season) => season.id === initialSeason) ?? seasons[0];
+    const activeSeries = activeSeason?.source ?? series;
 
     const progressResult = await getProgressSnapshotAction(seasons.map((season) => season.seriesKey));
     const progressEntries = seasons.map((season) => {
@@ -158,7 +171,7 @@ const SeriesPage = async ({ params, searchParams }: SeriesPageProps) => {
                 episodeNumber: episode.number,
                 title: episode.title ?? `Odcinek ${formatEpisodeNumber(episode.number)}`,
                 fileName: episode.key,
-                thumbnail: episode.thumbnail ?? series.backdropImage ?? series.sourceCoverImage,
+                thumbnail: episode.thumbnail ?? season.source.backdropImage ?? season.source.sourceCoverImage,
                 percent,
                 remainingTime: formatRemainingTime(entry),
                 watched,
@@ -181,16 +194,17 @@ const SeriesPage = async ({ params, searchParams }: SeriesPageProps) => {
             seriesId: season.seriesId,
             episodes,
             resumeEpisodeKey: resume?.episodeKey ?? null,
+            loadError: season.loadError ?? null,
         };
     });
 
     const activeProgress = progressEntries.find(({ season }) => season.id === initialSeason);
-    const activeSeason = seasons.find((season) => season.id === initialSeason) ?? seasons[0];
     const resumeEpisodeKey = activeProgress?.resume?.episodeKey ?? null;
     const resumeEpisodeNumber = activeSeason?.episodes.find((episode) => episode.key === resumeEpisodeKey)?.number ?? null;
-    const allEpisodes = seasons.flatMap((season) => season.episodes);
-    const addedAt = allEpisodes.length > 0
-        ? Math.min(...allEpisodes.map((episode) => episode.addedAt))
+    const activeEpisodes = activeSeason?.episodes ?? [];
+    const activeEpisodeCount = getSeasonEpisodeCount(activeSeason);
+    const addedAt = activeEpisodes.length > 0
+        ? Math.min(...activeEpisodes.map((episode) => episode.addedAt))
         : null;
     const progressAvailable = progressResult.kind !== "error";
     const authRequired = progressResult.kind === "error"
@@ -203,36 +217,36 @@ const SeriesPage = async ({ params, searchParams }: SeriesPageProps) => {
                     seriesId={activeSeason?.seriesId ?? series.id}
                     seriesKey={activeSeason?.seriesKey ?? series.key}
                     title={displayTitle}
-                    backdropImage={series.backdropImage}
-                    logoImage={series.logoImage}
-                    placeholder={series.backdropPlaceholder ?? series.placeholder}
-                    synopsis={series.synopsis}
-                    year={series.year}
-                    rating={series.sourceRating}
-                    ageRating={series.ageRating}
-                    episodeCount={allEpisodes.length}
+                    backdropImage={activeSeries.backdropImage}
+                    logoImage={activeSeries.logoImage}
+                    placeholder={activeSeries.backdropPlaceholder ?? activeSeries.placeholder}
+                    synopsis={activeSeries.synopsis}
+                    year={activeSeries.year}
+                    rating={activeSeries.sourceRating}
+                    ageRating={activeSeries.ageRating}
+                    episodeCount={activeEpisodeCount}
                     resumeEpisodeKey={resumeEpisodeKey}
                     resumeEpisodeNumber={resumeEpisodeNumber}
                     firstEpisodeKey={activeSeason?.episodes[0]?.key ?? null}
-                    dominantColor={series.backdropDominantColor ?? series.dominantColor}
-                    focalX={series.focalX}
-                    focalY={series.focalY}
-                    safeLeft={series.safeLeft}
-                    safeBottom={series.safeBottom}
+                    dominantColor={activeSeries.backdropDominantColor ?? activeSeries.dominantColor}
+                    focalX={activeSeries.focalX}
+                    focalY={activeSeries.focalY}
+                    safeLeft={activeSeries.safeLeft}
+                    safeBottom={activeSeries.safeBottom}
                 />
 
-                <div className={`pointer-events-none relative z-20 mx-auto grid w-full max-w-[1440px] grid-cols-4 gap-x-4 px-5 sm:px-8 lg:grid-cols-12 lg:gap-x-5 lg:px-10 xl:-mt-[calc(58vh-96px)] xl:min-h-[calc(58vh-96px)] xl:px-11 2xl:-mt-[calc(62vh-96px)] 2xl:min-h-[calc(62vh-96px)] 2xl:px-12 ${series.synopsis ? "mt-8 mb-16" : "mt-0 mb-10"}`}>
+                <div className={`pointer-events-none relative z-20 mx-auto grid w-full max-w-[1440px] grid-cols-4 gap-x-4 px-5 sm:px-8 lg:grid-cols-12 lg:gap-x-5 lg:px-10 xl:-mt-[calc(58vh-96px)] xl:min-h-[calc(58vh-96px)] xl:px-11 2xl:-mt-[calc(62vh-96px)] 2xl:min-h-[calc(62vh-96px)] 2xl:px-12 ${activeSeries.synopsis ? "mt-8 mb-16" : "mt-0 mb-10"}`}>
                     <div className="pointer-events-auto col-span-4 lg:col-span-12 xl:col-span-4 xl:col-start-9">
                         <SeriesMetadata
-                            year={series.year}
-                            rating={series.sourceRating}
-                            episodeCount={allEpisodes.length}
+                            year={activeSeries.year}
+                            rating={activeSeries.sourceRating}
+                            episodeCount={activeEpisodeCount}
                             addedAt={addedAt}
                             progressAvailable={progressAvailable}
-                            genres={series.genres}
-                            studio={series.studio}
-                            audioLanguages={series.audioLanguages}
-                            subtitleLanguages={series.subtitleLanguages}
+                            genres={activeSeries.genres}
+                            studio={activeSeries.studio}
+                            audioLanguages={activeSeries.audioLanguages}
+                            subtitleLanguages={activeSeries.subtitleLanguages}
                         />
                     </div>
                 </div>

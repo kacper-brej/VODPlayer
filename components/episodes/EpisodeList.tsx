@@ -4,18 +4,21 @@ import Image from "next/image";
 import { imageLoader } from "@/lib/catalog/imageDelivery";
 import Link from "next/link";
 import { Play, X } from "lucide-react";
-import { useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useMemo, useOptimistic, useRef, useState, useTransition, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import EpisodeCard, { type EpisodeCardData } from "@/components/episodes/EpisodeCard";
 import SeasonsSelector, { type SeasonOption } from "@/components/series/SeasonsSelector";
 import { watchPath } from "@/lib/core/routes";
 import { useModalFocus } from "@/lib/core/useModalFocus";
 import { usePreviewSurface } from "@/components/preview/usePreviewSurface";
+import { DataErrorState } from "@/components/data/DataState";
+import type { DataErrorReason } from "@/lib/core/dataResult";
 
 export interface SeasonEpisodes extends SeasonOption {
     seriesId: number;
     episodes: EpisodeCardData[];
     resumeEpisodeKey: string | null;
+    loadError: DataErrorReason | null;
 }
 
 interface EpisodeListProps {
@@ -26,7 +29,8 @@ interface EpisodeListProps {
 
 const EpisodeList = ({ seasons, initialSeason, authRequired }: EpisodeListProps) => {
     const router = useRouter();
-    const [activeSeason, setActiveSeason] = useState(initialSeason);
+    const [activeSeason, setActiveSeason] = useOptimistic(initialSeason);
+    const [isSeasonPending, startSeasonTransition] = useTransition();
     const [activeCard, setActiveCard] = useState(0);
     const [blockedEpisode, setBlockedEpisode] = useState<EpisodeCardData | null>(null);
     const cards = useRef<Array<HTMLButtonElement | null>>([]);
@@ -43,11 +47,14 @@ const EpisodeList = ({ seasons, initialSeason, authRequired }: EpisodeListProps)
     const resumePreview = usePreviewSurface(resumeEpisode?.previewSource);
 
     const changeSeason = (id: string) => {
-        setActiveSeason(id);
+        if (id === activeSeason) return;
         setActiveCard(0);
         const url = new URL(window.location.href);
         url.searchParams.set("season", id);
-        window.history.replaceState(window.history.state, "", url);
+        startSeasonTransition(() => {
+            setActiveSeason(id);
+            router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
+        });
     };
 
     const play = (episode: EpisodeCardData) => {
@@ -74,7 +81,7 @@ const EpisodeList = ({ seasons, initialSeason, authRequired }: EpisodeListProps)
         cards.current[next]?.focus();
     };
 
-    if (!season || season.episodes.length === 0) {
+    if (!season) {
         return (
             <section aria-labelledby="episodes-heading" className="mx-auto w-full max-w-[1440px] px-5 pb-20 sm:px-8 lg:px-10 xl:px-11 2xl:px-12">
                 <h2 id="episodes-heading" className="font-display text-3xl text-nx-text">Odcinki</h2>
@@ -89,7 +96,11 @@ const EpisodeList = ({ seasons, initialSeason, authRequired }: EpisodeListProps)
     }
 
     return (
-        <section aria-labelledby="episodes-heading" className="mx-auto w-full max-w-[1440px] px-5 pb-20 sm:px-8 lg:px-10 xl:px-11 2xl:px-12">
+        <section
+            aria-labelledby="episodes-heading"
+            aria-busy={isSeasonPending}
+            className="mx-auto w-full max-w-[1440px] px-5 pb-20 sm:px-8 lg:px-10 xl:px-11 2xl:px-12"
+        >
             <h2 id="episodes-heading" className="font-display text-3xl text-nx-text lg:text-4xl">Odcinki</h2>
             <p className="sr-only" aria-live="polite">Wybrano {season.label}</p>
 
@@ -99,6 +110,29 @@ const EpisodeList = ({ seasons, initialSeason, authRequired }: EpisodeListProps)
                 </div>
 
                 <div className="col-span-4 grid gap-5 lg:col-span-12 lg:grid-cols-12 xl:col-span-10 xl:grid-cols-10">
+                    {isSeasonPending ? (
+                        <div role="status" className="col-span-full min-h-64 rounded-2xl border border-nx-border bg-nx-panel px-6 py-10">
+                            <div className="h-5 w-44 rounded-md skeleton-pulse" />
+                            <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                                <div className="aspect-video rounded-xl skeleton-pulse" />
+                                <div className="aspect-video rounded-xl skeleton-pulse" />
+                                <div className="aspect-video rounded-xl skeleton-pulse" />
+                            </div>
+                            <span className="sr-only">Wczytywanie odcinków sezonu</span>
+                        </div>
+                    ) : season.loadError ? (
+                        <div className="col-span-full">
+                            <DataErrorState reason={season.loadError} compact onRetry={() => router.refresh()} />
+                        </div>
+                    ) : season.episodes.length === 0 ? (
+                        <div className="col-span-full rounded-2xl border border-nx-border bg-nx-panel px-6 py-10">
+                            <p className="text-nx-text">Ten sezon nie ma jeszcze odcinków.</p>
+                            <Link href="/upload" className="mt-4 inline-flex min-h-11 items-center text-sm font-semibold text-nx-accent underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent">
+                                Przejdź do wysyłania plików
+                            </Link>
+                        </div>
+                    ) : (
+                        <>
                     {resumeEpisode && (
                         <article className="group relative self-start overflow-hidden rounded-2xl border border-nx-border bg-nx-panel text-left shadow-[0_18px_44px_-24px_rgba(0,0,0,.9)] transition-[border-color,background-color,transform] hover:-translate-y-1 hover:border-nx-accent/35 hover:bg-nx-raised lg:col-span-6 xl:col-span-4">
                             <button
@@ -183,6 +217,8 @@ const EpisodeList = ({ seasons, initialSeason, authRequired }: EpisodeListProps)
                             />
                         ))}
                     </div>
+                        </>
+                    )}
                 </div>
             </div>
 

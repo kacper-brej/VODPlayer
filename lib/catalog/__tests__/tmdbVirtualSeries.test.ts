@@ -16,6 +16,7 @@ const {
     isVirtualTmdbKey,
     isVirtualTmdbMovieKey,
     isVirtualTmdbTvKey,
+    getVirtualTmdbEpisodesResult,
     parseVirtualTmdbRef,
     virtualSeriesFromListItem,
     virtualSeriesFromMovieListItem,
@@ -60,6 +61,13 @@ describe("tozsamosc wirtualnych tytulow TMDB", () => {
         expect(parseVirtualTmdbRef("1000003")).toBeNull();
         expect(parseVirtualTmdbRef("3000000")).toBeNull();
         expect(parseVirtualTmdbRef("Tokyo Ghoul √A")).toBeNull();
+    });
+
+    it("nie zamienia bledu pobierania sezonu na poprawna pusta liste", async () => {
+        await expect(getVirtualTmdbEpisodesResult(1399, 2)).resolves.toEqual({
+            kind: "error",
+            reason: "server",
+        });
     });
 });
 
