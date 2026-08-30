@@ -63,11 +63,16 @@ export const registerFileEpisodes = async (
 
     for (const item of requested) {
         const entry = onDisk.get(`${item.seriesKey} ${item.episodeKey}`);
-        if (entry === undefined || entry.state !== "new") {
+        if (entry === undefined || entry.state !== "new" || entry.sizeBytes === null) {
             summary.skipped += 1;
             continue;
         }
-        const outcome = await registerFileAsset(item.seriesKey, item.episodeKey, entry.previewClipKey);
+        const outcome = await registerFileAsset(
+            item.seriesKey,
+            item.episodeKey,
+            entry.previewClipKey,
+            entry.sizeBytes,
+        );
         if (outcome === "inserted") summary.inserted += 1;
         else summary.skipped += 1;
     }

@@ -574,7 +574,7 @@ const WatchClient = ({
     };
 
     return (
-        <div className="fixed inset-0 z-[999] bg-[var(--nx-bg)] flex flex-col w-screen h-dvh">
+        <div className="np-watch-screen">
             <h1 className="sr-only">
                 {seriesTitle} — {episodeTitle}
                 {isDemo ? " (materiał demonstracyjny)" : ""}
@@ -583,7 +583,7 @@ const WatchClient = ({
             {partyStartError && (
                 <p
                     role="alert"
-                    className="pointer-events-none absolute left-1/2 top-16 z-[1001] -translate-x-1/2 rounded-full border border-white/15 bg-black/80 px-4 py-2 text-sm text-white"
+                    className="np-watch-toast np-watch-toast--error"
                 >
                     {partyStartError}
                 </p>
@@ -592,13 +592,13 @@ const WatchClient = ({
             {isDemo && (
                 <p
                     role="status"
-                    className="pointer-events-none absolute left-1/2 top-4 z-[1001] -translate-x-1/2 rounded-full border border-white/15 bg-black/60 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-white/80 backdrop-blur-sm"
+                    className="np-watch-toast np-watch-toast--demo"
                 >
                     Materiał demonstracyjny
                 </p>
             )}
 
-            <div className="flex-1 w-full h-full flex items-center justify-center">
+            <div className="np-watch-player-slot">
                 <PlayerErrorBoundary
                     key={playerInstanceKey}
                     onRetry={() => setPlayerInstanceKey((k) => k + 1)}

@@ -150,6 +150,11 @@ export const PartyChatPanel = ({
         window.localStorage.setItem(PANEL_OPACITY_STORAGE_KEY, String(next));
     };
 
+    const handleClose = () => {
+        setSheetOpen(false);
+        onOpenChange?.(false);
+    };
+
     const handleCopyInvite = async () => {
         try {
             await navigator.clipboard.writeText(window.location.href);
@@ -300,6 +305,18 @@ export const PartyChatPanel = ({
                             >
                                 <MoreHorizontal />
                             </button>
+
+                            {onOpenChange && (
+                                <button
+                                    type="button"
+                                    className="np-party-close"
+                                    aria-label="Schowaj czat Watch Party"
+                                    onPointerDown={(event) => event.stopPropagation()}
+                                    onClick={handleClose}
+                                >
+                                    <X />
+                                </button>
+                            )}
                         </div>
 
                         <AnimatePresence>
