@@ -114,11 +114,17 @@ const stopActiveElement = (): void => {
     activeAbortController = null;
     mediaCleanup?.();
     mediaCleanup = null;
+    const element = activeElement;
+    const hadAttachedMedia = Boolean(
+        hlsInstance
+        || element?.currentSrc
+        || element?.getAttribute("src"),
+    );
     detachHls();
-    if (activeElement) {
-        activeElement.pause();
-        activeElement.removeAttribute("src");
-        activeElement.load();
+    if (element && hadAttachedMedia) {
+        element.pause();
+        element.removeAttribute("src");
+        element.load();
     }
     activeElement = null;
 };

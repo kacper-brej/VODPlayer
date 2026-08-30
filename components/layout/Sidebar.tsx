@@ -64,6 +64,7 @@ const NavRailItems = ({ orientation }: NavRailItemsProps) => {
                                 linkRefs.current[index] = node;
                             }}
                             href={href}
+                            prefetch={orientation === "horizontal" ? true : null}
                             aria-current={isActive ? "page" : undefined}
                             onKeyDown={(event) => handleKeyDown(event, index)}
                             className={`relative flex flex-col items-center gap-1 rounded-lg px-2 py-2.5 text-center outline-none transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-primary ${

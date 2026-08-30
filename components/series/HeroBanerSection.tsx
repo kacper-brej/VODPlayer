@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
-import { Info, Play, Volume2, VolumeX } from "lucide-react";
+import { Info, Play, Star, Volume2, VolumeX } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ARTWORK_SIZES, blurProps, imageLoader, safeArtworkColor } from "@/lib/catalog/imageDelivery";
 import type { PreviewSource } from "@/lib/player/videoAccess";
@@ -180,21 +180,22 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
                     </h1>
                 )}
 
-                {metaParts.length > 0 && (
-                    <p className="mt-5 flex flex-wrap items-center gap-x-2.5 gap-y-1 font-mono text-[10.5px] tracking-[0.1em] text-nx-text-2 sm:text-[11px]">
+                {(metaParts.length > 0 || activeContent.score) && (
+                    <div className="mt-5 flex flex-wrap items-center gap-x-2.5 gap-y-2 font-mono text-[10.5px] tracking-[0.1em] text-nx-text-2 sm:text-[11px]">
+                        {activeContent.score && (
+                            <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[color-mix(in_srgb,var(--nx-accent-2)_32%,transparent)] bg-[color-mix(in_srgb,var(--nx-bg)_72%,transparent)] px-2.5 py-1 text-nx-accent-2 backdrop-blur-sm">
+                                <Star size={11} fill="currentColor" aria-hidden="true" />
+                                <span>{activeContent.score}</span>
+                                <span className="sr-only">ocena</span>
+                            </span>
+                        )}
                         {metaParts.map((part, index) => (
-                            <span key={part} className="flex items-center gap-2.5">
+                            <span key={`${part}-${index}`} className="inline-flex shrink-0 items-center gap-2.5 whitespace-nowrap">
                                 {index > 0 && <span aria-hidden="true" className="text-nx-border">·</span>}
                                 {part}
                             </span>
                         ))}
-                        {activeContent.score && (
-                            <span className="flex items-center gap-2.5">
-                                <span aria-hidden="true" className="text-nx-border">·</span>
-                                <span className="text-nx-accent-2">★ {activeContent.score}</span>
-                            </span>
-                        )}
-                    </p>
+                    </div>
                 )}
 
                 {activeContent.description && (
@@ -226,14 +227,14 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
                     </div>
                 )}
 
-                <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="mt-6 flex items-center gap-2.5 sm:mt-7 sm:gap-3">
                     <button
                         type="button"
                         onClick={(event) => {
                             event.stopPropagation();
                             openEpisode();
                         }}
-                        className="flex h-12 w-full items-center justify-center gap-2.5 rounded-full bg-nx-accent px-6 text-[15px] font-semibold text-nx-on-accent outline-none transition-[transform,background-color] duration-140 hover:bg-[color-mix(in_srgb,var(--nx-accent)_86%,var(--nx-text))] active:scale-[.98] focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent motion-reduce:transition-none sm:w-auto"
+                        className="flex h-12 min-w-0 flex-1 items-center justify-center gap-2.5 rounded-full bg-nx-accent px-5 text-[15px] font-semibold text-nx-on-accent outline-none transition-[transform,background-color] duration-140 hover:bg-[color-mix(in_srgb,var(--nx-accent)_86%,var(--nx-text))] active:scale-[.98] focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent motion-reduce:transition-none sm:flex-none sm:px-6"
                     >
                         <Play size={17} fill="currentColor" />
                         {activeContent.isResume
@@ -241,29 +242,17 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
                             : `Odtwórz odcinek ${activeContent.episodeNumber}`}
                     </button>
 
-                    <div className="flex gap-3">
-                        {activeContent.infoId !== null && activeContent.infoId !== undefined && (
-                            <button
-                                type="button"
-                                onClick={openInfo}
-                                className="flex h-12 flex-1 items-center justify-center gap-2.5 rounded-full border border-nx-border bg-[color-mix(in_srgb,var(--nx-panel)_74%,transparent)] px-6 text-[15px] font-semibold text-nx-text outline-none backdrop-blur-md transition-colors duration-140 hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent sm:flex-none"
-                            >
-                                <Info size={17} aria-hidden="true" />
-                                Informacje
-                            </button>
-                        )}
-
-                        {activeContent.previewSource && (
-                            <button
-                                type="button"
-                                onClick={preview.startManual}
-                                className="flex h-12 flex-1 items-center justify-center gap-2.5 rounded-full border border-nx-border bg-[color-mix(in_srgb,var(--nx-panel)_74%,transparent)] px-6 text-[15px] font-semibold text-nx-text outline-none backdrop-blur-md hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent sm:flex-none [@media(pointer:fine)]:hidden"
-                            >
-                                <Play size={16} aria-hidden="true" />
-                                Podgląd
-                            </button>
-                        )}
-                    </div>
+                    {activeContent.infoId !== null && activeContent.infoId !== undefined && (
+                        <button
+                            type="button"
+                            onClick={openInfo}
+                            aria-label={`Informacje o ${activeContent.title}`}
+                            className="flex size-12 shrink-0 items-center justify-center gap-2.5 rounded-full border border-nx-border bg-[color-mix(in_srgb,var(--nx-panel)_74%,transparent)] text-[15px] font-semibold text-nx-text outline-none backdrop-blur-md transition-colors duration-140 hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent sm:w-auto sm:px-6"
+                        >
+                            <Info size={18} aria-hidden="true" />
+                            <span className="hidden sm:inline">Informacje</span>
+                        </button>
+                    )}
                 </div>
             </div>
         </section>

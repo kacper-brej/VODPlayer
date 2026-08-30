@@ -69,7 +69,9 @@ export const usePreviewSurface = (source: PreviewSource | null | undefined) => {
             onMouseEnter: () => startAutomatic("hover"),
             onMouseLeave: stop,
             onFocus: (event: FocusEvent<HTMLElement>) => {
-                if (event.target === event.currentTarget) startAutomatic("focus");
+                if (event.target === event.currentTarget && event.currentTarget.matches(":focus-visible")) {
+                    startAutomatic("focus");
+                }
             },
             onBlur: (event: FocusEvent<HTMLElement>) => {
                 if (!event.currentTarget.contains(event.relatedTarget)) stop();

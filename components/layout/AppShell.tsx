@@ -1,6 +1,6 @@
 "use client"
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { WifiOff } from "lucide-react";
 import Sidebar from "@/components/layout/Sidebar";
@@ -88,8 +88,10 @@ const SkipLink = () => (
 
 const AppShell = ({ children }: AppShellProps) => {
     const router = useRouter();
+    const pathname = usePathname();
     const { user, error, loading, refreshUser } = useAuth();
     const isOnline = useOnlineStatus();
+    const heroHeader = pathname === "/";
 
     const sessionExpiredMidWork = !loading && !user && error === "unauthorized";
     const pendingLoginRedirect = !loading && !user && !sessionExpiredMidWork && (!error || error === "unauthorized");
@@ -132,8 +134,12 @@ const AppShell = ({ children }: AppShellProps) => {
 
             <div className="relative z-10 flex w-full">
                 <Sidebar />
-                <div className="flex min-h-dvh min-w-0 flex-1 flex-col overflow-x-hidden">
-                    <header className="sticky top-0 z-40 flex h-[var(--nx-header-offset)] w-full shrink-0 items-center justify-center border-b border-nx-border/70 bg-[color-mix(in_srgb,var(--nx-bg)_94%,transparent)] px-4 pt-[env(safe-area-inset-top)] backdrop-blur-none sm:bg-[color-mix(in_srgb,var(--nx-bg)_88%,transparent)] sm:px-8 sm:backdrop-blur-xl">
+                <div className="relative flex min-h-dvh min-w-0 flex-1 flex-col overflow-x-hidden">
+                    <header className={`top-0 z-40 flex h-[var(--nx-header-offset)] w-full shrink-0 items-center justify-center border-b px-4 pt-[env(safe-area-inset-top)] sm:px-8 ${
+                        heroHeader
+                            ? "absolute border-transparent bg-[linear-gradient(180deg,color-mix(in_srgb,var(--nx-bg)_92%,transparent)_0%,color-mix(in_srgb,var(--nx-bg)_52%,transparent)_62%,transparent_100%)]"
+                            : "sticky border-nx-border/70 bg-[color-mix(in_srgb,var(--nx-bg)_94%,transparent)] backdrop-blur-none sm:bg-[color-mix(in_srgb,var(--nx-bg)_88%,transparent)] sm:backdrop-blur-xl"
+                    }`}>
                         <div className="mx-auto flex w-full max-w-[1440px] items-center gap-3">
                             <Link
                                 href="/"

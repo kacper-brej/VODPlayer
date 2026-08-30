@@ -28,8 +28,10 @@ afterEach(() => {
 
 const videoElement = () => ({
     pause: vi.fn(),
+    getAttribute: vi.fn(() => null),
     removeAttribute: vi.fn(),
     load: vi.fn(),
+    currentSrc: "",
     preload: "",
     playsInline: false,
 }) as unknown as HTMLVideoElement;
@@ -38,12 +40,15 @@ describe("previewController intent", () => {
     it("20 szybkich hoverów nie wysyła żadnego requestu przed progiem intencji", async () => {
         const { cancelPreview, schedulePreview } = await import("@/components/series/previewController");
         let lastToken = Symbol("initial");
+        const elements: HTMLVideoElement[] = [];
 
         for (let index = 0; index < 20; index += 1) {
             lastToken = Symbol(`card-${index}`);
+            const element = videoElement();
+            elements.push(element);
             schedulePreview({
                 token: lastToken,
-                element: videoElement(),
+                element,
                 kind: "session",
                 src: `/api/preview?s=series-${index}&e=01.mp4`,
                 startSeconds: 0,
@@ -58,6 +63,7 @@ describe("previewController intent", () => {
         cancelPreview(lastToken);
         await vi.advanceTimersByTimeAsync(500);
         expect(fetchMock).not.toHaveBeenCalled();
+        expect(elements.every((element) => !vi.mocked(element.load).mock.calls.length)).toBe(true);
     });
 
     it("po zatrzymaniu na ostatniej karcie wysyła tylko jeden request", async () => {
