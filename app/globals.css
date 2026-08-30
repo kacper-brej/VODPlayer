@@ -2387,7 +2387,7 @@ body {
 .np-party-lobby {
   position: absolute;
   inset: 0;
-  z-index: 60;
+  z-index: 64;
   display: grid;
   place-items: center;
   padding: 24px;

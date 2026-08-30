@@ -205,6 +205,8 @@ export const VideoPlayer = ({
     const registerPlaybackAdapter = sync?.registerPlaybackAdapter;
     const onChatOpenChange = sync?.onChatOpenChange;
     const anchorVersion = sync?.anchor.anchorVersion;
+    const partyStarted = sync?.partyStarted ?? false;
+    const visiblePartyPanelOpen = partyStarted && partyPanelOpen;
 
     useEffect(() => {
         syncRef.current = sync;
@@ -230,8 +232,8 @@ export const VideoPlayer = ({
     }, []);
 
     useEffect(() => {
-        onChatOpenChange?.(partyPanelOpen);
-    }, [onChatOpenChange, partyPanelOpen]);
+        onChatOpenChange?.(visiblePartyPanelOpen);
+    }, [onChatOpenChange, visiblePartyPanelOpen]);
 
     const applyCurrentPartyAnchor = useCallback(async () => {
         const currentSync = syncRef.current;
@@ -826,7 +828,7 @@ export const VideoPlayer = ({
                 {sync && (
                     <>
                         <PartyChatOverlay
-                            enabled={overlayMessages && !partyPanelOpen}
+                            enabled={partyStarted && overlayMessages && !visiblePartyPanelOpen}
                             roomCode={sync.roomCode}
                             feed={sync.chatFeed}
                             participants={sync.participants}
@@ -834,7 +836,7 @@ export const VideoPlayer = ({
                             typingProfileIds={sync.typingProfileIds}
                         />
                         <PartyChatPanel
-                            open={partyPanelOpen}
+                            open={visiblePartyPanelOpen}
                             roomCode={sync.roomCode}
                             feed={sync.chatFeed}
                             participants={sync.participants}
@@ -881,7 +883,7 @@ export const VideoPlayer = ({
                         onControlDenied: showPartyControlDenied,
                     } : undefined}
                     partyPanelControl={sync ? {
-                        open: partyPanelOpen,
+                        open: visiblePartyPanelOpen,
                         unreadCount: sync.unreadChatCount,
                         onToggle: () => handlePartyPanelOpenChange(!partyPanelOpen),
                     } : undefined}
