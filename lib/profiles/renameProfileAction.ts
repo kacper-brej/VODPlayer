@@ -2,6 +2,7 @@
 import { getSessionUser } from "@/lib/auth/session";
 import { renameProfile } from "@/lib/profiles/profileService";
 import type { RenameProfileResponse } from "@/lib/core/contracts";
+import { PUBLIC_DEMO_LOCKED_MESSAGE, isPublicDemoAccount } from "@/lib/auth/publicDemoAccount";
 
 type RenameProfileError = {
     success: false;
@@ -12,6 +13,9 @@ type RenameProfileError = {
 const renameProfileAction = async (id: number, name: string): Promise<RenameProfileResponse | RenameProfileError> => {
     const user = await getSessionUser();
     if (!user) return { success: false, error: "unauthenticated" };
+    if (isPublicDemoAccount(user)) {
+        return { success: false, error: "backend", message: PUBLIC_DEMO_LOCKED_MESSAGE };
+    }
 
     const result = await renameProfile(user.id, id, name);
 

@@ -7,8 +7,9 @@ const verifyPassword = vi.fn();
 vi.mock("@/lib/auth/passwordHash", () => ({ verifyPassword }));
 
 const consumeLoginRateLimit = vi.fn();
+const clearLoginIdentifierAttempts = vi.fn();
 const deleteOldAuthAttempts = vi.fn();
-vi.mock("@/lib/auth/rateLimit", () => ({ consumeLoginRateLimit, deleteOldAuthAttempts }));
+vi.mock("@/lib/auth/rateLimit", () => ({ clearLoginIdentifierAttempts, consumeLoginRateLimit, deleteOldAuthAttempts }));
 
 const deleteStaleWriteRateLimits = vi.fn();
 vi.mock("@/lib/http/writeRateLimit", () => ({ deleteStaleWriteRateLimits }));
@@ -71,6 +72,7 @@ beforeEach(() => {
     vi.clearAllMocks();
     process.env.TRUSTED_PROXY_HOPS = "1";
     consumeLoginRateLimit.mockResolvedValue(false);
+    clearLoginIdentifierAttempts.mockResolvedValue(undefined);
     mintSessionCookieValue.mockImplementation(async (raw: string) => `jwt(${raw})`);
     deleteExpiredSessions.mockResolvedValue(undefined);
     deleteOldAuthAttempts.mockResolvedValue(undefined);
@@ -92,6 +94,7 @@ describe("login", () => {
 
         expect(result).toEqual({ ok: true, user: ADMIN });
         expect(consumeLoginRateLimit).toHaveBeenCalledWith("203.0.113.7", "k@example.com");
+        expect(clearLoginIdentifierAttempts).toHaveBeenCalledWith("k@example.com");
         expect(createSession).toHaveBeenCalledWith(ADMIN.id, expect.any(Date));
         expect(setSessionCookie).toHaveBeenCalledWith("jwt(raw-token)", 86400);
     });
@@ -118,6 +121,7 @@ describe("login", () => {
 
         await expect(login("k@example.com", "wrong", false)).resolves.toEqual({ ok: false, code: "invalid" });
         expect(createSession).not.toHaveBeenCalled();
+        expect(clearLoginIdentifierAttempts).not.toHaveBeenCalled();
     });
 
     it("nieistniejace konto -> ten sam kod 'invalid' co zle haslo (brak enumeracji)", async () => {

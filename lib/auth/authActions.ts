@@ -14,17 +14,17 @@ export type AuthActionResult = {
 };
 
 export const loginAction = async (formData: FormData): Promise<AuthActionResult> => {
-    const email = String(formData.get("email") ?? "").trim();
+    const identifier = String(formData.get("identifier") ?? formData.get("email") ?? "").trim();
     const password = String(formData.get("password") ?? "");
     const rememberMe = formData.get("rememberMe") === "on";
 
-    if (!email || !password) return { ok: false, code: "invalid", message: "Podaj adres email i hasło." };
+    if (!identifier || !password) return { ok: false, code: "invalid", message: "Podaj e-mail lub login i hasło." };
 
-    const result = await loginService(email, password, rememberMe);
+    const result = await loginService(identifier, password, rememberMe);
 
     if (!result.ok) {
         const messages: Record<typeof result.code, string> = {
-            invalid: "Nieprawidłowy email lub hasło. Sprawdź dane i spróbuj ponownie.",
+            invalid: "Nieprawidłowy login lub hasło. Sprawdź dane i spróbuj ponownie.",
             rate_limited: "Zbyt wiele prób logowania. Spróbuj ponownie za chwilę.",
             server: "Serwer jest chwilowo niedostępny.",
         };

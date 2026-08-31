@@ -35,14 +35,15 @@ describe("neutralne logowanie", () => {
     it("nie ujawnia, czy błędne dane dotyczą niepotwierdzonego konta", async () => {
         login.mockResolvedValue({ ok: false, code: "invalid" });
         const formData = new FormData();
-        formData.set("email", "v@example.com");
+        formData.set("identifier", "example");
         formData.set("password", "password");
 
         await expect(loginAction(formData)).resolves.toMatchObject({
             ok: false,
             code: "invalid",
-            message: "Incorrect email or password.",
+            message: "Nieprawidłowy login lub hasło. Sprawdź dane i spróbuj ponownie.",
         });
+        expect(login).toHaveBeenCalledWith("example", "password", false);
     });
 });
 

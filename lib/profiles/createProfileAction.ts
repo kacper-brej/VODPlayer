@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/auth/session";
 import { createProfile } from "@/lib/profiles/profileService";
 import type { CreateProfileResponse } from "@/lib/core/contracts";
 import { isProfileAvatar, type ProfileAvatar } from "@/lib/core/onboarding";
+import { PUBLIC_DEMO_LOCKED_MESSAGE, isPublicDemoAccount } from "@/lib/auth/publicDemoAccount";
 
 type CreateProfileError = {
     success: false;
@@ -16,6 +17,9 @@ const createProfileAction = async (
 ): Promise<CreateProfileResponse | CreateProfileError> => {
     const user = await getSessionUser();
     if (!user) return { success: false, error: "unauthenticated" };
+    if (isPublicDemoAccount(user)) {
+        return { success: false, error: "backend", message: PUBLIC_DEMO_LOCKED_MESSAGE };
+    }
     if (avatar !== null && !isProfileAvatar(avatar)) {
         return { success: false, error: "backend", message: "Wybierz prawidłowy awatar." };
     }

@@ -1,6 +1,7 @@
 "use server";
 import { getSessionUser } from "@/lib/auth/session";
 import { requestEmailChange } from "@/lib/auth/accountService";
+import { PUBLIC_DEMO_LOCKED_MESSAGE, isPublicDemoAccount } from "@/lib/auth/publicDemoAccount";
 
 type RequestEmailChangeResult =
     | { success: true; message: string }
@@ -9,6 +10,9 @@ type RequestEmailChangeResult =
 const requestEmailChangeAction = async (email: string): Promise<RequestEmailChangeResult> => {
     const user = await getSessionUser();
     if (!user) return { success: false, error: "unauthenticated" };
+    if (isPublicDemoAccount(user)) {
+        return { success: false, error: "backend", message: PUBLIC_DEMO_LOCKED_MESSAGE };
+    }
 
     const result = await requestEmailChange(user.id, user.email, email);
 

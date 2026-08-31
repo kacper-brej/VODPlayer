@@ -34,12 +34,13 @@ interface PublicUserRow extends RowDataPacket {
     onboarded_at: string | null;
 }
 
-export const findUserForLogin = async (email: string): Promise<UserForLogin | null> => {
+export const findUserForLogin = async (identifier: string): Promise<UserForLogin | null> => {
     try {
         const pool = getDbPool();
         const [rows] = await pool.execute<UserRow[]>(
-            "SELECT id, username, email, password_hash, email_verified, role, onboarded_at FROM users WHERE email = ? LIMIT 1",
-            [email],
+            `SELECT id, username, email, password_hash, email_verified, role, onboarded_at
+             FROM users WHERE email = ? OR username = ? LIMIT 1`,
+            [identifier, identifier],
         );
         const row = rows[0];
         if (!row) return null;

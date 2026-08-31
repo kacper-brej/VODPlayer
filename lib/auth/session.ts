@@ -3,7 +3,7 @@ import { cache } from "react";
 import type { AuthUser } from "@/lib/core/contracts";
 import { findUserForLogin } from "@/lib/auth/userRepository";
 import { verifyPassword } from "@/lib/auth/passwordHash";
-import { consumeLoginRateLimit, deleteOldAuthAttempts } from "@/lib/auth/rateLimit";
+import { clearLoginIdentifierAttempts, consumeLoginRateLimit, deleteOldAuthAttempts } from "@/lib/auth/rateLimit";
 import { deleteStaleWriteRateLimits } from "@/lib/http/writeRateLimit";
 import { deleteFinishedParties } from "@/lib/party/partyRepository";
 import {
@@ -80,21 +80,23 @@ const establishSession = async (user: AuthUser, rememberMe: boolean): Promise<vo
     await maybeRunRetentionSweep();
 };
 
-export const login = async (email: string, password: string, rememberMe: boolean): Promise<LoginResult> => {
-    if (!email || email.length > 254 || !password || password.length > 128) return { ok: false, code: "invalid" };
+export const login = async (identifier: string, password: string, rememberMe: boolean): Promise<LoginResult> => {
+    if (!identifier || identifier.length > 254 || !password || password.length > 128) return { ok: false, code: "invalid" };
 
     try {
         const ip = await clientIp();
 
-        if (await consumeLoginRateLimit(ip, email)) {
+        if (await consumeLoginRateLimit(ip, identifier)) {
             return { ok: false, code: "rate_limited" };
         }
 
-        const user = await findUserForLogin(email);
+        const user = await findUserForLogin(identifier);
         if (!user || !(await verifyPassword(password, user.passwordHash))) {
             return { ok: false, code: "invalid" };
         }
         if (!user.emailVerified) return { ok: false, code: "invalid" };
+
+        await clearLoginIdentifierAttempts(identifier);
 
         const authUser: AuthUser = { id: user.id, username: user.username, email: user.email, role: user.role, onboardedAt: user.onboardedAt };
         await establishSession(authUser, rememberMe);

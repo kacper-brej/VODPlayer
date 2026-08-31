@@ -3,6 +3,7 @@
 import { getSessionUser } from "@/lib/auth/session";
 import type { ProfileAvatar } from "@/lib/core/onboarding";
 import { updateProfile } from "@/lib/profiles/profileService";
+import { PUBLIC_DEMO_LOCKED_MESSAGE, isPublicDemoAccount } from "@/lib/auth/publicDemoAccount";
 
 type UpdateProfileResponse =
     | { success: true; profile: { id: number; name: string; avatar: ProfileAvatar | null } }
@@ -15,6 +16,9 @@ const updateProfileAction = async (
 ): Promise<UpdateProfileResponse> => {
     const user = await getSessionUser();
     if (!user) return { success: false, error: "unauthenticated", message: "Sesja wygasła. Zaloguj się ponownie." };
+    if (isPublicDemoAccount(user)) {
+        return { success: false, error: "backend", message: PUBLIC_DEMO_LOCKED_MESSAGE };
+    }
 
     const result = await updateProfile(user.id, id, name, avatar);
     if (!result.ok) {

@@ -8,7 +8,7 @@ vi.mock("@/lib/db/pool", () => ({
     getDbPool: () => ({ execute, getConnection }),
 }));
 
-const { consumeLoginRateLimit, deleteOldAuthAttempts } = await import("../rateLimit");
+const { clearLoginIdentifierAttempts, consumeLoginRateLimit, deleteOldAuthAttempts } = await import("../rateLimit");
 
 const lockAcquired = () => execute.mockResolvedValueOnce([[{ acquired: 1 }]]);
 const counted = (value: number) => execute.mockResolvedValueOnce([[{ count: value }]]);
@@ -84,5 +84,18 @@ describe("deleteOldAuthAttempts", () => {
         await expect(deleteOldAuthAttempts(0)).rejects.toThrow("1-10000");
         await expect(deleteOldAuthAttempts(10_001)).rejects.toThrow("1-10000");
         expect(execute).not.toHaveBeenCalled();
+    });
+});
+
+describe("clearLoginIdentifierAttempts", () => {
+    beforeEach(() => execute.mockReset());
+
+    it("po udanym logowaniu czyści wspólny licznik identyfikatora", async () => {
+        execute.mockResolvedValueOnce([{}]);
+        await clearLoginIdentifierAttempts("example");
+        expect(execute).toHaveBeenCalledWith(
+            expect.stringContaining("DELETE FROM auth_attempts WHERE email"),
+            ["example"],
+        );
     });
 });

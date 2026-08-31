@@ -2,6 +2,7 @@
 import { getSessionUser } from "@/lib/auth/session";
 import { deleteProfile } from "@/lib/profiles/profileService";
 import type { DeleteProfileResponse } from "@/lib/core/contracts";
+import { PUBLIC_DEMO_LOCKED_MESSAGE, isPublicDemoAccount } from "@/lib/auth/publicDemoAccount";
 
 type DeleteProfileError = {
     success: false;
@@ -12,6 +13,9 @@ type DeleteProfileError = {
 const deleteProfileAction = async (id: number): Promise<DeleteProfileResponse | DeleteProfileError> => {
     const user = await getSessionUser();
     if (!user) return { success: false, error: "unauthenticated" };
+    if (isPublicDemoAccount(user)) {
+        return { success: false, error: "backend", message: PUBLIC_DEMO_LOCKED_MESSAGE };
+    }
 
     const result = await deleteProfile(user.id, id);
 

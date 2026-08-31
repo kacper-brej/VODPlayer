@@ -26,6 +26,15 @@ export const deleteOldAuthAttempts = async (limit = 500): Promise<void> => {
     }
 };
 
+export const clearLoginIdentifierAttempts = async (identifier: string): Promise<void> => {
+    if (!identifier) return;
+    try {
+        await getDbPool().execute("DELETE FROM auth_attempts WHERE email = ?", [identifier]);
+    } catch (error) {
+        throw mapDatabaseError(error);
+    }
+};
+
 export const consumeLoginRateLimit = async (ip: string, email: string): Promise<boolean> => {
     const connection = await getDbPool().getConnection();
     const scopes = [ip, email].filter(Boolean).map((value) =>

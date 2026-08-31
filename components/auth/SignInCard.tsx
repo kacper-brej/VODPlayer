@@ -11,6 +11,7 @@ import { PasswordField } from "@/components/auth/PasswordField";
 import { RememberMeField } from "@/components/auth/RememberMeField";
 import { QrLoginPanel } from "@/components/auth/QrLoginPanel";
 import { loginAction, resendVerificationAction, type AuthActionResult } from "@/lib/auth/authActions";
+import { PUBLIC_DEMO_USERNAME } from "@/lib/auth/publicDemoAccount";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { safeReturnPath } from "@/lib/core/routes";
 
@@ -27,7 +28,7 @@ export function SignInCard() {
     const { setAuthenticatedUser } = useAuth();
     const [mode, setMode] = useState<SignInMode>("password");
     const [result, setResult] = useState<AuthActionResult | null>(null);
-    const [email, setEmail] = useState("");
+    const [identifier, setIdentifier] = useState("");
     const [password, setPassword] = useState("");
     const [failureCount, setFailureCount] = useState(0);
     const [pending, startTransition] = useTransition();
@@ -64,7 +65,14 @@ export function SignInCard() {
     };
 
     const resendVerification = () => {
-        startTransition(async () => setResult(await resendVerificationAction(email)));
+        startTransition(async () => setResult(await resendVerificationAction(identifier)));
+    };
+
+    const fillDemoCredentials = () => {
+        setIdentifier(PUBLIC_DEMO_USERNAME);
+        setPassword(PUBLIC_DEMO_USERNAME);
+        setResult(null);
+        passwordRef.current?.focus();
     };
 
     const verified = searchParams.get("verified");
@@ -92,16 +100,16 @@ export function SignInCard() {
             {mode === "qr" ? <QrLoginPanel returnTo={returnTo} /> : (
                 <form onSubmit={submit}>
                     <div>
-                        <label htmlFor="login-email" className={authLabelClass}>Adres email</label>
+                        <label htmlFor="login-identifier" className={authLabelClass}>E-mail lub login</label>
                         <input
-                            id="login-email"
-                            name="email"
-                            type="email"
-                            autoComplete="email"
+                            id="login-identifier"
+                            name="identifier"
+                            type="text"
+                            autoComplete="username"
                             required
                             autoFocus
-                            value={email}
-                            onChange={(event) => setEmail(event.target.value)}
+                            value={identifier}
+                            onChange={(event) => setIdentifier(event.target.value)}
                             className={authInputClass}
                         />
                     </div>
@@ -119,7 +127,7 @@ export function SignInCard() {
                     </div>
                     <AuthStatusMessage status={status ? status.ok ? "success" : "error" : null} message={status?.message ?? ""} />
                     <RememberMeField trailing={<Link href="/forgot-password" className={authLinkClass}>Nie pamiętasz hasła?</Link>} />
-                    {result?.code === "invalid" && (
+                    {result?.code === "invalid" && identifier.includes("@") && (
                         <button type="button" onClick={resendVerification} disabled={pending} className={`${authSecondaryButtonClass} mt-3`}>
                             Wyślij link potwierdzający ponownie
                         </button>
@@ -128,6 +136,21 @@ export function SignInCard() {
                         <LogIn className="size-4" />
                         {pending ? "Logowanie…" : "Zaloguj się"}
                     </button>
+                    <div className="mt-4 rounded-xl border border-nx-border bg-nx-raised/55 p-3 text-sm text-nx-text-2">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            <p>
+                                Konto pokazowe: <code className="text-nx-text">example</code> / <code className="text-nx-text">example</code>
+                            </p>
+                            <button
+                                type="button"
+                                onClick={fillDemoCredentials}
+                                disabled={pending}
+                                className="rounded-lg border border-nx-border px-3 py-2 text-xs font-semibold text-nx-text transition-colors hover:bg-nx-panel focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nx-accent disabled:opacity-50"
+                            >
+                                Uzupełnij dane
+                            </button>
+                        </div>
+                    </div>
                 </form>
             )}
         </AuthCardShell>

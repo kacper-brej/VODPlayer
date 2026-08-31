@@ -4,6 +4,15 @@ A video streaming app I built for my own media library. It works like a small Ne
 
 Live at [vod.kacper-brej.pl](https://vod.kacper-brej.pl).
 
+You can try the public demo account without completing the initial setup:
+
+```text
+Login: example
+Password: example
+```
+
+The demo account provides access to only a limited part of the application. Some content and account features are unavailable, and viewing progress is shared between demo users.
+
 ## What it does
 
 - Email and password accounts, with email verification and password reset

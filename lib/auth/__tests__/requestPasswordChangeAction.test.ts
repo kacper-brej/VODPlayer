@@ -31,4 +31,11 @@ describe("requestPasswordChangeAction — deleguje do accountService, nie woła 
 
         await expect(requestPasswordChangeAction()).resolves.toEqual({ success: false, error: "backend" });
     });
+
+    it("konto pokazowe nie może zmienić publicznego hasła", async () => {
+        getSessionUser.mockResolvedValue({ id: 9, username: "example", email: "example@example.com", role: "viewer" });
+
+        await expect(requestPasswordChangeAction()).resolves.toEqual({ success: false, error: "backend" });
+        expect(requestPasswordReset).not.toHaveBeenCalled();
+    });
 });

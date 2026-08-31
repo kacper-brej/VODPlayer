@@ -13,6 +13,8 @@ import { useModalFocus } from "@/lib/core/useModalFocus";
 import { preloadHeroPreview } from "@/lib/player/preloadHeroPreview";
 import { AvatarPicker } from "@/components/onboarding/AvatarPicker";
 import { ProfileAvatarTile } from "@/components/profiles/ProfileAvatarTile";
+import { useAuth } from "@/lib/auth/AuthContext";
+import { isPublicDemoAccount } from "@/lib/auth/publicDemoAccount";
 import {
     ProfileHandoff,
     type ProfileHandoffOrigin,
@@ -43,8 +45,11 @@ interface ProfileSelectorProps {
 
 export default function ProfileSelector({ profiles: initialProfiles, initiallyManaging = false }: ProfileSelectorProps) {
     const router = useRouter();
+    const { user } = useAuth();
+    const demoAccount = isPublicDemoAccount(user);
     const [profiles, setProfiles] = useState(initialProfiles);
-    const [manage, setManage] = useState(initiallyManaging);
+    const [manageRequested, setManageRequested] = useState(initiallyManaging);
+    const manage = manageRequested && !demoAccount;
     const [dialog, setDialog] = useState<DialogState>(null);
     const [error, setError] = useState("");
     const [pendingId, setPendingId] = useState<number | null>(null);
@@ -245,7 +250,7 @@ export default function ProfileSelector({ profiles: initialProfiles, initiallyMa
                             )}
                         </li>
                     ))}
-                    {profiles.length < MAX_PROFILES && (
+                    {!demoAccount && profiles.length < MAX_PROFILES && (
                         <li className="w-24 md:w-[116px] xl:w-[132px]">
                             <button
                                 type="button"
@@ -265,9 +270,13 @@ export default function ProfileSelector({ profiles: initialProfiles, initiallyMa
                     )}
                 </ul>
 
-                <button type="button" onClick={() => { setManage((value) => !value); setError(""); }} className="mt-12 min-h-11 cursor-pointer rounded-xl border border-nx-border px-6 text-[13.5px] text-nx-text-2 hover:bg-nx-panel hover:text-nx-text focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent">
-                    {manage ? "Gotowe" : "Zarządzaj profilami"}
-                </button>
+                {demoAccount ? (
+                    <p className="mt-12 text-center text-sm text-nx-text-2">Konto pokazowe jest tylko do podglądu.</p>
+                ) : (
+                    <button type="button" onClick={() => { setManageRequested((value) => !value); setError(""); }} className="mt-12 min-h-11 cursor-pointer rounded-xl border border-nx-border px-6 text-[13.5px] text-nx-text-2 hover:bg-nx-panel hover:text-nx-text focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent">
+                        {manage ? "Gotowe" : "Zarządzaj profilami"}
+                    </button>
+                )}
             </div>
 
             {dialog && (

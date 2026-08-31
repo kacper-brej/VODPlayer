@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { Check, Languages, PlayCircle, ShieldCheck, UserRound } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import requestPasswordChangeAction from "@/lib/auth/requestPasswordChangeAction";
+import { isPublicDemoAccount } from "@/lib/auth/publicDemoAccount";
 import updateSettingsAction from "@/lib/settings/updateSettingsAction";
 import type { ProfileSettings } from "@/lib/settings/settings";
 import { usePreviewPreferences } from "@/components/preview/PreviewPreferences";
@@ -52,6 +53,7 @@ const sectionClass = "rounded-2xl border border-nx-border bg-nx-panel p-5 shadow
 
 const SettingsPanel = ({ initialSettings, loadFailed }: SettingsPanelProps) => {
     const { user } = useAuth();
+    const demoAccount = isPublicDemoAccount(user);
     const { setPreviewPreferences } = usePreviewPreferences();
     const [settings, setSettings] = useState(initialSettings);
     const [savedSettings, setSavedSettings] = useState(initialSettings);
@@ -233,12 +235,16 @@ const SettingsPanel = ({ initialSettings, loadFailed }: SettingsPanelProps) => {
                                 </div>
                             </dl>
                             <div className="mt-5 flex flex-wrap gap-3">
-                                <Link href="/profiles?manage=1" className="inline-flex min-h-11 items-center rounded-xl border border-nx-border px-4 text-sm font-semibold text-nx-text transition-colors hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent">
-                                    Zarządzaj profilami
+                                <Link href={demoAccount ? "/profiles" : "/profiles?manage=1"} className="inline-flex min-h-11 items-center rounded-xl border border-nx-border px-4 text-sm font-semibold text-nx-text transition-colors hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent">
+                                    {demoAccount ? "Wybierz profil" : "Zarządzaj profilami"}
                                 </Link>
-                                <button type="button" onClick={requestPasswordChange} disabled={pending} className="min-h-11 rounded-xl border border-nx-border px-4 text-sm font-semibold text-nx-text transition-colors hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent disabled:cursor-wait disabled:opacity-55">
-                                    Zmień hasło
-                                </button>
+                                {demoAccount ? (
+                                    <p className="flex min-h-11 items-center text-sm text-nx-text-2">Konto pokazowe jest zabezpieczone przed zmianą danych.</p>
+                                ) : (
+                                    <button type="button" onClick={requestPasswordChange} disabled={pending} className="min-h-11 rounded-xl border border-nx-border px-4 text-sm font-semibold text-nx-text transition-colors hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent disabled:cursor-wait disabled:opacity-55">
+                                        Zmień hasło
+                                    </button>
+                                )}
                             </div>
                         </section>
 
