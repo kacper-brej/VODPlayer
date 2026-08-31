@@ -1,36 +1,80 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# VOD platform
 
-## Getting Started
+A video streaming app I built for my own media library. It works like a small Netflix: accounts, profiles per account, a browsable catalog with artwork, resume playback across devices, and a watch party mode so a few people can watch the same episode in sync.
 
-First, run the development server:
+Live at [vod.kacper-brej.pl](https://vod.kacper-brej.pl).
+
+## What it does
+
+- Email and password accounts, with email verification and password reset
+- QR code login, so you can sign in on a TV without typing a password
+- Several profiles under one account, each with its own watch history
+- Browsing by genre, collections, favourites, watchlist and a continue watching row
+- HLS playback with signed, short lived URLs, so the video files are never public
+- Watch party: synced playback and a chat next to the player
+- Admin panel for uploading media and deciding which users can see which series
+- Series and episode metadata pulled from TMDB, with Jikan for anime
+
+## Tech stack
+
+Next.js 16 with the App Router, React 19 and TypeScript. Styling is Tailwind CSS 4 on top of CSS variables that hold the dark theme colors.
+
+There is no separate backend service. The server side runs on Node.js and is written in the same TypeScript codebase as the frontend: server actions and route handlers under `app/api`, with the actual logic kept in `lib/`.
+
+Data sits in MySQL and is queried with mysql2 through a connection pool and a transaction helper in `lib/db`. No ORM, just SQL.
+
+Auth is written by hand: bcryptjs for password hashing, jose for signed session cookies, and nodemailer for the account emails.
+
+Video files live in Backblaze B2 and are read through its S3 compatible API. The player is Vidstack with hls.js underneath, and every playback URL is signed on the server before it reaches the browser.
+
+Tests run on Vitest.
+
+## Running it locally
+
+You need Node 20.9 or newer and a MySQL database.
 
 ```bash
+npm install
+cp .env.example .env.local
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The app then runs on http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Before the first start, fill in `.env.local`. `.env.example` is committed to the repo and lists every variable with a short note next to it. These are the ones worth filling in first:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable | What it is |
+| --- | --- |
+| `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | MySQL connection |
+| `SESSION_SECRET` | secret used to sign session cookies |
+| `NEXT_PUBLIC_APP_URL` | public URL, used in links inside emails |
+| `SMTP_*` | mail server for verification and password reset emails |
+| `B2_*` | Backblaze bucket and keys for the video files |
+| `TMDB_READ_TOKEN` | TMDB API token for metadata and artwork |
+| `VIDEO_SIGNING_SECRET` | secret used to sign playback URLs |
+| `PARTY_REALTIME_KEY` | realtime channel key, only needed for watch party |
 
-## Learn More
+## Scripts
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm run dev     # dev server
+npm run build   # production build
+npm run start   # run the production build
+npm run lint    # eslint
+npm run test    # vitest
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Project structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+app/          routes (App Router), grouped into public, app, profiles and watch
+components/   React components, grouped by feature
+lib/          server logic: auth, db, player, media, party, catalog, mail
+public/       static files
+```
 
-## Deploy on Vercel
+Most of the real logic is in `lib/`. Each folder there has its own `__tests__` next to it.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Deployment
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Deployed on Vercel. The database and the media storage are hosted separately, so the app only needs the environment variables above to connect to them.
