@@ -84,6 +84,45 @@ describe("bezpieczny zapis", () => {
         );
     });
 
+    it("w trybie demo zapisuje postęp dla poprawnego tytułu wirtualnego TMDB", async () => {
+        getViewerSeriesAccessLevel.mockResolvedValue("demo");
+        getDemoAsset.mockResolvedValue({
+            assetId: 99, assetVersion: 3, seriesKey: "_demo", episodeKey: "demo.mp4",
+            durationSeconds: 600, heights: [480],
+        });
+        repo.findReadyMediaAsset.mockResolvedValue(null);
+
+        await expect(saveProgress(1, "Kacper", {
+            series: "tmdb:1399",
+            episode: "2x03",
+            position: 120,
+        })).resolves.toEqual({ ok: true, completed: false });
+
+        expect(repo.upsertWatchProgress).toHaveBeenCalledWith(
+            5,
+            { id: 99, version: 3, seriesKey: "tmdb:1399", episodeKey: "2x03", durationSeconds: 600 },
+            120,
+            false,
+            {},
+        );
+    });
+
+    it("w trybie demo odrzuca niepoprawny odcinek wirtualnego filmu TMDB", async () => {
+        getViewerSeriesAccessLevel.mockResolvedValue("demo");
+        getDemoAsset.mockResolvedValue({
+            assetId: 99, assetVersion: 3, seriesKey: "_demo", episodeKey: "demo.mp4",
+            durationSeconds: 600, heights: [480],
+        });
+        repo.findReadyMediaAsset.mockResolvedValue(null);
+
+        await expect(saveProgress(1, "Kacper", {
+            series: "tmdb:movie:603",
+            episode: "2x03",
+            position: 120,
+        })).resolves.toEqual({ ok: false, code: "unavailable" });
+        expect(repo.upsertWatchProgress).not.toHaveBeenCalled();
+    });
+
     it("w trybie demo pozycja jest clampowana do długości klipu, a ukończenie liczone w jego skali", async () => {
         getViewerSeriesAccessLevel.mockResolvedValue("demo");
         getDemoAsset.mockResolvedValue({

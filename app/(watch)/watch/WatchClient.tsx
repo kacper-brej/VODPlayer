@@ -534,6 +534,7 @@ const WatchClient = ({
             document.exitFullscreen().catch(() => {});
         }
         router.push("/");
+        router.refresh();
     }
 
     const handleStartParty = async (positionSeconds: number) => {

@@ -2,7 +2,6 @@ import WatchClient from "./WatchClient";
 import { resolveCatalogSeries } from "@/lib/catalog/catalog";
 import {
     getVirtualTmdbEpisodes,
-    isVirtualTmdbKey,
     isVirtualTmdbTvKey,
     parseVirtualEpisodeKey,
 } from "@/lib/catalog/tmdbVirtualSeries";
@@ -148,7 +147,6 @@ const WatchPage = async ({ searchParams }: { searchParams: Promise<{ id?: string
                 skipIntroPrompt={settings.skipIntroPrompt}
                 defaultVolume={settings.defaultVolume}
                 isDemo={demo !== null}
-                trackProgress={!isVirtualTmdbKey(series.key)}
                 partyCode={partyCode}
                 episodeKeys={series.episodes.map((item) => ({ key: item.key, number: item.number }))}
                 nextEpisodeKey={nextEpisode?.key}

@@ -105,7 +105,7 @@ export interface VideoPlayerProps {
     posterUrl?: string;
     episodesLeft?: number;
     nextEpisodeTitle?: string;
-    onBack?: () => void;
+    onBack?: () => void | Promise<void>;
     onNextEpisode?: () => void;
     onPreviousEpisode?: () => void;
     onProgressUpdate?: (currentTime: number, duration: number) => void | Promise<void>;
@@ -167,7 +167,7 @@ export const VideoPlayer = ({
     const hasAppliedDefaultVolume = useRef(false);
     const nextEpisodeRef = useRef(onNextEpisode);
     const seekFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const saveInFlightRef = useRef(false);
+    const progressDrainPromiseRef = useRef<Promise<void> | null>(null);
     const pendingProgressRef = useRef<{
         time: number;
         duration: number;
@@ -298,40 +298,48 @@ export const VideoPlayer = ({
         if (seekFeedbackTimeoutRef.current) clearTimeout(seekFeedbackTimeoutRef.current);
     }, []);
 
-    const drainProgressQueue = useCallback(async () => {
-        if (saveInFlightRef.current) return;
-        saveInFlightRef.current = true;
+    const drainProgressQueue = useCallback((): Promise<void> => {
+        if (progressDrainPromiseRef.current) return progressDrainPromiseRef.current;
 
-        try {
+        const drain = (async () => {
             while (pendingProgressRef.current) {
                 const pending = pendingProgressRef.current;
                 pendingProgressRef.current = null;
                 await pending.update(pending.time, pending.duration);
             }
-        } finally {
-            saveInFlightRef.current = false;
-        }
+        })();
+        progressDrainPromiseRef.current = drain;
+        void drain.then(
+            () => {
+                if (progressDrainPromiseRef.current === drain) progressDrainPromiseRef.current = null;
+            },
+            () => {
+                if (progressDrainPromiseRef.current === drain) progressDrainPromiseRef.current = null;
+            },
+        );
+        return drain;
     }, []);
 
-    const flushProgress = useCallback(() => {
+    const flushProgress = useCallback((): Promise<void> => {
         const time = currentTimeRef.current;
         const mediaDuration = durationRef.current;
 
-        if (!onProgressUpdate || !Number.isFinite(time) || time < 0) return;
-        if (Math.abs(time - lastQueuedTimeRef.current) < 0.5) return;
+        if (!onProgressUpdate || !Number.isFinite(time) || time < 0) return Promise.resolve();
 
-        pendingProgressRef.current = {
-            time,
-            duration: mediaDuration,
-            update: onProgressUpdate,
-        };
-        lastQueuedTimeRef.current = time;
-        void drainProgressQueue();
+        if (Math.abs(time - lastQueuedTimeRef.current) >= 0.5) {
+            pendingProgressRef.current = {
+                time,
+                duration: mediaDuration,
+                update: onProgressUpdate,
+            };
+            lastQueuedTimeRef.current = time;
+        }
+        return drainProgressQueue();
     }, [drainProgressQueue, onProgressUpdate]);
 
-    const handleBackWithFlush = useCallback(() => {
-        flushProgress();
-        onBack?.();
+    const handleBackWithFlush = useCallback(async () => {
+        await flushProgress();
+        await onBack?.();
     }, [flushProgress, onBack]);
 
     const attemptPlaybackRefresh = useCallback(() => {
@@ -494,7 +502,7 @@ export const VideoPlayer = ({
         }
 
         if (onProgressUpdate && Math.abs(time - lastQueuedTimeRef.current) >= PROGRESS_SAVE_INTERVAL_SECONDS) {
-            flushProgress();
+            void flushProgress();
         }
     };
 
@@ -506,7 +514,7 @@ export const VideoPlayer = ({
     useEffect(() => {
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'hidden') {
-                flushProgress();
+                void flushProgress();
                 return;
             }
             const expectedPosition = syncRef.current?.expectedPosition();
@@ -519,7 +527,7 @@ export const VideoPlayer = ({
                 );
             }
         };
-        const handlePageHide = () => flushProgress();
+        const handlePageHide = () => { void flushProgress(); };
 
         document.addEventListener('visibilitychange', handleVisibilityChange);
         window.addEventListener('pagehide', handlePageHide);
@@ -582,12 +590,12 @@ export const VideoPlayer = ({
             return;
         }
 
-        flushProgress();
+        void flushProgress();
         requestPartyEpisode(sync?.nextEpisodeKey, onNextEpisode);
     }, [episodeKey, flushProgress, nextEpisodeCountdownActive, onNextEpisode, requestPartyEpisode, sync?.nextEpisodeKey]);
 
     const handlePreviousEpisodeWithFlush = useCallback(() => {
-        flushProgress();
+        void flushProgress();
         requestPartyEpisode(sync?.previousEpisodeKey, onPreviousEpisode);
     }, [flushProgress, onPreviousEpisode, requestPartyEpisode, sync?.previousEpisodeKey]);
 
@@ -705,7 +713,7 @@ export const VideoPlayer = ({
     useEffect(() => {
         nextEpisodeRef.current = onNextEpisode
             ? () => {
-                flushProgress();
+                void flushProgress();
                 requestPartyEpisode(sync?.nextEpisodeKey, onNextEpisode);
             }
             : undefined;
@@ -722,7 +730,7 @@ export const VideoPlayer = ({
     }, [episodeKey, nextEpisodeCountdownActive]);
 
     const handleEnded = () => {
-        flushProgress();
+        void flushProgress();
     };
 
     const handleRetry = () => {
@@ -759,7 +767,7 @@ export const VideoPlayer = ({
                 onTimeUpdate={handleTimeUpdate}
                 onDurationChange={handleDurationChange}
                 onError={handleError}
-                onPause={flushProgress}
+                onPause={() => { void flushProgress(); }}
                 onSeeking={() => { seekingRef.current = true; playerBusyRef.current = true; }}
                 onSeeked={() => { seekingRef.current = false; playerBusyRef.current = false; }}
                 playsInline

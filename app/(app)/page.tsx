@@ -10,7 +10,8 @@ import { collapseSeriesGroups } from "@/lib/catalog/catalogRows";
 import { getContinueWatching, getLatestResume, getResumeMap } from "@/lib/progress/continueWatching";
 import { getWatchlist } from "@/lib/watchlist/watchlist";
 import { toContentCard, toResumeCard } from "@/lib/catalog/contentCards";
-import { selectFallbackHero, selectResumeHero } from "@/lib/home/homeHero";
+import { selectFallbackHero } from "@/lib/home/homeHero";
+import { resolveResumeCatalogSeries } from "@/lib/home/resumeCatalogSeries";
 import { HOME_SECTION_PRESENTATION, type HomeSectionId, type HomeSectionRow } from "@/lib/home/homeLayout";
 import { getHomeRowSections } from "@/lib/home/homeSections";
 import { buildNewestHomeRow } from "@/lib/home/publicHomeRows";
@@ -99,7 +100,7 @@ const heroData = (
 const HeroSection = async ({ catalog }: { catalog: CatalogSeries[] }) => {
     const resumeResult = await getLatestResume();
     const resume = resumeResult.kind === "success" ? resumeResult.data : null;
-    const resumedSeries = selectResumeHero(catalog, resume);
+    const resumedSeries = await resolveResumeCatalogSeries(catalog, resume);
 
     if (resumedSeries) {
         return <HeroBanerSection lastWatchedData={heroData(resumedSeries, resume)} />;
@@ -158,12 +159,12 @@ const ContinueSection = async ({ catalog }: { catalog: CatalogSeries[] }) => {
 
     if (continueResult.kind === "empty") return null;
 
-    const byKey = new Map(catalog.map((series) => [series.key, series]));
-    const cards = continueResult.data
-        .map((resume) => {
-            const series = byKey.get(resume.seriesKey);
+    const cards = (await Promise.all(
+        continueResult.data.map(async (resume) => {
+            const series = await resolveResumeCatalogSeries(catalog, resume);
             return series ? toResumeCard(series, resume, context.listed.has(series.key)) : null;
-        })
+        }),
+    ))
         .filter((card) => card !== null);
 
     return (

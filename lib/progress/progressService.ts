@@ -4,6 +4,7 @@ import { withTransaction } from "@/lib/db/transaction";
 import { DatabaseError } from "@/lib/db/errors";
 import { getViewerSeriesAccessLevel } from "@/lib/access/entitlements";
 import { getDemoAsset } from "@/lib/access/demoAsset";
+import { parseVirtualEpisodeKey, parseVirtualTmdbRef } from "@/lib/catalog/tmdbVirtualSeries";
 import type { ResumePoint, EpisodeProgress, SeriesResumePoint } from "@/lib/core/contracts";
 import { resolveOwnedProfileId } from "@/lib/profiles/profileService";
 import { isEpisodeComplete } from "@/lib/progress/watchProgress";
@@ -39,15 +40,28 @@ export const getSeriesProgress = async (userId: number, username: string, series
 const isFiniteNonNegative = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0;
 export type SaveProgressResult = { ok: true; completed: boolean } | { ok: false; code: "invalid" | "unavailable" | "server" };
 
+const isValidVirtualDemoTarget = (seriesKey: string, episodeKey: string): boolean => {
+    const series = parseVirtualTmdbRef(seriesKey);
+    const episode = parseVirtualEpisodeKey(episodeKey);
+    if (!series || !episode) return false;
+
+    return series.kind === "tv" || (episode.season === 1 && episode.episode === 1);
+};
+
 const resolvePersistedAsset = async (
     seriesKey: string,
     episodeKey: string,
     connection: PoolConnection,
 ): Promise<repo.ReadyMediaAsset | null> => {
-    const episode = await repo.findReadyMediaAsset(seriesKey, episodeKey, connection);
-    if (!episode) return null;
+    const virtualDemoTarget = isValidVirtualDemoTarget(seriesKey, episodeKey);
+    const episode = virtualDemoTarget
+        ? null
+        : await repo.findReadyMediaAsset(seriesKey, episodeKey, connection);
 
-    if (await getViewerSeriesAccessLevel(seriesKey) === "full") return episode;
+    if (!virtualDemoTarget) {
+        if (!episode) return null;
+        if (await getViewerSeriesAccessLevel(seriesKey) === "full") return episode;
+    }
 
     const demo = await getDemoAsset();
     if (!demo || demo.durationSeconds === null) return null;
@@ -55,8 +69,8 @@ const resolvePersistedAsset = async (
     return {
         id: demo.assetId,
         version: demo.assetVersion,
-        seriesKey: episode.seriesKey,
-        episodeKey: episode.episodeKey,
+        seriesKey: episode?.seriesKey ?? seriesKey,
+        episodeKey: episode?.episodeKey ?? episodeKey,
         durationSeconds: demo.durationSeconds,
     };
 };
