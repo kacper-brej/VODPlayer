@@ -17,9 +17,21 @@ export interface DemoAssetKeys {
     episodeKey: string;
 }
 
+const DEFAULT_DEMO_ASSET_KEYS: DemoAssetKeys = {
+    seriesKey: "Sprite Fright",
+    episodeKey: "01.mp4",
+};
+
 export const demoAssetKeys = (env: EnvSource = process.env): DemoAssetKeys | null => {
-    const seriesKey = env.DEMO_ASSET_SERIES_KEY?.trim();
-    const episodeKey = env.DEMO_ASSET_EPISODE_KEY?.trim();
+    const configuredSeriesKey = env.DEMO_ASSET_SERIES_KEY;
+    const configuredEpisodeKey = env.DEMO_ASSET_EPISODE_KEY;
+
+    if (configuredSeriesKey === undefined && configuredEpisodeKey === undefined) {
+        return DEFAULT_DEMO_ASSET_KEYS;
+    }
+
+    const seriesKey = configuredSeriesKey?.trim();
+    const episodeKey = configuredEpisodeKey?.trim();
     if (!seriesKey || !episodeKey) return null;
     return { seriesKey, episodeKey };
 };
