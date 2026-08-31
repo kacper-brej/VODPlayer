@@ -1,6 +1,6 @@
 import "server-only";
 import nodemailer, { type Transporter } from "nodemailer";
-import { renderEmailTemplate, type EmailContent } from "@/lib/mail/emailTemplate";
+import { renderEmailTemplate, renderEmailText, type EmailContent } from "@/lib/mail/emailTemplate";
 import { readMailConfig, type MailConfig } from "@/lib/mail/mailConfig";
 
 declare global {
@@ -36,6 +36,7 @@ export const sendAccountEmail = async (email: AccountEmail): Promise<boolean> =>
             from: `"${config.fromName}" <${config.user}>`,
             to: email.to,
             subject: email.subject,
+            text: renderEmailText(email),
             html: renderEmailTemplate(email),
         });
         return true;

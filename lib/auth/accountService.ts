@@ -65,9 +65,11 @@ export const register = async (
 
         const sent = await sendAccountEmail({
             to: email,
-            subject: "Potwierdź swój adres email — Nocturna",
-            heading: "Witaj w Nocturnie!",
-            text: "Zostaje jeszcze jeden krok. Kliknij przycisk poniżej, aby potwierdzić swój adres email i aktywować konto.",
+            subject: "Potwierdź adres email w Nocturnie",
+            preheader: "Potwierdź adres, żeby zalogować się do Nocturny.",
+            heading: "Witaj w Nocturnie",
+            text: "Konto zostało utworzone. Potwierdź adres email, żeby móc się zalogować.",
+            note: "Link jest ważny 24 godziny. Jeśli konto zakładał ktoś inny, zignoruj tę wiadomość.",
             buttonLabel: "Potwierdź adres email",
             buttonUrl: `${readApplicationUrl()}/verify?token=${verification.raw}`,
         });
@@ -116,9 +118,11 @@ export const resendVerification = async (email: string): Promise<void> => {
 
         const sent = await sendAccountEmail({
             to: email,
-            subject: "Potwierdź swój adres email — Nocturna",
-            heading: "Potwierdź swój adres email",
-            text: "Kliknij przycisk poniżej, aby aktywować konto i wrócić do Nocturny.",
+            subject: "Nowy link do potwierdzenia adresu",
+            preheader: "Twój nowy link do potwierdzenia adresu email.",
+            heading: "Potwierdź adres email",
+            text: "Oto nowy link do potwierdzenia adresu. Poprzedni już nie działa.",
+            note: "Link jest ważny 24 godziny.",
             buttonLabel: "Potwierdź adres email",
             buttonUrl: `${readApplicationUrl()}/verify?token=${verification.raw}`,
         });
@@ -146,9 +150,11 @@ export const requestPasswordReset = async (email: string): Promise<RequestPasswo
 
             const sent = await sendAccountEmail({
                 to: email,
-                subject: "Resetowanie hasła — Nocturna",
-                heading: "Zresetuj swoje hasło",
-                text: "Otrzymaliśmy prośbę o zresetowanie hasła do Twojego konta. Link jest ważny przez 1 godzinę. Jeśli to nie Ty, zignoruj tę wiadomość.",
+                subject: "Resetowanie hasła w Nocturnie",
+                preheader: "Ustaw nowe hasło do konta w Nocturnie.",
+                heading: "Zresetuj hasło",
+                text: "Ktoś poprosił o zmianę hasła do konta przypisanego do tego adresu.",
+                note: "Link jest ważny godzinę. Jeśli to nie Ty, zignoruj tę wiadomość. Hasło zostanie takie samo.",
                 buttonLabel: "Ustaw nowe hasło",
                 buttonUrl: `${readApplicationUrl()}/reset-password?token=${reset.raw}`,
             });
@@ -208,10 +214,12 @@ export const requestEmailChange = async (
 
         const sent = await sendAccountEmail({
             to: newEmail,
-            subject: "Potwierdź zmianę adresu email — Nocturna",
-            heading: "Potwierdź nowy adres email",
-            text: "Otrzymaliśmy prośbę o zmianę adresu email na koncie Nocturna na ten adres. Link jest ważny przez 1 godzinę. Jeśli to nie Ty, zignoruj tę wiadomość.",
-            buttonLabel: "Potwierdź adres email",
+            subject: "Potwierdź nowy adres email",
+            preheader: "Potwierdź zmianę adresu email na koncie Nocturna.",
+            heading: "Potwierdź nowy adres",
+            text: "Ten adres ma zastąpić dotychczasowy w Twoim koncie Nocturna.",
+            note: "Link jest ważny godzinę. Dopóki go nie otworzysz, logujesz się starym adresem. Jeśli to nie Ty, zignoruj tę wiadomość.",
+            buttonLabel: "Potwierdź adres",
             buttonUrl: `${readApplicationUrl()}/confirm-email-change?token=${change.raw}`,
         });
         if (!sent) console.error("requestEmailChange: wysyłka nie powiodła się");
