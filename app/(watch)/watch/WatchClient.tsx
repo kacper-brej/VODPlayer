@@ -590,12 +590,30 @@ const WatchClient = ({
             )}
 
             {isDemo && (
-                <p
-                    role="status"
+                <aside
+                    aria-label="Autor i licencja materiału demonstracyjnego"
                     className="np-watch-toast np-watch-toast--demo"
                 >
-                    Materiał demonstracyjny
-                </p>
+                    <span>Sprite Fright</span>
+                    <span aria-hidden="true">·</span>
+                    <a
+                        href="https://studio.blender.org/projects/sprite-fright/pages/about/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="np-watch-demo-attribution-link"
+                    >
+                        (CC) Blender Foundation
+                    </a>
+                    <span aria-hidden="true">·</span>
+                    <a
+                        href="https://creativecommons.org/licenses/by/1.0/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="np-watch-demo-attribution-link"
+                    >
+                        CC BY 1.0
+                    </a>
+                </aside>
             )}
 
             <div className="np-watch-player-slot">
