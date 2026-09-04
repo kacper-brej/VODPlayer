@@ -37,4 +37,36 @@ describe("buildCatalog", () => {
             media: { status: "ready", heights: [480, 720], previewStartSeconds: 30, hasPreviewClip: true },
         });
     });
+
+    it("układa odcinki z nazwami plików według numeru, a nie alfabetycznie", async () => {
+        const asset = (id: number, episodeKey: string) => ({
+            asset_id: id, asset_version: 1, series_key: "Test", episode_key: episodeKey,
+            asset_duration_seconds: null, total_size_bytes: 900, preview_start_seconds: null,
+            preview_clip_key: null, added_at: 100, updated_at: 200,
+            series_id: 1000001, group_id: null, season_number: null, base_title: null,
+            cover_row_title: null, cover_image: null, backdrop_image: null, backdrop_source: null,
+            synopsis: null, rating: null, age_rating: null, year: null, focal_x: null, focal_y: null,
+            safe_left: null, safe_bottom: null, dominant_color: null, placeholder: null, studio: null,
+            audio_languages: null, subtitle_languages: null, metadata_provider: null, external_id: null,
+            tmdb_external_id: "tv:139287", episode_title: null, episode_synopsis: null,
+            episode_duration_seconds: null, thumbnail_path: null, thumbnail_source: null,
+        });
+        loadCatalogRows.mockResolvedValue({
+            assets: [
+                asset(10, "10. Dziesiąty.mp4"),
+                asset(11, "11. Jedenasty.mp4"),
+                asset(12, "12. Dwunasty.mp4"),
+                asset(3, "3. Trzeci.mp4"),
+                asset(4, "4. Czwarty.mp4"),
+            ],
+            renditions: [],
+            artwork: [],
+            genres: [],
+            titles: [],
+        });
+
+        const catalog = await buildCatalog();
+
+        expect(catalog.series[0]?.episodes.map((episode) => episode.number)).toEqual([3, 4, 10, 11, 12]);
+    });
 });

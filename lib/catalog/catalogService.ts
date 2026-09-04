@@ -23,6 +23,10 @@ const episodeNumber = (episodeKey: string, fallback: number): number => {
     return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
 };
 
+const compareEpisodes = (left: CatalogEpisodePayload, right: CatalogEpisodePayload): number =>
+    left.number - right.number
+    || left.key.localeCompare(right.key, "pl", { numeric: true });
+
 const thumbnailUrl = (source: string | null, path: string | null): string | null => {
     if (!path) return null;
     if (source === "tmdb") return `https://image.tmdb.org/t/p/w300${path}`;
@@ -144,6 +148,10 @@ export const buildCatalog = async (): Promise<CatalogResponse> => {
         entry.episodes.push(episode);
         entry.episodeCount = entry.episodes.length;
         entry.updatedAt = Math.max(entry.updatedAt, parseSafeDbInteger(row.updated_at, "updated_at"));
+    }
+
+    for (const entry of series.values()) {
+        entry.episodes.sort(compareEpisodes);
     }
 
     return { generatedAt: Math.floor(Date.now() / 1000), series: [...series.values()] };

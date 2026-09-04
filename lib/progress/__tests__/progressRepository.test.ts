@@ -27,6 +27,22 @@ describe("progress read model", () => {
         expect(result.episodesBySeries.A?.["03"]?.completed).toBe(true);
     });
 
+    it("pokazuje nieukończony plik w Continue Watching bez znanego duration", async () => {
+        execute.mockResolvedValueOnce([[
+            { series_key: "A", episode_key: "01", position_seconds: 321, duration_seconds: null, completed: 0, updated_at: 20 },
+        ]]);
+
+        const result = await loadProgressSnapshot(5);
+
+        expect(result.resumes).toEqual([{
+            seriesKey: "A",
+            episodeKey: "01",
+            positionSeconds: 321,
+            durationSeconds: null,
+            updatedAt: 20,
+        }]);
+    });
+
     it("filtr profilu jest parametrem pierwszego i jedynego zapytania", async () => {
         execute.mockResolvedValueOnce([[]]);
         await loadProgressSnapshot(77);
@@ -35,10 +51,22 @@ describe("progress read model", () => {
 });
 
 describe("progress write model", () => {
-    it("akceptuje wyłącznie gotowy asset z serwerowym duration", async () => {
+    it("akceptuje gotowy asset z serwerowym duration", async () => {
         execute.mockResolvedValueOnce([[{ id: 8, asset_version: 3, series_key: "A", episode_key: "01", duration_seconds: 1200 }]]);
         await expect(findReadyMediaAsset("A", "01")).resolves.toEqual({ id: 8, version: 3, seriesKey: "A", episodeKey: "01", durationSeconds: 1200 });
-        expect(execute.mock.calls[0]?.[0]).toMatch(/status = 'ready'[\s\S]+duration_seconds IS NOT NULL/);
+        expect(execute.mock.calls[0]?.[0]).toMatch(/status = 'ready'/);
+        expect(execute.mock.calls[0]?.[0]).not.toContain("duration_seconds IS NOT NULL");
+    });
+
+    it("zwraca gotowy asset plikowy, nawet gdy serwer nie zna jeszcze duration", async () => {
+        execute.mockResolvedValueOnce([[{ id: 9, asset_version: 1, series_key: "A", episode_key: "02", duration_seconds: null }]]);
+        await expect(findReadyMediaAsset("A", "02")).resolves.toEqual({
+            id: 9,
+            version: 1,
+            seriesKey: "A",
+            episodeKey: "02",
+            durationSeconds: null,
+        });
     });
 
     it("upsert wiąże rekord z assetem i completion nigdy nie znika przy zwykłym seeku", async () => {

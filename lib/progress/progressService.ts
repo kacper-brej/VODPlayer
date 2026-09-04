@@ -88,8 +88,16 @@ export const saveProgress = async (
         const outcome = await withTransaction(async (connection) => {
             const asset = await resolvePersistedAsset(seriesKey, episodeKey, connection);
             if (!asset) return null;
-            const position = Math.min(Math.round(requestedPosition), asset.durationSeconds);
-            const completed = await repo.upsertWatchProgress(profileId, asset, position, isEpisodeComplete(position, asset.durationSeconds), connection);
+            const position = asset.durationSeconds === null
+                ? Math.round(requestedPosition)
+                : Math.min(Math.round(requestedPosition), asset.durationSeconds);
+            const completed = await repo.upsertWatchProgress(
+                profileId,
+                asset,
+                position,
+                asset.durationSeconds !== null && isEpisodeComplete(position, asset.durationSeconds),
+                connection,
+            );
             if (position >= PLAY_COUNT_THRESHOLD_SECONDS) {
                 const countedToday = await repo.markPlayCountedToday(profileId, asset.seriesKey, asset.episodeKey, connection);
                 if (countedToday) await repo.incrementWeeklyPlayCount(asset.seriesKey, connection);

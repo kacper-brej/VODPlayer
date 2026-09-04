@@ -156,6 +156,19 @@ describe("bezpieczny zapis", () => {
         expect(repo.upsertWatchProgress).toHaveBeenCalledWith(5, ASSET, 1200, true, {});
     });
 
+    it("zapisuje pozycję gotowego pliku także bez znanego duration", async () => {
+        const fileAsset = { ...ASSET, durationSeconds: null };
+        repo.findReadyMediaAsset.mockResolvedValue(fileAsset);
+
+        await expect(saveProgress(1, "Kacper", {
+            series: "Naruto",
+            episode: "01.mp4",
+            position: 321.4,
+        })).resolves.toEqual({ ok: true, completed: false });
+
+        expect(repo.upsertWatchProgress).toHaveBeenCalledWith(5, fileAsset, 321, false, {});
+    });
+
     it("fikcyjne pola klienta nie mogą zmienić duration ani rankingu", async () => {
         await saveProgress(1, "Kacper", { series: "Naruto", episode: "01.mp4", position: 10, duration: 10 } as never);
         expect(repo.upsertWatchProgress).toHaveBeenCalledWith(5, ASSET, 10, false, {});

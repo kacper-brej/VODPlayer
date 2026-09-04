@@ -7,23 +7,29 @@ import { isEpisodeComplete } from "@/lib/progress/watchProgress";
 
 type Executor = Pool | PoolConnection;
 
-export interface ReadyMediaAsset { id: number; version: number; seriesKey: string; episodeKey: string; durationSeconds: number }
-interface AssetRow extends RowDataPacket { id: number; asset_version: number; series_key: string; episode_key: string; duration_seconds: number }
+export interface ReadyMediaAsset { id: number; version: number; seriesKey: string; episodeKey: string; durationSeconds: number | null }
+interface AssetRow extends RowDataPacket { id: number; asset_version: number; series_key: string; episode_key: string; duration_seconds: number | null }
 
 export const findReadyMediaAsset = async (seriesKey: string, episodeKey: string, db: Executor = getDbPool()): Promise<ReadyMediaAsset | null> => {
     try {
         const [rows] = await db.execute<AssetRow[]>(
             `SELECT id, asset_version, series_key, episode_key, duration_seconds FROM media_assets
-             WHERE series_key = ? AND episode_key = ? AND status = 'ready' AND duration_seconds IS NOT NULL LIMIT 1`,
+             WHERE series_key = ? AND episode_key = ? AND status = 'ready' LIMIT 1`,
             [seriesKey, episodeKey],
         );
         const row = rows[0];
-        return row ? { id: row.id, version: Number(row.asset_version), seriesKey: row.series_key, episodeKey: row.episode_key, durationSeconds: row.duration_seconds } : null;
+        return row ? {
+            id: row.id,
+            version: Number(row.asset_version),
+            seriesKey: row.series_key,
+            episodeKey: row.episode_key,
+            durationSeconds: row.duration_seconds === null ? null : Number(row.duration_seconds),
+        } : null;
     } catch (error) { throw mapDatabaseError(error); }
 };
 
 interface ProgressRow extends RowDataPacket {
-    series_key: string; episode_key: string; position_seconds: number; duration_seconds: number; completed: number; updated_at: number;
+    series_key: string; episode_key: string; position_seconds: number; duration_seconds: number | null; completed: number; updated_at: number;
 }
 export interface ProgressSnapshot { episodesBySeries: Record<string, Record<string, EpisodeProgress>>; resumes: ResumePoint[] }
 
@@ -51,7 +57,7 @@ export const loadProgressSnapshot = async (profileId: number, seriesKeys?: reado
                 updatedAt: row.updated_at,
             };
             const finished = row.completed === 1
-                && isEpisodeComplete(row.position_seconds, row.duration_seconds);
+                && (row.duration_seconds === null || isEpisodeComplete(row.position_seconds, row.duration_seconds));
 
             if (!finished && row.position_seconds > 0 && !newestIncomplete.has(row.series_key)) {
                 newestIncomplete.set(row.series_key, {
