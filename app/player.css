@@ -1191,6 +1191,8 @@
 }
 
 .np-seek-feedback {
+  /* Exiting and entering feedback must overlap, never create another grid row. */
+  grid-row: 1;
   display: grid;
   place-items: center;
   min-width: 104px;

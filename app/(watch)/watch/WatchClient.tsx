@@ -5,8 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import saveProgressAction from "@/lib/progress/saveProgressAction";
 import PlayerErrorBoundary from "@/components/video/PlayerErrorBoundary";
 import { partyWatchPath, seriesPath, watchPath } from "@/lib/core/routes";
-import type { EpisodeChapter, WatchPartyMessage } from "@/lib/core/contracts";
-import type { PlaybackSource } from "@/lib/player/videoAccess";
+import type { WatchPartyMessage } from "@/lib/core/contracts";
+import type { WatchData } from "@/lib/player/watchData";
 import { startPartyForEpisode } from "@/lib/party/startPartyForEpisode";
 import {
     buildPartyFeed,
@@ -35,30 +35,7 @@ const VideoPlayer = dynamic(
     }
 );
 
-interface WatchClientProps {
-    playback: PlaybackSource;
-    seriesTitle: string;
-    episodeTitle: string;
-    seasonNumber: number | null;
-    episodeSynopsis: string | null;
-    seriesId: number;
-    seriesKey: string;
-    currentEpisode: number;
-    totalEpisodes: number;
-    fileName: string;
-    startTime: number;
-    nextEpisodeTitle?: string;
-    chapters: EpisodeChapter[];
-    autoplayNext: boolean;
-    skipIntroPrompt: boolean;
-    defaultVolume: number;
-    isDemo?: boolean;
-    trackProgress?: boolean;
-    partyCode?: string;
-    episodeKeys: Array<{ key: string; number: number }>;
-    nextEpisodeKey?: string;
-    previousEpisodeKey?: string;
-}
+type WatchClientProps = WatchData;
 
 interface PartyVideoPlayerProps {
     code: string;
@@ -67,6 +44,7 @@ interface PartyVideoPlayerProps {
     episodeKeys: Array<{ key: string; number: number }>;
     nextEpisodeKey?: string;
     previousEpisodeKey?: string;
+    onEpisodeChange: (episodeKey: string) => void;
 }
 
 const PartyInviteLink = ({ code }: { code: string }) => {
@@ -151,6 +129,7 @@ const PartySyncedVideoPlayer = ({
     episodeKeys,
     nextEpisodeKey,
     previousEpisodeKey,
+    onEpisodeChange,
 }: PartyVideoPlayerProps) => {
     const router = useRouter();
     const adapterRef = useRef<PartyPlaybackAdapter | null>(null);
@@ -302,9 +281,8 @@ const PartySyncedVideoPlayer = ({
         if (!episodeKey || episodeKey === playerProps.episodeKey) return;
         const episode = episodeKeys.find((item) => item.key === episodeKey);
         if (!episode) return;
-        router.replace(partyWatchPath(seriesId, episode.number, code));
-        router.refresh();
-    }, [code, episodeKeys, party.room?.currentEpisode.episodeKey, playerProps.episodeKey, router, seriesId]);
+        onEpisodeChange(episode.key);
+    }, [episodeKeys, onEpisodeChange, party.room?.currentEpisode.episodeKey, playerProps.episodeKey]);
 
     if (party.soloMode) {
         return (
@@ -345,7 +323,6 @@ const PartySyncedVideoPlayer = ({
             <PartyClosedScreen
                 onLeave={() => {
                     router.replace(watchPath(seriesId, playerProps.episodeNumber ?? 1));
-                    router.refresh();
                 }}
             />
         );
@@ -449,34 +426,93 @@ const PartyVideoPlayer = (props: PartyVideoPlayerProps) => {
     return <PartySyncedVideoPlayer {...props} />;
 };
 
-const WatchClient = ({
-    playback,
-    seriesTitle,
-    episodeTitle,
-    seasonNumber,
-    episodeSynopsis,
-    seriesId,
-    seriesKey,
-    currentEpisode,
-    totalEpisodes,
-    fileName,
-    startTime,
-    nextEpisodeTitle,
-    chapters,
-    autoplayNext,
-    skipIntroPrompt,
-    defaultVolume,
-    isDemo = false,
-    trackProgress = true,
-    partyCode,
-    episodeKeys,
-    nextEpisodeKey,
-    previousEpisodeKey,
-}: WatchClientProps) => {
+const WatchClient = (initialData: WatchClientProps) => {
+    const [data, setData] = useState(initialData);
+    const [previousInitialData, setPreviousInitialData] = useState(initialData);
+    if (initialData.seriesKey !== previousInitialData.seriesKey
+        || initialData.fileName !== previousInitialData.fileName
+        || initialData.playback.src !== previousInitialData.playback.src
+        || initialData.startTime !== previousInitialData.startTime
+        || initialData.partyCode !== previousInitialData.partyCode) {
+        setPreviousInitialData(initialData);
+        setData(initialData);
+    }
+    const {
+        playback,
+        seriesTitle,
+        episodeTitle,
+        seasonNumber,
+        episodeSynopsis,
+        seriesId,
+        seriesKey,
+        currentEpisode,
+        totalEpisodes,
+        fileName,
+        startTime,
+        nextEpisodeTitle,
+        chapters,
+        autoplayNext,
+        skipIntroPrompt,
+        defaultVolume,
+        isDemo = false,
+        trackProgress = true,
+        partyCode,
+        episodeKeys,
+        nextEpisodeKey,
+        previousEpisodeKey,
+    } = data;
     const router = useRouter();
     const [playerInstanceKey, setPlayerInstanceKey] = useState(0);
     const [partyStartError, setPartyStartError] = useState<string | null>(null);
     const isNavigatingRef = useRef(false);
+    const episodeRequestRef = useRef<AbortController | null>(null);
+    const requestedEpisodeRef = useRef<string | null>(null);
+    const [episodeLoading, setEpisodeLoading] = useState(false);
+    const [episodeError, setEpisodeError] = useState<string | null>(null);
+
+    useEffect(() => () => {
+        const request = episodeRequestRef.current;
+        episodeRequestRef.current = null;
+        request?.abort();
+        isNavigatingRef.current = false;
+    }, [initialData.seriesKey, initialData.fileName, initialData.playback.src, initialData.partyCode]);
+
+    const changeEpisode = useCallback(async (episodeKey: string) => {
+        if (isNavigatingRef.current) return;
+        isNavigatingRef.current = true;
+        requestedEpisodeRef.current = episodeKey;
+        const controller = new AbortController();
+        episodeRequestRef.current = controller;
+        const timeout = window.setTimeout(() => controller.abort(), 15000);
+        setEpisodeLoading(true);
+        setEpisodeError(null);
+        try {
+            const params = new URLSearchParams({ id: String(seriesId), ep: episodeKey });
+            const response = await fetch(`/api/watch?${params}`, {
+                cache: "no-store",
+                signal: controller.signal,
+            });
+            if (!response.ok) throw new Error("episode-load-failed");
+            const next: WatchData = await response.json();
+            if (controller.signal.aborted) return;
+            setData({ ...next, partyCode, trackProgress });
+            // Keep the player mounted and update the address without an RSC navigation.
+            window.history.replaceState(null, "", partyCode
+                ? partyWatchPath(next.seriesId, next.fileName, partyCode)
+                : watchPath(next.seriesId, next.fileName));
+        } catch {
+            if (episodeRequestRef.current === controller) {
+                setEpisodeError("Nie udało się wczytać odcinka. Spróbuj ponownie.");
+            }
+        } finally {
+            window.clearTimeout(timeout);
+            if (episodeRequestRef.current === controller) {
+                episodeRequestRef.current = null;
+                isNavigatingRef.current = false;
+                setEpisodeLoading(false);
+            }
+        }
+    }, [partyCode, seriesId, trackProgress]);
 
     useEffect(() => {
         isNavigatingRef.current = false;
@@ -506,24 +542,17 @@ const WatchClient = ({
     };
 
     const handleNextEpisode = () => {
-        if (isNavigatingRef.current) return;
-        isNavigatingRef.current = true;
-
-        if (currentEpisode < totalEpisodes) {
-            const nextEp = currentEpisode + 1;
-            router.replace(watchPath(seriesId, nextEp));
+        if (nextEpisodeKey) {
+            void changeEpisode(nextEpisodeKey);
         } else {
+            if (isNavigatingRef.current) return;
+            isNavigatingRef.current = true;
             router.replace(seriesPath(seriesId));
         }
-        router.refresh();
     }
 
     const handlePreviousEpisode = () => {
-        if (isNavigatingRef.current) return;
-        isNavigatingRef.current = true;
-
-        router.replace(watchPath(seriesId, currentEpisode - 1));
-        router.refresh();
+        if (previousEpisodeKey) void changeEpisode(previousEpisodeKey);
     }
 
     const handleBack = () => {
@@ -534,7 +563,6 @@ const WatchClient = ({
             document.exitFullscreen().catch(() => {});
         }
         router.push("/");
-        router.refresh();
     }
 
     const handleStartParty = async (positionSeconds: number) => {
@@ -547,7 +575,6 @@ const WatchClient = ({
         }
         isNavigatingRef.current = true;
         router.replace(partyWatchPath(seriesId, currentEpisode, result.code));
-        router.refresh();
     }
 
     const playerProps: VideoPlayerProps = {
@@ -564,7 +591,7 @@ const WatchClient = ({
         nextEpisodeTitle,
         onBack: handleBack,
         onNextEpisode: handleNextEpisode,
-        onPreviousEpisode: currentEpisode > 1 ? handlePreviousEpisode : undefined,
+        onPreviousEpisode: previousEpisodeKey ? handlePreviousEpisode : undefined,
         onProgressUpdate: handleProgressUpdate,
         startTime,
         chapters,
@@ -588,6 +615,19 @@ const WatchClient = ({
                 >
                     {partyStartError}
                 </p>
+            )}
+
+            {(episodeLoading || episodeError) && (
+                <div role={episodeError ? "alert" : "status"} className="np-watch-toast">
+                    {episodeError ?? "Ładowanie odcinka…"}
+                    {episodeError && (
+                        <button type="button" className="np-error-secondary" onClick={() => {
+                            if (requestedEpisodeRef.current) void changeEpisode(requestedEpisodeRef.current);
+                        }}>
+                            Spróbuj ponownie
+                        </button>
+                    )}
+                </div>
             )}
 
             {isDemo && (
@@ -631,6 +671,7 @@ const WatchClient = ({
                             episodeKeys={episodeKeys}
                             nextEpisodeKey={nextEpisodeKey}
                             previousEpisodeKey={previousEpisodeKey}
+                            onEpisodeChange={changeEpisode}
                         />
                     ) : <VideoPlayer {...playerProps} />}
                 </PlayerErrorBoundary>

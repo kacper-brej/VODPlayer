@@ -123,6 +123,12 @@ const NEXT_EPISODE_AUTOPLAY_MS = 5000;
 const PROGRESS_SAVE_INTERVAL_SECONDS = 12;
 const PARTY_BUFFERING_DEBOUNCE_MS = 800;
 
+const updateHlsStartPosition = (provider: MediaProviderAdapter | null | undefined, position: number) => {
+    if (!isHLSProvider(provider)) return;
+    provider.config = buildHlsConfig(position);
+    if (provider.instance) provider.instance.config.startPosition = position;
+};
+
 const isEditableTarget = (target: EventTarget | null) => {
     const element = target as HTMLElement | null;
     return element?.isContentEditable
@@ -164,7 +170,6 @@ export const VideoPlayer = ({
     const currentTimeRef = useRef(0);
     const durationRef = useRef(0);
     const hasSeekedToStart = useRef(false);
-    const hasAppliedDefaultVolume = useRef(false);
     const nextEpisodeRef = useRef(onNextEpisode);
     const seekFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const progressDrainPromiseRef = useRef<Promise<void> | null>(null);
@@ -176,6 +181,9 @@ export const VideoPlayer = ({
 
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
+    const [volume, setVolume] = useState(() => Math.min(1, Math.max(0, (defaultVolume ?? 100) / 100)));
+    const [muted, setMuted] = useState(false);
+    const [playbackRate, setPlaybackRate] = useState(1);
     const [cancelledAutoAdvanceEpisode, setCancelledAutoAdvanceEpisode] = useState<string | null>(null);
     const [mediaError, setMediaError] = useState<MediaErrorDetail | null>(null);
     const [mediaInstanceKey, setMediaInstanceKey] = useState(0);
@@ -186,12 +194,15 @@ export const VideoPlayer = ({
     } | null>(null);
     const [activePlayback, setActivePlayback] = useState<PlaybackSource>(playback);
     const [previousPlaybackSrc, setPreviousPlaybackSrc] = useState(playback.src);
+    const [previousEpisodeKey, setPreviousEpisodeKey] = useState(episodeKey);
     const [manifestUnrecoverable, setManifestUnrecoverable] = useState(false);
     const [partyNotice, setPartyNotice] = useState<string | null>(null);
     const [partyPanelOpen, setPartyPanelOpen] = useState(true);
     const [overlayMessages, setOverlayMessages] = useState(true);
     const refreshAttemptsRef = useRef(0);
     const refreshInFlightRef = useRef(false);
+    const refreshGenerationRef = useRef(0);
+    const loadedEpisodeRef = useRef(`${seriesKey}/${episodeKey}`);
     const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const bufferingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const bufferingReportedRef = useRef(false);
@@ -324,7 +335,7 @@ export const VideoPlayer = ({
         const time = currentTimeRef.current;
         const mediaDuration = durationRef.current;
 
-        if (!onProgressUpdate || !Number.isFinite(time) || time < 0) return Promise.resolve();
+        if (!canPlayRef.current || !onProgressUpdate || !Number.isFinite(time) || time < 0) return Promise.resolve();
 
         if (Math.abs(time - lastQueuedTimeRef.current) >= 0.5) {
             pendingProgressRef.current = {
@@ -359,6 +370,7 @@ export const VideoPlayer = ({
         shouldResumeAfterRefreshRef.current = syncRef.current ? true : !snapshot.paused;
         selectedQualityHeightRef.current = snapshot.qualityHeight;
         refreshInFlightRef.current = true;
+        const generation = refreshGenerationRef.current;
 
         const refresh = async () => {
             while (refreshAttemptsRef.current < HLS_REFRESH_MAX_ATTEMPTS) {
@@ -369,10 +381,11 @@ export const VideoPlayer = ({
                         HLS_REFRESH_BACKOFF_MS[attempt] ?? HLS_REFRESH_BACKOFF_MS.at(-1),
                     );
                 });
-                if (!refreshInFlightRef.current) return;
+                if (!refreshInFlightRef.current || generation !== refreshGenerationRef.current) return;
 
                 try {
                     const result = await refreshPlaybackSourceAction(seriesKey, episodeKey);
+                    if (generation !== refreshGenerationRef.current) return;
                     if (result.kind !== 'success') continue;
 
                     hasSeekedToStart.current = false;
@@ -380,6 +393,7 @@ export const VideoPlayer = ({
                     setActivePlayback(result.data);
                     return;
                 } catch {
+                    if (generation !== refreshGenerationRef.current) return;
                 }
             }
 
@@ -449,8 +463,7 @@ export const VideoPlayer = ({
             if (selectedQuality) selectedQuality.selected = true;
             selectedQualityHeightRef.current = null;
         }
-        if (activePlayback.kind === 'file'
-            && !hasSeekedToStart.current
+        if (!hasSeekedToStart.current
             && desiredStartPositionRef.current > 0
             && playerRef.current) {
             hasSeekedToStart.current = true;
@@ -460,38 +473,59 @@ export const VideoPlayer = ({
         if (syncRef.current) void applyCurrentPartyAnchor();
         else if (!shouldResumeAfterRefreshRef.current) playerRef.current?.pause();
 
-        if (!hasAppliedDefaultVolume.current && defaultVolume !== undefined && playerRef.current) {
-            playerRef.current.volume = Math.min(1, Math.max(0, defaultVolume / 100));
-            hasAppliedDefaultVolume.current = true;
-        }
     };
 
-    useEffect(() => {
+    const handleSourceChange = () => {
+        const identity = `${seriesKey}/${episodeKey}`;
+        if (loadedEpisodeRef.current !== identity) {
+            loadedEpisodeRef.current = identity;
+            refreshGenerationRef.current += 1;
+            refreshInFlightRef.current = false;
+            refreshAttemptsRef.current = 0;
+            desiredStartPositionRef.current = startTime;
+            shouldResumeAfterRefreshRef.current = true;
+            selectedQualityHeightRef.current = null;
+            if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+        }
+        clearBufferingReport();
+        if (seekFeedbackTimeoutRef.current) clearTimeout(seekFeedbackTimeoutRef.current);
+        setSeekFeedback(null);
+        setMediaError(null);
+        setCurrentTime(0);
+        setDuration(0);
         hasSeekedToStart.current = false;
-        hasAppliedDefaultVolume.current = false;
         currentTimeRef.current = 0;
         durationRef.current = 0;
         lastQueuedTimeRef.current = 0;
         lastUiSecondRef.current = -1;
-        refreshAttemptsRef.current = 0;
-        desiredStartPositionRef.current = startTime;
         canPlayRef.current = false;
-    }, [playback.src, startTime]);
+        seekingRef.current = false;
+
+        // Vidstack reuses the HLS provider. Set the new start position before loadSource.
+        updateHlsStartPosition(playerRef.current?.provider, desiredStartPositionRef.current);
+    };
 
     useEffect(() => () => {
         if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
         if (bufferingTimerRef.current) clearTimeout(bufferingTimerRef.current);
         if (bufferingReportedRef.current) void syncRef.current?.reportBuffering(false);
         refreshInFlightRef.current = false;
+        refreshGenerationRef.current += 1;
     }, []);
 
-    if (playback.src !== previousPlaybackSrc) {
+    if (playback.src !== previousPlaybackSrc || episodeKey !== previousEpisodeKey) {
         setPreviousPlaybackSrc(playback.src);
+        setPreviousEpisodeKey(episodeKey);
         setManifestUnrecoverable(false);
+        setMediaError(null);
+        setCurrentTime(0);
+        setDuration(0);
+        setCancelledAutoAdvanceEpisode(null);
         setActivePlayback(playback);
     }
 
     const handleTimeUpdate = (detail: MediaTimeUpdateEventDetail) => {
+        if (!canPlayRef.current) return;
         const time = detail.currentTime;
         currentTimeRef.current = time;
 
@@ -748,13 +782,25 @@ export const VideoPlayer = ({
         <MotionConfig reducedMotion="user">
         <div className="np-stage">
             <MediaPlayer
-                key={`${activePlayback.src}-${mediaInstanceKey}`}
+                key={mediaInstanceKey}
                 ref={playerRef}
                 title={subtitle ? `${title} — ${subtitle}` : title}
                 src={mediaSrc}
+                onSourceChange={handleSourceChange}
                 onProviderChange={handleProviderChange}
                 onHlsError={handleHlsError}
                 autoPlay={!sync}
+                volume={volume}
+                muted={muted}
+                playbackRate={playbackRate}
+                onVolumeChange={(detail) => {
+                    if (!canPlayRef.current) return;
+                    setVolume(detail.volume);
+                    setMuted(detail.muted);
+                }}
+                onRateChange={(rate) => {
+                    if (canPlayRef.current) setPlaybackRate(rate);
+                }}
                 keyTarget="document"
                 keyDisabled
                 className="np-player"
