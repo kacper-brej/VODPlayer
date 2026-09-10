@@ -20,6 +20,7 @@ import { watchPath } from "@/lib/core/routes";
 import type { ResumePoint } from "@/lib/core/contracts";
 import { resolvePreviewSource } from "@/lib/player/videoAccess";
 import { getSessionUser } from "@/lib/auth/session";
+import { resolveSavedCatalogSeries } from "@/lib/catalog/savedCatalogSeries";
 
 interface ViewerRowContext {
     resumeMap: Map<string, ResumePoint>;
@@ -202,7 +203,10 @@ const WatchlistSection = async ({ catalog }: { catalog: CatalogSeries[] }) => {
         getWatchlist(),
         getViewerRowContext(),
     ]);
-    const result = buildWatchlistHomeRow(catalog, watchlistResult);
+    const saved = watchlistResult.kind === "error"
+        ? null
+        : await resolveSavedCatalogSeries(catalog, watchlistResult.data.map((item) => item.seriesKey));
+    const result = buildWatchlistHomeRow(saved?.series ?? catalog, watchlistResult);
 
     if (result.kind !== "ready") return null;
 
@@ -246,7 +250,7 @@ const EmptyArchive = ({ canManageLibrary }: { canManageLibrary: boolean }) => (
 
 const HomeDashboard = async () => {
     const [catalogResult, user] = await Promise.all([
-        getCatalog(),
+        getCatalog(false),
         getSessionUser(),
     ]);
 

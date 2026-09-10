@@ -20,6 +20,7 @@ import type { SearchIndexEntry } from "@/lib/search/searchIndex";
 interface CommandPaletteProps {
     searchIndex: DataResult<SearchIndexEntry[]>;
     initiallyOpen?: boolean;
+    onRetry: () => void;
 }
 
 type PaletteAction =
@@ -69,7 +70,7 @@ const HighlightedText = ({ text, ranges }: { text: string; ranges: SearchRange[]
     return <>{nodes}</>;
 };
 
-const CommandPalette = ({ searchIndex, initiallyOpen = false }: CommandPaletteProps) => {
+const CommandPalette = ({ searchIndex, initiallyOpen = false, onRetry }: CommandPaletteProps) => {
     const router = useRouter();
     const { logout, user } = useAuth();
     const prefersReducedMotion = useReducedMotion();
@@ -385,7 +386,7 @@ const CommandPalette = ({ searchIndex, initiallyOpen = false }: CommandPalettePr
                         <div id={listboxId} role="listbox" aria-label="Wyniki palety poleceń" className="flex-1 overflow-y-auto py-2">
                             {showIndexError && (
                                 <div className="px-4 py-3">
-                                    <DataErrorState reason={searchIndex.kind === "error" ? searchIndex.reason : "server"} compact onRetry={() => router.refresh()} />
+                                    <DataErrorState reason={searchIndex.kind === "error" ? searchIndex.reason : "server"} compact onRetry={onRetry} />
                                 </div>
                             )}
 

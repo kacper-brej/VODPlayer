@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import {
     CaptionButton,
     Controls,
@@ -70,6 +70,49 @@ interface PlayerOptionsMenuProps {
     onPreviousEpisode?: () => void;
     partyMode?: boolean;
 }
+
+const PartySeekSlider = ({
+    duration,
+    partyControl,
+}: {
+    duration: number;
+    partyControl: NonNullable<PlayerControlsProps["partyControl"]>;
+}) => {
+    const currentTime = useMediaState("currentTime");
+    const [partySeekTarget, setPartySeekTarget] = useState<number | null>(null);
+    const runPartyControl = (action: () => void) => {
+        if (!partyControl.canControl) {
+            partyControl.onControlDenied();
+            return;
+        }
+        action();
+    };
+
+    return (
+        <input
+            type="range"
+            min={0}
+            max={duration}
+            step={0.1}
+            value={partySeekTarget ?? currentTime}
+            aria-label="Pozycja odtwarzania w Watch Party"
+            onPointerDown={(event) => event.stopPropagation()}
+            onChange={(event) => setPartySeekTarget(Number(event.currentTarget.value))}
+            onPointerUp={(event) => {
+                runPartyControl(() => partyControl.onSeekTo(Number(event.currentTarget.value)));
+                setPartySeekTarget(null);
+            }}
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
+            onKeyUp={(event) => {
+                event.stopPropagation();
+                runPartyControl(() => partyControl.onSeekTo(Number(event.currentTarget.value)));
+                setPartySeekTarget(null);
+            }}
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer" }}
+        />
+    );
+};
 
 const PlayerOptionsMenu = ({ onPreviousEpisode, partyMode = false }: PlayerOptionsMenuProps) => {
     const remote = useMediaRemote();
@@ -242,8 +285,6 @@ const PlayerControls = ({
     const canFullscreen = useMediaState("canFullscreen");
     const canPictureInPicture = useMediaState("canPictureInPicture");
     const duration = useMediaState("duration");
-    const currentTime = useMediaState("currentTime");
-    const [partySeekTarget, setPartySeekTarget] = useState<number | null>(null);
 
     const runPartyControl = (action: () => void) => {
         if (!partyControl) return;
@@ -306,28 +347,7 @@ const PlayerControls = ({
                         <TimeSlider.Value className="np-preview-value" />
                     </TimeSlider.Preview>
                     {partyControl && duration > 0 && (
-                        <input
-                            type="range"
-                            min={0}
-                            max={duration}
-                            step={0.1}
-                            value={partySeekTarget ?? currentTime}
-                            aria-label="Pozycja odtwarzania w Watch Party"
-                            onPointerDown={(event) => event.stopPropagation()}
-                            onChange={(event) => setPartySeekTarget(Number(event.currentTarget.value))}
-                            onPointerUp={(event) => {
-                                runPartyControl(() => partyControl.onSeekTo(Number(event.currentTarget.value)));
-                                setPartySeekTarget(null);
-                            }}
-                            onClick={(event) => event.stopPropagation()}
-                            onKeyDown={(event) => event.stopPropagation()}
-                            onKeyUp={(event) => {
-                                event.stopPropagation();
-                                runPartyControl(() => partyControl.onSeekTo(Number(event.currentTarget.value)));
-                                setPartySeekTarget(null);
-                            }}
-                            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer" }}
-                        />
+                        <PartySeekSlider duration={duration} partyControl={partyControl} />
                     )}
                 </TimeSlider.Root>
 
@@ -484,4 +504,4 @@ const PlayerControls = ({
     );
 };
 
-export default PlayerControls;
+export default memo(PlayerControls);

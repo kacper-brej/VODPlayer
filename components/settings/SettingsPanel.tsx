@@ -9,6 +9,7 @@ import { isPublicDemoAccount } from "@/lib/auth/publicDemoAccount";
 import updateSettingsAction from "@/lib/settings/updateSettingsAction";
 import type { ProfileSettings } from "@/lib/settings/settings";
 import { usePreviewPreferences } from "@/components/preview/PreviewPreferences";
+import { mergeSettingsAfterSave } from "@/lib/settings/mergeSettingsAfterSave";
 
 interface SettingsPanelProps {
     initialSettings: ProfileSettings;
@@ -70,7 +71,7 @@ const SettingsPanel = ({ initialSettings, loadFailed }: SettingsPanelProps) => {
     const save = () => {
         setMessage("");
         startTransition(async () => {
-            const result = await updateSettingsAction(settings);
+            const result = await updateSettingsAction(settings).catch(() => ({ success: false as const }));
 
             if (!result.success) {
                 setMessageKind("error");
@@ -78,7 +79,7 @@ const SettingsPanel = ({ initialSettings, loadFailed }: SettingsPanelProps) => {
                 return;
             }
 
-            setSettings(result.settings);
+            setSettings((current) => mergeSettingsAfterSave(current, settings, result.settings));
             setSavedSettings(result.settings);
             setPreviewPreferences({
                 autoPreviewsEnabled: result.settings.autoPreviewsEnabled,
@@ -92,7 +93,7 @@ const SettingsPanel = ({ initialSettings, loadFailed }: SettingsPanelProps) => {
     const requestPasswordChange = () => {
         setMessage("");
         startTransition(async () => {
-            const result = await requestPasswordChangeAction();
+            const result = await requestPasswordChangeAction().catch(() => ({ success: false as const }));
             setMessageKind(result.success ? "info" : "error");
             setMessage(result.success
                 ? "Wysłaliśmy wiadomość z linkiem do zmiany hasła."

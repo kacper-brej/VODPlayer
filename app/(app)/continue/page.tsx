@@ -33,7 +33,7 @@ const EmptyContinueWatching = () => (
 
 const ContinueWatchingContent = async () => {
     const [catalogResult, continueResult, watchlistResult] = await Promise.all([
-        getCatalog(),
+        getCatalog(false),
         getContinueWatching(),
         getWatchlist(),
     ]);

@@ -12,7 +12,7 @@ import { getPublicHomeRows } from "@/lib/home/publicHomeRows";
 
 const loadHomeRowSections = async (): Promise<ReadonlyMap<HomeSectionId, HomeSectionRow>> => {
     try {
-        const catalogResult = await getCatalog();
+        const catalogResult = await getCatalog(false);
         const catalog = catalogResult.kind === "error" ? [] : catalogResult.data;
         const [publicRows, personalizedRows] = await Promise.all([
             getPublicHomeRows(catalog),

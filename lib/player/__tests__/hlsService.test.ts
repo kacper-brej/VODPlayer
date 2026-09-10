@@ -71,6 +71,44 @@ describe("buildMasterPlaylist", () => {
 });
 
 describe("rewriteMediaPlaylist", () => {
+    it("shares signing work only between simultaneous requests for the same rendition", async () => {
+        fetchObjectText.mockResolvedValue('#EXT-X-MAP:URI="init.mp4"\n#EXTINF:6.0,\n000.m4s\n');
+        presignedObjectUrl.mockImplementation(async (key: string) => `signed:${key}`);
+        const args = ["media/x/720/index.m3u8", "42:7:720", 1800] as const;
+
+        const results = await Promise.all(Array.from({ length: 4 }, () => rewriteMediaPlaylist(...args)));
+        expect(new Set(results).size).toBe(1);
+        expect(fetchObjectText).toHaveBeenCalledOnce();
+        expect(presignedObjectUrl).toHaveBeenCalledTimes(2);
+
+        await rewriteMediaPlaylist(...args);
+        expect(presignedObjectUrl).toHaveBeenCalledTimes(4);
+    });
+
+    it("keeps simultaneous versions and signing lifetimes separate", async () => {
+        fetchObjectText.mockResolvedValue("#EXTINF:6.0,\n000.m4s\n");
+        presignedObjectUrl.mockImplementation(async (key: string, ttl: number) => `${key}:${ttl}`);
+        const results = await Promise.all([
+            rewriteMediaPlaylist("media/v7/index.m3u8", "42:7:720", 1800),
+            rewriteMediaPlaylist("media/v8/index.m3u8", "42:8:720", 1800),
+            rewriteMediaPlaylist("media/v7/index.m3u8", "42:7:720", 3600),
+        ]);
+        expect(new Set(results).size).toBe(3);
+        expect(presignedObjectUrl).toHaveBeenCalledTimes(3);
+    });
+
+    it("allows a fresh attempt after concurrent signing fails", async () => {
+        fetchObjectText.mockResolvedValue("#EXTINF:6.0,\n000.m4s\n");
+        presignedObjectUrl.mockRejectedValueOnce(new Error("signing failed"));
+        const args = ["media/x/index.m3u8", "42:7:720", 1800] as const;
+        const results = await Promise.allSettled([rewriteMediaPlaylist(...args), rewriteMediaPlaylist(...args)]);
+        expect(results.map((result) => result.status)).toEqual(["rejected", "rejected"]);
+        expect(presignedObjectUrl).toHaveBeenCalledOnce();
+
+        presignedObjectUrl.mockResolvedValue("fresh-url");
+        expect(await rewriteMediaPlaylist(...args)).toContain("fresh-url");
+    });
+
     it("ogranicza TTL segmentow do czasu odcinka z marginesem", () => {
         expect(segmentPresignTtlSeconds(1500)).toBe(2100);
         expect(segmentPresignTtlSeconds(10)).toBe(900);
@@ -165,6 +203,21 @@ describe("rewriteMediaPlaylist", () => {
 });
 
 describe("buildManifest — orkiestracja", () => {
+    it("checks asset availability for every viewer even when signing is shared", async () => {
+        findReadyHlsAsset.mockResolvedValue(readyAsset([{ height: 720, width: 1280, bitrateKbps: 2500, playlistKey: "media/x/index.m3u8" }]));
+        fetchObjectText.mockResolvedValue("#EXTINF:6.0,\n000.m4s\n");
+        presignedObjectUrl.mockResolvedValue("signed-url");
+        const args = [42, 7, "X", "01.mp4", "720", 1999999999, "/api/hls"] as const;
+
+        await Promise.all([buildManifest(...args), buildManifest(...args)]);
+        expect(findReadyHlsAsset).toHaveBeenCalledTimes(2);
+        expect(presignedObjectUrl).toHaveBeenCalledOnce();
+
+        findReadyHlsAsset.mockResolvedValue(null);
+        expect(await buildManifest(...args)).toEqual({ ok: false, code: "not_found" });
+        expect(presignedObjectUrl).toHaveBeenCalledOnce();
+    });
+
     it("brak renditionow (asset nieready lub nieznany) -> not_found", async () => {
         findReadyHlsAsset.mockResolvedValue(null);
         await expect(buildManifest(42, 7, "X", "01.mp4", "master", 1999999999, "/api/hls")).resolves.toEqual({

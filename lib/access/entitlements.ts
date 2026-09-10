@@ -10,16 +10,15 @@ export interface ViewerEntitlements {
     accessFor: (seriesKey: string, visibility: SeriesVisibility | null | undefined) => SeriesAccessLevel;
 }
 
-const getViewerGrantSet = cache(async (): Promise<ReadonlySet<string>> => {
-    const user = await getSessionUser();
-    if (!user || user.role === "admin") return new Set<string>();
-    return new Set(await loadUserGrants(user.id));
+const getViewerGrantSet = cache(async (userId: number, role: UserRole | undefined): Promise<ReadonlySet<string>> => {
+    if (role === "admin") return new Set<string>();
+    return new Set(await loadUserGrants(userId));
 });
 
 const loadDecisionInput = async (user: AuthUser, seriesKey: string): Promise<SeriesAccessInput> => {
     const [visibility, granted] = await Promise.all([
         findSeriesVisibility(seriesKey),
-        getViewerGrantSet(),
+        getViewerGrantSet(user.id, user.role),
     ]);
     return { role: user.role, visibility, hasGrant: granted.has(seriesKey) };
 };
@@ -30,7 +29,7 @@ export const getViewerEntitlements = cache(async (): Promise<ViewerEntitlements>
         return { role: undefined, accessFor: () => "demo" };
     }
 
-    const granted = await getViewerGrantSet();
+    const granted = await getViewerGrantSet(user.id, user.role);
 
     return {
         role: user.role,

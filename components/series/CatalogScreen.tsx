@@ -13,6 +13,7 @@ import { toContentCard } from "@/lib/catalog/contentCards";
 import type { ResumePoint } from "@/lib/core/contracts";
 import { prepareSearchEntries, searchEntries } from "@/lib/search";
 import { getSessionUser } from "@/lib/auth/session";
+import { resolveSavedCatalogSeries } from "@/lib/catalog/savedCatalogSeries";
 
 export type CatalogMode = "all" | "recent" | "genres" | "watchlist";
 
@@ -229,7 +230,7 @@ const CatalogScreen = async ({
 }: CatalogScreenProps) => {
     const [params, catalogResult, resumeResult, watchlistResult, user] = await Promise.all([
         searchParams,
-        getCatalog(),
+        getCatalog(false),
         getResumeMap(),
         getWatchlist(),
         getSessionUser(),
@@ -272,16 +273,11 @@ const CatalogScreen = async ({
     const resumeMap = resumeResult.kind === "error"
         ? new Map<string, ResumePoint>()
         : resumeResult.data;
-    const genres = getCatalogGenres(collapsed);
-
-    let source = collapsed;
-
-    if (mode === "watchlist") {
-        const order = new Map(listedItems.map((item, index) => [item.seriesKey, index]));
-        source = collapsed
-            .filter((series) => listedKeys.has(series.key))
-            .sort((a, b) => (order.get(a.key) ?? Number.MAX_SAFE_INTEGER) - (order.get(b.key) ?? Number.MAX_SAFE_INTEGER));
-    }
+    const saved = mode === "watchlist"
+        ? await resolveSavedCatalogSeries(catalogResult.data, listedItems.map((item) => item.seriesKey))
+        : null;
+    const source = saved ? collapseSeriesGroups(saved.series) : collapsed;
+    const genres = getCatalogGenres(source);
 
     const genreFiltered = source.filter((series) =>
         !genre || series.genres.some((item) => item.slug === genre)
@@ -320,18 +316,28 @@ const CatalogScreen = async ({
                 </h1>
             </header>
 
+            {saved && saved.unavailableKeys.length > 0 && (
+                <p role="status" className="mt-6 text-sm text-nx-text-2">
+                    Nie udało się wczytać części zapisanych tytułów. Pozostają na Twojej liście; spróbuj odświeżyć stronę.
+                </p>
+            )}
+
             {mode === "genres" && (
                 <GenreDirectory catalog={collapsed} genres={genres} basePath={basePath} />
             )}
 
             {source.length === 0 ? (
                 <div className="mt-10">
-                    <EmptyCatalog
-                        mode={mode}
-                        filtered={false}
-                        basePath={basePath}
-                        canManageLibrary={canManageLibrary}
-                    />
+                    {saved && saved.unavailableKeys.length > 0 ? (
+                        <DataErrorState reason="server" />
+                    ) : (
+                        <EmptyCatalog
+                            mode={mode}
+                            filtered={false}
+                            basePath={basePath}
+                            canManageLibrary={canManageLibrary}
+                        />
+                    )}
                 </div>
             ) : (
                 <>

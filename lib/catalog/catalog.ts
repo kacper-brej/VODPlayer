@@ -75,6 +75,7 @@ export const applyViewerAccess = (
     payload: CatalogResponse,
     entitlements: ViewerEntitlements,
     demo: DemoAsset | null = null,
+    includePlaybackUrls = true,
 ): CatalogSeries[] => payload.series.map((entry) => {
     const access = entitlements.accessFor(entry.key, entry.visibility);
     const resolvedCoverImage = entry.posterImage || entry.coverImage;
@@ -97,19 +98,19 @@ export const applyViewerAccess = (
         access,
         episodes: entry.episodes.map((episode) => ({
             ...episode,
-            url: episodeUrl(access, entry.key, episode, demo),
+            url: includePlaybackUrls ? episodeUrl(access, entry.key, episode, demo) : null,
         })),
     };
 });
 
-const loadCatalog = async (): Promise<DataResult<CatalogSeries[]>> => {
+const loadCatalog = async (includePlaybackUrls = true): Promise<DataResult<CatalogSeries[]>> => {
     try {
         const [payload, entitlements, demo] = await Promise.all([
             loadCatalogPayload(),
             getViewerEntitlements(),
-            getDemoAsset(),
+            includePlaybackUrls ? getDemoAsset() : null,
         ]);
-        const series = applyViewerAccess(payload, entitlements, demo);
+        const series = applyViewerAccess(payload, entitlements, demo, includePlaybackUrls);
 
         return series.length === 0
             ? dataEmpty(series)
@@ -130,23 +131,38 @@ export const getCatalogSeriesByKey = cache(async (key: string): Promise<DataResu
     return series ? dataSuccess(series) : dataEmpty(null);
 });
 
-export const resolveCatalogSeries = cache(async (query: string): Promise<DataResult<CatalogSeries | null>> => {
-    const result = await getCatalog();
-    if (result.kind === "error") return result;
+export const resolveCatalogSeries = cache(async (
+    query: string,
+    includePlaybackUrls = true,
+): Promise<DataResult<CatalogSeries | null>> => {
+    try {
+        const [payload, entitlements, demo] = await Promise.all([
+            loadCatalogPayload(),
+            getViewerEntitlements(),
+            includePlaybackUrls ? getDemoAsset() : null,
+        ]);
+        let entry = payload.series.find((series) => series.key === query || String(series.id) === query);
 
-    const directMatch = result.data.find((entry) => entry.key === query || String(entry.id) === query);
+        if (!entry) {
+            const virtualRef = parseVirtualTmdbRef(query);
+            if (virtualRef !== null) return await getVirtualTmdbTitle(virtualRef);
 
-    if (directMatch) return dataSuccess(directMatch);
+            const legacyId = Number(query);
+            const legacyIndex = legacyId - LEGACY_LOCAL_ID_OFFSET;
+            const stableId = STABLE_LOCAL_ID_OFFSET + legacyIndex;
+            if (Number.isInteger(legacyId) && legacyIndex >= 0) {
+                entry = payload.series.find((series) => series.id === stableId) ?? payload.series[legacyIndex];
+            }
+        }
 
-    const virtualRef = parseVirtualTmdbRef(query);
-    if (virtualRef !== null) return getVirtualTmdbTitle(virtualRef);
+        if (!entry) return dataEmpty(null);
 
-    const legacyId = Number(query);
-    const legacyIndex = legacyId - LEGACY_LOCAL_ID_OFFSET;
-    const stableId = STABLE_LOCAL_ID_OFFSET + legacyIndex;
-    const series = Number.isInteger(legacyId) && legacyIndex >= 0
-        ? result.data.find((entry) => entry.id === stableId) ?? result.data[legacyIndex] ?? null
-        : null;
-
-    return series ? dataSuccess(series) : dataEmpty(null);
+        const [series] = applyViewerAccess(
+            { ...payload, series: [entry] }, entitlements, demo, includePlaybackUrls,
+        );
+        return dataSuccess(series);
+    } catch (error) {
+        console.error("Catalog series request failed:", error);
+        return dataFailure("server");
+    }
 });

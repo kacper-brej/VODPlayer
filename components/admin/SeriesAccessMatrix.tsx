@@ -13,7 +13,7 @@ const grantKey = (seriesKey: string, userId: number): string => `${userId}::${se
 const SeriesAccessMatrix = ({ overview }: { overview: Overview }) => {
     const router = useRouter();
     const [error, setError] = useState<string | null>(null);
-    const [pendingKey, setPendingKey] = useState<string | null>(null);
+    const [pendingKeys, setPendingKeys] = useState<ReadonlySet<string>>(new Set());
     const [, startTransition] = useTransition();
 
     const restrictedSeries = useMemo(
@@ -28,15 +28,21 @@ const SeriesAccessMatrix = ({ overview }: { overview: Overview }) => {
 
     const toggle = (seriesKey: string, userId: number, hasAccess: boolean) => {
         const key = grantKey(seriesKey, userId);
+        if (pendingKeys.has(key)) return;
         setError(null);
-        setPendingKey(key);
+        setPendingKeys((current) => new Set(current).add(key));
 
         startTransition(async () => {
-            const result = hasAccess
-                ? await revokeSeriesAccessAction(seriesKey, userId)
-                : await grantSeriesAccessAction(seriesKey, userId);
+            const result = await (hasAccess
+                ? revokeSeriesAccessAction(seriesKey, userId)
+                : grantSeriesAccessAction(seriesKey, userId))
+                .catch(() => ({ kind: "error" as const }));
 
-            setPendingKey(null);
+            setPendingKeys((current) => {
+                const next = new Set(current);
+                next.delete(key);
+                return next;
+            });
 
             if (result.kind !== "success") {
                 setError("Nie udało się zapisać zmiany dostępu.");
@@ -82,7 +88,7 @@ const SeriesAccessMatrix = ({ overview }: { overview: Overview }) => {
                         {restrictedSeries.map((entry) => {
                             const key = grantKey(entry.seriesKey, user.id);
                             const hasAccess = granted.has(key);
-                            const isBusy = pendingKey === key;
+                            const isBusy = pendingKeys.has(key);
 
                             return (
                                 <li key={entry.seriesKey} className="flex items-center justify-between gap-3">

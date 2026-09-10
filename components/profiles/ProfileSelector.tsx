@@ -96,7 +96,7 @@ export default function ProfileSelector({ profiles: initialProfiles, initiallyMa
                 }
 
                 router.prefetch("/");
-                await preloadHeroPreview(result.previewSource);
+                void preloadHeroPreview(result.previewSource).catch(() => undefined);
                 clearSpinnerTimer();
                 setHandoff((current) => current?.profile.id === profile.id
                     ? { ...current, phase: "leaving", showSpinner: false }
@@ -198,7 +198,21 @@ export default function ProfileSelector({ profiles: initialProfiles, initiallyMa
         return (
             <div className="min-h-dvh bg-nx-bg text-nx-text">
                 {handoff && <ProfileHandoff {...handoff} />}
-                {error && <p role="alert" className="sr-only">{error}</p>}
+                {error && (
+                    <div className="flex min-h-dvh flex-col items-center justify-center gap-5 px-5 text-center">
+                        <p role="alert" className="text-nx-critical">{error}</p>
+                        {profiles[0] && (
+                            <button
+                                type="button"
+                                onClick={() => beginProfileHandoff(profiles[0], null)}
+                                disabled={pending}
+                                className="min-h-11 rounded-full bg-nx-accent px-6 text-sm font-semibold text-nx-on-accent outline-none focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent disabled:opacity-50"
+                            >
+                                Spróbuj ponownie
+                            </button>
+                        )}
+                    </div>
+                )}
             </div>
         );
     }

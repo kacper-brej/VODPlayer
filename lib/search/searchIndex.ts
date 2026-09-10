@@ -15,7 +15,7 @@ export type SearchIndexEntry = PreparedSearchEntry<SearchIndexRecord>;
 
 const buildSearchIndex = async (): Promise<DataResult<SearchIndexEntry[]>> => {
     const [result, resumeResult, watchlistResult] = await Promise.all([
-        getCatalog(),
+        getCatalog(false),
         getResumeMap(),
         getWatchlist(),
     ]);

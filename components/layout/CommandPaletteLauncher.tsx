@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState, useTransition } from "react";
 import getSearchIndexAction from "@/lib/search/getSearchIndexAction";
 import { COMMAND_PALETTE_OPEN_EVENT } from "@/lib/search/commandPalette";
 import type { DataResult } from "@/lib/core/dataResult";
@@ -27,14 +27,21 @@ const PaletteLoading = () => (
 const CommandPaletteLauncher = () => {
     const requestedRef = useRef(false);
     const [searchIndexPromise, setSearchIndexPromise] = useState<Promise<DataResult<SearchIndexEntry[]>> | null>(null);
+    const [, startTransition] = useTransition();
+    const loadSearchIndex = useCallback(() => {
+        requestedRef.current = true;
+        setSearchIndexPromise(getSearchIndexAction().catch(() => ({ kind: "error", reason: "network" })));
+    }, []);
+    const retrySearchIndex = useCallback(() => {
+        startTransition(loadSearchIndex);
+    }, [loadSearchIndex]);
 
     useEffect(() => {
         if (searchIndexPromise) return;
 
         const requestPalette = () => {
             if (requestedRef.current) return;
-            requestedRef.current = true;
-            setSearchIndexPromise(getSearchIndexAction());
+            loadSearchIndex();
         };
         const handleKeyDown = (event: KeyboardEvent) => {
             if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "k") return;
@@ -49,7 +56,7 @@ const CommandPaletteLauncher = () => {
             window.removeEventListener(COMMAND_PALETTE_OPEN_EVENT, requestPalette);
             window.removeEventListener("keydown", handleKeyDown);
         };
-    }, [searchIndexPromise]);
+    }, [loadSearchIndex, searchIndexPromise]);
 
     if (!searchIndexPromise) return null;
 
@@ -57,6 +64,7 @@ const CommandPaletteLauncher = () => {
         <Suspense fallback={<PaletteLoading />}>
             <CommandPaletteResolver
                 searchIndexPromise={searchIndexPromise}
+                onRetry={retrySearchIndex}
                 initiallyOpen
             />
         </Suspense>

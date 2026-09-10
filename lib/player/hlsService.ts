@@ -19,6 +19,7 @@ interface CachedMediaPlaylistTemplate {
 
 const mediaPlaylistCache = new Map<string, CachedMediaPlaylistTemplate>();
 const mediaPlaylistRequests = new Map<string, Promise<string | null>>();
+const mediaPlaylistRewrites = new Map<string, Promise<string | null>>();
 
 export const segmentPresignTtlSeconds = (durationSeconds: number | null): number =>
     Math.min(7200, Math.max(900, Math.ceil(durationSeconds ?? 1800) + 600));
@@ -111,22 +112,30 @@ export const rewriteMediaPlaylist = async (
     templateCacheKey: string,
     durationSeconds: number | null,
 ): Promise<string | null> => {
-    const original = await loadMediaPlaylistTemplate(templateCacheKey, playlistKey);
-    if (original === null) return null;
+    const ttlSeconds = segmentPresignTtlSeconds(durationSeconds);
+    const requestKey = JSON.stringify([templateCacheKey, playlistKey, ttlSeconds]);
+    const pending = mediaPlaylistRewrites.get(requestKey);
+    if (pending) return pending;
 
-    const playlistDirectory = playlistKey.slice(0, playlistKey.lastIndexOf("/"));
-    const rewritten = await presignLines(
-        original.split("\n"),
-        playlistDirectory,
-        segmentPresignTtlSeconds(durationSeconds),
-    );
+    const request = (async () => {
+        const original = await loadMediaPlaylistTemplate(templateCacheKey, playlistKey);
+        if (original === null) return null;
 
-    return rewritten.join("\n");
+        const playlistDirectory = playlistKey.slice(0, playlistKey.lastIndexOf("/"));
+        const rewritten = await presignLines(original.split("\n"), playlistDirectory, ttlSeconds);
+        return rewritten.join("\n");
+    })().finally(() => {
+        if (mediaPlaylistRewrites.get(requestKey) === request) mediaPlaylistRewrites.delete(requestKey);
+    });
+
+    mediaPlaylistRewrites.set(requestKey, request);
+    return request;
 };
 
 export const clearMediaPlaylistCache = (): void => {
     mediaPlaylistCache.clear();
     mediaPlaylistRequests.clear();
+    mediaPlaylistRewrites.clear();
 };
 
 export type ManifestResult =

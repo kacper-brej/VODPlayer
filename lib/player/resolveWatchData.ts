@@ -26,7 +26,7 @@ export type WatchDataResult =
 export const resolveWatchData = async (seriesQueryId?: string, epQuery?: string, partyCode?: string): Promise<WatchDataResult> => {
     if (!seriesQueryId) return { kind: "error", message: "Błędny link", status: 400 };
 
-    const seriesResult = await resolveCatalogSeries(seriesQueryId);
+    const seriesResult = await resolveCatalogSeries(seriesQueryId, false);
 
     if (seriesResult.kind === "error") {
         return { kind: "data-error", reason: seriesResult.reason };

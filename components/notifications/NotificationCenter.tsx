@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Bell, Check, CheckCheck, Play } from "lucide-react";
 import {
     markAllNotificationsReadAction,
@@ -41,20 +41,18 @@ const NotificationCenter = ({
     const [pendingId, setPendingId] = useState<number | "all" | null>(null);
     const [pending, startTransition] = useTransition();
 
+    useEffect(() => publishCount(unreadCount), [unreadCount]);
+
     const removeLocally = (notificationId: number) => {
         setItems((current) => current.filter((item) => item.id !== notificationId));
-        setUnreadCount((current) => {
-            const next = Math.max(0, current - 1);
-            publishCount(next);
-            return next;
-        });
+        setUnreadCount((current) => Math.max(0, current - 1));
     };
 
     const markOne = (notificationId: number, href?: string) => {
         setPendingId(notificationId);
         setError(null);
         startTransition(async () => {
-            const result = await markNotificationReadAction(notificationId);
+            const result = await markNotificationReadAction(notificationId).catch(() => ({ kind: "error" as const }));
             if (result.kind === "success") {
                 removeLocally(notificationId);
                 router.refresh();
@@ -70,11 +68,10 @@ const NotificationCenter = ({
         setPendingId("all");
         setError(null);
         startTransition(async () => {
-            const result = await markAllNotificationsReadAction();
+            const result = await markAllNotificationsReadAction().catch(() => ({ kind: "error" as const }));
             if (result.kind === "success") {
                 setItems([]);
                 setUnreadCount(0);
-                publishCount(0);
                 router.refresh();
             } else {
                 setError("Nie udało się oznaczyć wszystkich powiadomień.");

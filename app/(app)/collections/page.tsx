@@ -15,6 +15,7 @@ import { toContentCard } from "@/lib/catalog/contentCards";
 import { getCollection, getCollections, type CollectionSummary } from "@/lib/collections/collections";
 import { getResumeMap } from "@/lib/progress/continueWatching";
 import { getWatchlist } from "@/lib/watchlist/watchlist";
+import { resolveSavedCatalogSeries } from "@/lib/catalog/savedCatalogSeries";
 
 type CollectionsSearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -72,7 +73,7 @@ const CollectionDirectory = ({ collections }: { collections: CollectionSummary[]
 const CollectionDetailView = async ({ collectionId }: { collectionId: number }) => {
     const [collectionResult, catalogResult, resumeResult, watchlistResult] = await Promise.all([
         getCollection(collectionId),
-        getCatalog(),
+        getCatalog(false),
         getResumeMap(),
         getWatchlist(),
     ]);
@@ -85,7 +86,8 @@ const CollectionDetailView = async ({ collectionId }: { collectionId: number }) 
         return <DataErrorState reason={catalogResult.reason} />;
     }
 
-    const byKey = new Map(catalogResult.data.map((series) => [series.key, series]));
+    const saved = await resolveSavedCatalogSeries(catalogResult.data, collectionResult.data.items);
+    const byKey = new Map(saved.series.map((series) => [series.key, series]));
     const resumeMap = resumeResult.kind === "error" ? new Map() : resumeResult.data;
     const listed = new Set(
         watchlistResult.kind === "success"
@@ -136,10 +138,18 @@ const CollectionDetailView = async ({ collectionId }: { collectionId: number }) 
                 availableSeries={availableSeries}
             />
 
+            {saved.unavailableKeys.length > 0 && (
+                <p role="status" className="mb-6 text-sm text-nx-text-2">
+                    Część tytułów jest chwilowo niedostępna. Zapisana zawartość kolekcji pozostaje bez zmian.
+                </p>
+            )}
+
             {cards.length === 0 ? (
                 <div className="flex min-h-64 items-center border-y border-nx-border py-10">
                     <p className="max-w-md text-sm leading-6 text-nx-text-2">
-                        Ta kolekcja jest pusta. Dodane do niej tytuły pojawią się tutaj.
+                        {saved.unavailableKeys.length > 0
+                            ? "Nie udało się wczytać zapisanych tytułów. Spróbuj odświeżyć stronę."
+                            : "Ta kolekcja jest pusta. Dodane do niej tytuły pojawią się tutaj."}
                     </p>
                 </div>
             ) : (
@@ -203,7 +213,7 @@ const CollectionsPage = async ({ searchParams }: { searchParams: CollectionsSear
             </header>
 
             {collectionId ? (
-                <CollectionDetailView collectionId={collectionId} />
+                <CollectionDetailView key={collectionId} collectionId={collectionId} />
             ) : (
                 <>
                     <CreateCollectionForm />

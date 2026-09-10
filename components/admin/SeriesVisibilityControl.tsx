@@ -37,7 +37,7 @@ const SeriesVisibilityControl = ({ seriesKey, visibility }: SeriesVisibilityCont
         setValue(next as SeriesVisibility);
 
         startTransition(async () => {
-            const result = await setSeriesVisibilityAction(seriesKey, next);
+            const result = await setSeriesVisibilityAction(seriesKey, next).catch(() => ({ kind: "error" as const }));
 
             if (result.kind !== "success") {
                 setValue(previous);

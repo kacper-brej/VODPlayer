@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Form from "next/form";
 import { useRef, type KeyboardEvent } from "react";
 import { Search, X } from "lucide-react";
 import type { CatalogGenre } from "@/lib/core/contracts";
@@ -116,7 +117,7 @@ const CatalogFilterBar = ({
 
     return (
         <div className="max-lg:sticky max-lg:top-[calc(var(--nx-header-offset)-1px)] max-lg:z-20 max-lg:-mx-5 max-lg:border-y max-lg:border-nx-border max-lg:bg-nx-bg max-lg:px-5 max-lg:py-4 sm:max-lg:-mx-8 sm:max-lg:px-8">
-            <form action={basePath} className="mb-3 flex w-full max-w-xl items-center gap-2">
+            <Form action={basePath} className="mb-3 flex w-full max-w-xl items-center gap-2">
                 {sort !== defaultSort && <input type="hidden" name="sort" value={sort} />}
                 {genre && <input type="hidden" name="genre" value={genre} />}
                 <label className="relative flex-1">
@@ -127,6 +128,7 @@ const CatalogFilterBar = ({
                         className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-nx-text-2"
                     />
                     <input
+                        key={query}
                         type="search"
                         name="q"
                         defaultValue={query}
@@ -150,7 +152,7 @@ const CatalogFilterBar = ({
                         <X size={17} />
                     </Link>
                 )}
-            </form>
+            </Form>
 
             <div className="flex flex-col gap-2">
                 <FilterTabs label="Sortowanie katalogu" options={sortOptions} />

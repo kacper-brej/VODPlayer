@@ -7,7 +7,7 @@ import { getNotifications } from "@/lib/notifications/notifications";
 const NotificationsPage = async () => {
     const [notificationsResult, catalogResult] = await Promise.all([
         getNotifications(),
-        getCatalog(),
+        getCatalog(false),
     ]);
 
     if (notificationsResult.kind === "error") {

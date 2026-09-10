@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import '@vidstack/react/player/styles/base.css';
 import {
     Gesture,
@@ -37,6 +38,8 @@ import {
 import { requestPlaybackToggle } from '@/lib/player/controlledPlayback';
 import type { PlaybackSource } from '@/lib/player/videoAccess';
 import { buildHlsConfig } from '@/lib/player/videoPlayerConfig';
+import { loadHlsLibrary } from '@/lib/player/loadHlsLibrary';
+import { createProgressQueue } from '@/lib/player/progressQueue';
 import {
     HLS_REFRESH_BACKOFF_MS,
     HLS_REFRESH_MAX_ATTEMPTS,
@@ -57,7 +60,8 @@ import {
     VolumeHud,
     PartyPlaybackGate,
 } from './PlayerOverlays';
-import { PartyChatPanel } from './PartyChatPanel';
+
+const PartyChatPanel = dynamic(() => import('./PartyChatPanel').then((mod) => mod.PartyChatPanel), { ssr: false });
 
 export interface VideoPlayerSync {
     roomCode: string;
@@ -172,12 +176,7 @@ export const VideoPlayer = ({
     const hasSeekedToStart = useRef(false);
     const nextEpisodeRef = useRef(onNextEpisode);
     const seekFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const progressDrainPromiseRef = useRef<Promise<void> | null>(null);
-    const pendingProgressRef = useRef<{
-        time: number;
-        duration: number;
-        update: NonNullable<VideoPlayerProps["onProgressUpdate"]>;
-    } | null>(null);
+    const [progressQueue] = useState(createProgressQueue);
 
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
@@ -309,28 +308,6 @@ export const VideoPlayer = ({
         if (seekFeedbackTimeoutRef.current) clearTimeout(seekFeedbackTimeoutRef.current);
     }, []);
 
-    const drainProgressQueue = useCallback((): Promise<void> => {
-        if (progressDrainPromiseRef.current) return progressDrainPromiseRef.current;
-
-        const drain = (async () => {
-            while (pendingProgressRef.current) {
-                const pending = pendingProgressRef.current;
-                pendingProgressRef.current = null;
-                await pending.update(pending.time, pending.duration);
-            }
-        })();
-        progressDrainPromiseRef.current = drain;
-        void drain.then(
-            () => {
-                if (progressDrainPromiseRef.current === drain) progressDrainPromiseRef.current = null;
-            },
-            () => {
-                if (progressDrainPromiseRef.current === drain) progressDrainPromiseRef.current = null;
-            },
-        );
-        return drain;
-    }, []);
-
     const flushProgress = useCallback((): Promise<void> => {
         const time = currentTimeRef.current;
         const mediaDuration = durationRef.current;
@@ -338,18 +315,17 @@ export const VideoPlayer = ({
         if (!canPlayRef.current || !onProgressUpdate || !Number.isFinite(time) || time < 0) return Promise.resolve();
 
         if (Math.abs(time - lastQueuedTimeRef.current) >= 0.5) {
-            pendingProgressRef.current = {
-                time,
-                duration: mediaDuration,
-                update: onProgressUpdate,
-            };
             lastQueuedTimeRef.current = time;
+            return progressQueue.enqueue(
+                JSON.stringify([seriesKey, episodeKey]),
+                () => onProgressUpdate(time, mediaDuration),
+            );
         }
-        return drainProgressQueue();
-    }, [drainProgressQueue, onProgressUpdate]);
+        return progressQueue.flush();
+    }, [progressQueue, onProgressUpdate, seriesKey, episodeKey]);
 
     const handleBackWithFlush = useCallback(async () => {
-        await flushProgress();
+        void flushProgress().catch(() => undefined);
         await onBack?.();
     }, [flushProgress, onBack]);
 
@@ -406,7 +382,7 @@ export const VideoPlayer = ({
 
     const handleProviderChange = useCallback((provider: MediaProviderAdapter | null) => {
         if (isHLSProvider(provider)) {
-            provider.library = () => import('hls.js');
+            provider.library = loadHlsLibrary;
             provider.config = buildHlsConfig(desiredStartPositionRef.current);
 
             if (playerRef.current) {
@@ -774,9 +750,27 @@ export const VideoPlayer = ({
         setMediaInstanceKey((value) => value + 1);
     };
 
-    const mediaSrc = activePlayback.kind === 'file'
+    const handleStartParty = useCallback(() => {
+        onStartParty?.(currentTimeRef.current);
+    }, [onStartParty]);
+
+    const partyControl = useMemo(() => sync ? {
+        canControl: sync.canControl,
+        onToggle: togglePartyPlayback,
+        onSeekBy: requestSeekBy,
+        onSeekTo: requestSeekTo,
+        onControlDenied: showPartyControlDenied,
+    } : undefined, [sync, togglePartyPlayback, requestSeekBy, requestSeekTo, showPartyControlDenied]);
+
+    const partyPanelControl = useMemo(() => sync ? {
+        open: visiblePartyPanelOpen,
+        unreadCount: sync.unreadChatCount,
+        onToggle: () => handlePartyPanelOpenChange(!partyPanelOpen),
+    } : undefined, [sync, visiblePartyPanelOpen, partyPanelOpen, handlePartyPanelOpenChange]);
+
+    const mediaSrc = useMemo(() => activePlayback.kind === 'file'
         ? { src: activePlayback.src, type: 'video/mp4' as const }
-        : { src: activePlayback.src, type: 'application/vnd.apple.mpegurl' as const };
+        : { src: activePlayback.src, type: 'application/vnd.apple.mpegurl' as const }, [activePlayback]);
 
     return (
         <MotionConfig reducedMotion="user">
@@ -929,20 +923,10 @@ export const VideoPlayer = ({
                     onPreviousEpisode={onPreviousEpisode ? handlePreviousEpisodeWithFlush : undefined}
                     onSeekFeedback={showSeekFeedback}
                     chapters={chapters}
-                    partyControl={sync ? {
-                        canControl: sync.canControl,
-                        onToggle: togglePartyPlayback,
-                        onSeekBy: requestSeekBy,
-                        onSeekTo: requestSeekTo,
-                        onControlDenied: showPartyControlDenied,
-                    } : undefined}
-                    partyPanelControl={sync ? {
-                        open: visiblePartyPanelOpen,
-                        unreadCount: sync.unreadChatCount,
-                        onToggle: () => handlePartyPanelOpenChange(!partyPanelOpen),
-                    } : undefined}
+                    partyControl={partyControl}
+                    partyPanelControl={partyPanelControl}
                     onStartParty={!sync && onStartParty
-                        ? () => onStartParty(currentTimeRef.current)
+                        ? handleStartParty
                         : undefined}
                 />
 

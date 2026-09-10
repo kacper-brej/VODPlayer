@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, DragEvent as ReactDragEvent, FormEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Crown, ImagePlus, MoreHorizontal, Send, X } from "lucide-react";
@@ -56,7 +56,7 @@ interface PartyChatPanelProps {
     onOpenChange?: (open: boolean) => void;
 }
 
-export const PartyChatPanel = ({
+export const PartyChatPanel = memo(function PartyChatPanel({
     open,
     roomCode,
     feed,
@@ -74,7 +74,7 @@ export const PartyChatPanel = ({
     onTransferHost,
     onControlModeChange,
     onOpenChange,
-}: PartyChatPanelProps) => {
+}: PartyChatPanelProps) {
     const [panelOpacity, setPanelOpacity] = useState(DEFAULT_PANEL_OPACITY);
     const [sheetOpen, setSheetOpen] = useState(false);
     const [draft, setDraft] = useState("");
@@ -209,7 +209,7 @@ export const PartyChatPanel = ({
         }
     };
 
-    const groups = groupPartyFeed(feed, viewerProfileId);
+    const groups = useMemo(() => groupPartyFeed(feed, viewerProfileId), [feed, viewerProfileId]);
     const visibleParticipants = participants.slice(0, MAX_STACKED_AVATARS);
     const overflow = participants.length - visibleParticipants.length;
     const remaining = PARTY_MESSAGE_MAX_LENGTH - draft.length;
@@ -547,4 +547,4 @@ export const PartyChatPanel = ({
             </AnimatePresence>
         </div>
     );
-};
+});
