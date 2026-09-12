@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const fetchMock = vi.fn();
 
 beforeEach(() => {
+    vi.resetModules();
     vi.useFakeTimers();
     fetchMock.mockReset();
     fetchMock.mockResolvedValue({ ok: false, status: 500 });
@@ -11,6 +12,7 @@ beforeEach(() => {
     vi.stubGlobal("document", {
         visibilityState: "visible",
         addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
     });
     vi.stubGlobal("window", {
         location: { origin: "http://localhost:3000" },
@@ -18,6 +20,52 @@ beforeEach(() => {
         matchMedia: (query: string) => ({
             matches: query === "(hover: hover) and (pointer: fine)",
         }),
+    });
+});
+
+describe("previewController activation", () => {
+    it("installs four listeners once for 200 mounted cards", async () => {
+        vi.stubGlobal("navigator", { userActivation: { hasBeenActive: false } });
+        vi.stubGlobal("sessionStorage", { getItem: vi.fn(() => null), setItem: vi.fn() });
+        const { trackUserActivation } = await import("@/components/series/previewController");
+
+        for (let index = 0; index < 200; index += 1) trackUserActivation();
+
+        expect(document.addEventListener).toHaveBeenCalledTimes(4);
+        expect(vi.mocked(document.addEventListener).mock.calls.map(([event]) => event)).toEqual([
+            "pointerdown", "mousedown", "touchstart", "keydown",
+        ]);
+    });
+
+    it("remembers activation when session storage is unavailable", async () => {
+        vi.stubGlobal("navigator", { userActivation: { hasBeenActive: false } });
+        vi.stubGlobal("sessionStorage", {
+            getItem: vi.fn(() => { throw new Error("unavailable"); }),
+            setItem: vi.fn(() => { throw new Error("unavailable"); }),
+        });
+        const { trackUserActivation, isPreviewMuted } = await import("@/components/series/previewController");
+        trackUserActivation();
+        const activate = vi.mocked(document.addEventListener).mock.calls[0][1] as EventListener;
+        activate(new Event("pointerdown"));
+        trackUserActivation();
+
+        expect(document.removeEventListener).toHaveBeenCalledTimes(4);
+        expect(document.addEventListener).toHaveBeenCalledTimes(4);
+        expect(isPreviewMuted()).toBe(false);
+    });
+
+    it.each(["session", "navigator"])("does not install listeners after %s activation", async (activation) => {
+        vi.stubGlobal("navigator", { userActivation: { hasBeenActive: activation === "navigator" } });
+        vi.stubGlobal("sessionStorage", {
+            getItem: vi.fn((key: string) => activation === "session" && key === "nx-user-activated" ? "1" : null),
+            setItem: vi.fn(),
+        });
+        const { trackUserActivation, isPreviewMuted } = await import("@/components/series/previewController");
+
+        trackUserActivation();
+
+        expect(document.addEventListener).not.toHaveBeenCalled();
+        expect(isPreviewMuted()).toBe(false);
     });
 });
 

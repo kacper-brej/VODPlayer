@@ -31,6 +31,8 @@ let hlsInstance: Hls | null = null;
 let hlsConstructorPromise: Promise<typeof Hls> | null = null;
 let previewMutedPreference: boolean | null = null;
 let lifecycleListenersInstalled = false;
+let activationListenersInstalled = false;
+let userActivated = false;
 
 const PREVIEW_MUTED_KEY = "nx-preview-muted";
 const USER_ACTIVATED_KEY = "nx-user-activated";
@@ -54,18 +56,22 @@ const writeSession = (key: string, value: string): void => {
 const ACTIVATION_EVENTS = ["pointerdown", "mousedown", "touchstart", "keydown"] as const;
 
 export const trackUserActivation = (): void => {
-    if (typeof document === "undefined" || readSession(USER_ACTIVATED_KEY) === "1") return;
+    if (typeof document === "undefined" || userActivated || activationListenersInstalled) return;
 
-    if (navigator.userActivation?.hasBeenActive) {
+    if (readSession(USER_ACTIVATED_KEY) === "1" || navigator.userActivation?.hasBeenActive) {
+        userActivated = true;
         writeSession(USER_ACTIVATED_KEY, "1");
         return;
     }
 
     const mark = () => {
+        userActivated = true;
+        activationListenersInstalled = false;
         writeSession(USER_ACTIVATED_KEY, "1");
         for (const type of ACTIVATION_EVENTS) document.removeEventListener(type, mark, true);
     };
 
+    activationListenersInstalled = true;
     for (const type of ACTIVATION_EVENTS) document.addEventListener(type, mark, true);
 };
 
@@ -76,7 +82,7 @@ export const isPreviewMuted = (): boolean => {
     if (stored !== null) return stored === "1";
 
     if (typeof navigator === "undefined") return true;
-    return !(navigator.userActivation?.hasBeenActive || readSession(USER_ACTIVATED_KEY) === "1");
+    return !(userActivated || navigator.userActivation?.hasBeenActive || readSession(USER_ACTIVATED_KEY) === "1");
 };
 
 export const setPreviewMuted = (muted: boolean): void => {

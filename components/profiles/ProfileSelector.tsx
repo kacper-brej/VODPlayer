@@ -10,7 +10,7 @@ import selectProfileAction from "@/lib/profiles/selectProfileAction";
 import updateProfileAction from "@/lib/profiles/updateProfileAction";
 import { isProfileAvatar, PROFILE_AVATARS, type ProfileAvatar } from "@/lib/core/onboarding";
 import { useModalFocus } from "@/lib/core/useModalFocus";
-import { preloadHeroPreview } from "@/lib/player/preloadHeroPreview";
+import { preloadHeroPreview, shouldPreloadHeroPreview } from "@/lib/player/preloadHeroPreview";
 import { AvatarPicker } from "@/components/onboarding/AvatarPicker";
 import { ProfileAvatarTile } from "@/components/profiles/ProfileAvatarTile";
 import { useAuth } from "@/lib/auth/AuthContext";
@@ -89,7 +89,7 @@ export default function ProfileSelector({ profiles: initialProfiles, initiallyMa
 
         startTransition(async () => {
             try {
-                const result = await selectProfileAction(profile.id);
+                const result = await selectProfileAction(profile.id, shouldPreloadHeroPreview());
                 if (!result.success) {
                     resetFailedHandoff();
                     return;

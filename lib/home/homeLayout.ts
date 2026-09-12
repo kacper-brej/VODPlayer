@@ -52,6 +52,11 @@ const DEDUP_FILTERED = new Set<HomeSectionId>([
 
 const orderIndex = (id: HomeSectionId): number => HOME_SECTION_ORDER.indexOf(id);
 
+export const getHomeSectionDependencies = (id: HomeSectionId): readonly HomeSectionId[] =>
+    DEDUP_FILTERED.has(id)
+        ? HOME_SECTION_ORDER.slice(0, orderIndex(id)).filter((previous) => !DEDUP_EXEMPT.has(previous))
+        : [];
+
 export const readyHomeRows = (results: readonly HomeRowResult[]): HomeRow[] =>
     results.flatMap((result) => result.kind === "ready" ? [result.row] : []);
 

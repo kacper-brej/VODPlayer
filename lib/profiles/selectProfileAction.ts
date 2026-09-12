@@ -7,6 +7,7 @@ import { getCatalog } from "@/lib/catalog/catalog";
 import { getNewestSeries } from "@/lib/catalog/catalogRows";
 import { getLatestResume } from "@/lib/progress/continueWatching";
 import { resolvePreviewSource, type PreviewSource } from "@/lib/player/videoAccess";
+import { getProfileSettingsRow } from "@/lib/settings/settingsRepository";
 
 const PROFILE_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
@@ -16,7 +17,7 @@ type SelectProfileResult =
 
 const resolveSelectedProfilePreview = async (): Promise<PreviewSource | null> => {
     const [catalogResult, resumeResult] = await Promise.all([
-        getCatalog(),
+        getCatalog(false),
         getLatestResume(),
     ]);
     if (catalogResult.kind !== "success") return null;
@@ -38,7 +39,7 @@ const resolveSelectedProfilePreview = async (): Promise<PreviewSource | null> =>
     return resolvePreviewSource(series.key, episode, resume?.positionSeconds ?? null);
 };
 
-const selectProfileAction = async (profileId: number): Promise<SelectProfileResult> => {
+const selectProfileAction = async (profileId: number, preloadPreview = true): Promise<SelectProfileResult> => {
     if (!await getSessionUser()) return { success: false, error: "unauthorized" };
     if (!Number.isSafeInteger(profileId) || profileId <= 0) return { success: false, error: "not_found" };
     const result = await getProfiles();
@@ -58,10 +59,17 @@ const selectProfileAction = async (profileId: number): Promise<SelectProfileResu
         path: "/",
         maxAge: PROFILE_COOKIE_MAX_AGE,
     });
-    return {
-        success: true,
-        previewSource: await resolveSelectedProfilePreview(),
-    };
+    if (!preloadPreview) return { success: true, previewSource: null };
+
+    try {
+        const settings = await getProfileSettingsRow(profileId);
+        const previewSource = settings && (!settings.autoPreviewsEnabled || settings.reduceData)
+            ? null
+            : await resolveSelectedProfilePreview();
+        return { success: true, previewSource };
+    } catch {
+        return { success: true, previewSource: null };
+    }
 };
 
 export default selectProfileAction;

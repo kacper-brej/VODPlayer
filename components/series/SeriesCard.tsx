@@ -1,13 +1,14 @@
 "use client";
 
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
 import { Check, Clock3, Info, MoreVertical, Plus, Star } from "lucide-react";
 import toggleWatchlistAction from "@/lib/watchlist/toggleWatchlistAction";
 import { blurProps, imageLoader, safeArtworkColor } from "@/lib/catalog/imageDelivery";
 import type { PreviewSource } from "@/lib/player/videoAccess";
 import { usePreviewSurface } from "@/components/preview/usePreviewSurface";
+import { setSeriesInfoId } from "@/lib/catalog/seriesInfoHistory";
 
 export type ContentCardVariant = "landscape" | "poster" | "row" | "mosaic";
 
@@ -84,7 +85,6 @@ const SeriesCard = ({
     onWatchlistChange,
 }: SeriesCardProps) => {
     const router = useRouter();
-    const pathname = usePathname();
     const containerRef = useRef<HTMLElement | null>(null);
     const watchlistErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const preview = usePreviewSurface(item.previewSource);
@@ -141,9 +141,7 @@ const SeriesCard = ({
 
     const openInfo = () => {
         if (item.infoId === undefined) return;
-        const params = new URLSearchParams(window.location.search);
-        params.set("info", String(item.infoId));
-        router.push(`${pathname}?${params.toString()}`, { scroll: false });
+        setSeriesInfoId(item.infoId);
     };
 
     const handleCardKeyDown = (event: KeyboardEvent<HTMLElement>) => {

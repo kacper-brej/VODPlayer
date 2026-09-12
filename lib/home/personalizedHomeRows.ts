@@ -8,7 +8,7 @@ import {
 import type { ResumePoint, TmdbTvListItem, WatchlistItem } from "@/lib/core/contracts";
 import { type DataResult } from "@/lib/core/dataResult";
 import { HOME_SECTION_PRESENTATION } from "@/lib/home/homeLayout";
-import type { HomeRowDiagnostics, HomeRowResult } from "@/lib/home/homeRowTypes";
+import type { HomeRowDiagnostics, HomeRowPromises, HomeRowResult } from "@/lib/home/homeRowTypes";
 import { getTmdbRecommendations } from "@/lib/metadata/tmdbLists";
 import { getTmdbImageBaseUrl } from "@/lib/metadata/tmdbConfig";
 import { virtualSeriesFromListItem } from "@/lib/catalog/tmdbVirtualSeries";
@@ -188,46 +188,49 @@ export const buildRecommendationHomeRow = (
     };
 };
 
-export const getPersonalizedHomeRows = async (
+const loadRecommendationHomeRow = async (
     catalog: readonly CatalogSeries[],
-    sources: PersonalizedHomeRowSources = defaultSources,
-): Promise<HomeRowResult[]> => {
-    const [watchlistResult, progressResult] = await Promise.all([
-        sources.watchlist().catch(() => ({ kind: "error" as const, reason: "server" as const })),
-        sources.progress().catch(() => ({ kind: "error" as const, reason: "server" as const })),
-    ]);
-    const watchlistRow = buildWatchlistHomeRow(catalog, watchlistResult);
+    sources: PersonalizedHomeRowSources,
+): Promise<HomeRowResult> => {
+    const progressResult = await Promise.resolve().then(sources.progress)
+        .catch(() => ({ kind: "error" as const, reason: "server" as const }));
 
     if (progressResult.kind === "error") {
-        return [
-            watchlistRow,
-            errorResult("recommendations", "tmdb-recommendations", progressResult),
-        ];
+        return errorResult("recommendations", "tmdb-recommendations", progressResult);
     }
 
     const seed = selectRecommendationSeed(progressResult.data.resumes, catalog);
     if (!seed) {
-        return [
-            watchlistRow,
-            {
-                kind: "omitted",
-                id: "recommendations",
-                source: "tmdb-recommendations",
-                reason: "no_seed",
-            },
-        ];
+        return {
+            kind: "omitted",
+            id: "recommendations",
+            source: "tmdb-recommendations",
+            reason: "no_seed",
+        };
     }
 
     const [recommendations, imageBaseUrl] = await Promise.all([
-        sources.recommendations(seed.tmdbId)
+        Promise.resolve().then(() => sources.recommendations(seed.tmdbId))
             .catch(() => ({ kind: "error" as const, reason: "network" as const })),
         getTmdbImageBaseUrl()
             .then((result) => result.kind === "error" ? null : result.data)
             .catch(() => null),
     ]);
 
-    return [
-        watchlistRow,
-        buildRecommendationHomeRow(catalog, progressResult.data, seed, recommendations, imageBaseUrl),
-    ];
+    return buildRecommendationHomeRow(catalog, progressResult.data, seed, recommendations, imageBaseUrl);
 };
+
+export const startPersonalizedHomeRows = (
+    catalog: readonly CatalogSeries[],
+    sources: PersonalizedHomeRowSources = defaultSources,
+): HomeRowPromises => new Map([
+    ["watchlist", Promise.resolve().then(sources.watchlist)
+        .catch(() => ({ kind: "error" as const, reason: "server" as const }))
+        .then((result) => buildWatchlistHomeRow(catalog, result))],
+    ["recommendations", loadRecommendationHomeRow(catalog, sources)],
+]);
+
+export const getPersonalizedHomeRows = (
+    catalog: readonly CatalogSeries[],
+    sources: PersonalizedHomeRowSources = defaultSources,
+): Promise<HomeRowResult[]> => Promise.all(startPersonalizedHomeRows(catalog, sources).values());

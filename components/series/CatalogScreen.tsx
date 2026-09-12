@@ -48,7 +48,7 @@ const imageSizes = (span: number) => {
     if (span === 8) return "(max-width: 1023px) 100vw, (max-width: 1279px) 100vw, 66vw";
     if (span === 6) return "(max-width: 1023px) 100vw, 50vw";
     if (span === 3) return "(max-width: 1023px) 100vw, (max-width: 1279px) 33vw, 25vw";
-    return "(max-width: 1023px) 100vw, 50vw, 33vw";
+    return "(max-width: 1023px) 100vw, (max-width: 1279px) 50vw, 33vw";
 };
 
 const screenCopy: Record<CatalogMode, {

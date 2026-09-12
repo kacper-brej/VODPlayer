@@ -13,7 +13,7 @@ import { toContentCard, toResumeCard } from "@/lib/catalog/contentCards";
 import { selectFallbackHero } from "@/lib/home/homeHero";
 import { resolveResumeCatalogSeries } from "@/lib/home/resumeCatalogSeries";
 import { HOME_SECTION_PRESENTATION, type HomeSectionId, type HomeSectionRow } from "@/lib/home/homeLayout";
-import { getHomeRowSections } from "@/lib/home/homeSections";
+import { getHomeRowSection } from "@/lib/home/homeSections";
 import { buildNewestHomeRow } from "@/lib/home/publicHomeRows";
 import { buildWatchlistHomeRow } from "@/lib/home/personalizedHomeRows";
 import { watchPath } from "@/lib/core/routes";
@@ -107,10 +107,10 @@ const HeroSection = async ({ catalog }: { catalog: CatalogSeries[] }) => {
         return <HeroBanerSection lastWatchedData={heroData(resumedSeries, resume)} />;
     }
 
-    const sections = await getHomeRowSections();
+    const trending = await getHomeRowSection("trending-today");
     const recommendedSeries = selectFallbackHero(
         catalog,
-        sections.get("trending-today")?.items ?? [],
+        trending?.items ?? [],
     );
 
     return (
@@ -179,12 +179,10 @@ const ContinueSection = async ({ catalog }: { catalog: CatalogSeries[] }) => {
 };
 
 const TmdbRowSection = async ({ id }: { id: HomeSectionId }) => {
-    const [sections, context] = await Promise.all([
-        getHomeRowSections(),
+    const [section, context] = await Promise.all([
+        getHomeRowSection(id),
         getViewerRowContext(),
     ]);
-    const section = sections.get(id);
-
     if (!section) return null;
 
     return <RowSection section={section} context={context} />;

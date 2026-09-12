@@ -3,11 +3,12 @@
 import Image from "next/image";
 import { useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
 import { Info, Play, Star, Volume2, VolumeX } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { ARTWORK_SIZES, blurProps, imageLoader, safeArtworkColor } from "@/lib/catalog/imageDelivery";
 import type { PreviewSource } from "@/lib/player/videoAccess";
 import { setPreviewMuted } from "@/components/series/previewController";
 import { usePreviewSurface } from "@/components/preview/usePreviewSurface";
+import { setSeriesInfoId } from "@/lib/catalog/seriesInfoHistory";
 
 export interface LastWatchedData {
     seriesKey: string;
@@ -44,8 +45,6 @@ interface HeroBanerProps {
 
 const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
     const router = useRouter();
-    const pathname = usePathname();
-    const searchParams = useSearchParams();
     const preview = usePreviewSurface(lastWatchedData?.previewSource);
     const [isMuted, setIsMuted] = useState(true);
     const [failedArtwork, setFailedArtwork] = useState<string | null>(null);
@@ -76,9 +75,7 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
         event.stopPropagation();
         if (activeContent.infoId === null || activeContent.infoId === undefined) return;
 
-        const params = new URLSearchParams(searchParams.toString());
-        params.set("info", String(activeContent.infoId));
-        router.push(`${pathname}?${params.toString()}`, { scroll: false });
+        setSeriesInfoId(activeContent.infoId);
     };
 
     const toggleMute = (event: MouseEvent<HTMLButtonElement>) => {

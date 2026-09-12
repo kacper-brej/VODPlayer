@@ -10,6 +10,7 @@ import ProfileMenu from "@/components/layout/ProfileMenu";
 import CommandPaletteLauncher from "@/components/layout/CommandPaletteLauncher";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { ContentSkeleton, DataErrorState } from "@/components/data/DataState";
+import { NotificationCountProvider } from "@/components/notifications/NotificationCountProvider";
 
 const GRAIN_BACKGROUND = `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`;
 
@@ -123,56 +124,58 @@ const AppShell = ({ children }: AppShellProps) => {
     }
 
     return (
-        <div className="relative flex w-full">
-            <div
-                aria-hidden="true"
-                className="pointer-events-none fixed inset-0 z-0 hidden opacity-[0.045] mix-blend-soft-light motion-reduce:hidden sm:block"
-                style={{ backgroundImage: GRAIN_BACKGROUND, backgroundSize: "200px 200px" }}
-            />
+        <NotificationCountProvider>
+            <div className="relative flex w-full">
+                <div
+                    aria-hidden="true"
+                    className="pointer-events-none fixed inset-0 z-0 hidden opacity-[0.045] mix-blend-soft-light motion-reduce:hidden sm:block"
+                    style={{ backgroundImage: GRAIN_BACKGROUND, backgroundSize: "200px 200px" }}
+                />
 
-            <SkipLink />
+                <SkipLink />
 
-            <div className="relative z-10 flex w-full">
-                <Sidebar />
-                <div className="relative flex min-h-dvh min-w-0 flex-1 flex-col overflow-x-hidden">
-                    <header className={`top-0 z-40 flex h-[var(--nx-header-offset)] w-full shrink-0 items-center justify-center border-b px-4 pt-[env(safe-area-inset-top)] sm:px-8 ${
-                        heroHeader
-                            ? "absolute border-transparent bg-[linear-gradient(180deg,color-mix(in_srgb,var(--nx-bg)_92%,transparent)_0%,color-mix(in_srgb,var(--nx-bg)_52%,transparent)_62%,transparent_100%)]"
-                            : "sticky border-nx-border/70 bg-[color-mix(in_srgb,var(--nx-bg)_94%,transparent)] backdrop-blur-none sm:bg-[color-mix(in_srgb,var(--nx-bg)_88%,transparent)] sm:backdrop-blur-xl"
-                    }`}>
-                        <div className="mx-auto flex w-full max-w-[1440px] items-center gap-3">
-                            <Link
-                                href="/"
-                                aria-label="Nocturna — strona główna"
-                                className="flex size-10 shrink-0 items-center justify-center rounded-lg font-display text-[26px] text-foreground outline-none transition-colors hover:bg-surface-light focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-primary lg:hidden"
-                            >
-                                N
-                            </Link>
+                <div className="relative z-10 flex w-full">
+                    <Sidebar />
+                    <div className="relative flex min-h-dvh min-w-0 flex-1 flex-col overflow-x-hidden">
+                        <header className={`top-0 z-40 flex h-[var(--nx-header-offset)] w-full shrink-0 items-center justify-center border-b px-4 pt-[env(safe-area-inset-top)] sm:px-8 ${
+                            heroHeader
+                                ? "absolute border-transparent bg-[linear-gradient(180deg,color-mix(in_srgb,var(--nx-bg)_92%,transparent)_0%,color-mix(in_srgb,var(--nx-bg)_52%,transparent)_62%,transparent_100%)]"
+                                : "sticky border-nx-border/70 bg-[color-mix(in_srgb,var(--nx-bg)_94%,transparent)] backdrop-blur-none sm:bg-[color-mix(in_srgb,var(--nx-bg)_88%,transparent)] sm:backdrop-blur-xl"
+                        }`}>
+                            <div className="mx-auto flex w-full max-w-[1440px] items-center gap-3">
+                                <Link
+                                    href="/"
+                                    aria-label="Nocturna — strona główna"
+                                    className="flex size-10 shrink-0 items-center justify-center rounded-lg font-display text-[26px] text-foreground outline-none transition-colors hover:bg-surface-light focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-primary lg:hidden"
+                                >
+                                    N
+                                </Link>
 
-                            <div className="flex min-w-0 flex-1 justify-end sm:justify-center">
-                                <SearchBar />
+                                <div className="flex min-w-0 flex-1 justify-end sm:justify-center">
+                                    <SearchBar />
+                                </div>
+
+                                <div className="shrink-0 lg:hidden">
+                                    <ProfileMenu placement="header" />
+                                </div>
                             </div>
-
-                            <div className="shrink-0 lg:hidden">
-                                <ProfileMenu placement="header" />
-                            </div>
-                        </div>
-                    </header>
-                    <main
-                        id="main-content"
-                        tabIndex={-1}
-                        className="flex-1 outline-none"
-                    >
-                        {mainContent}
-                    </main>
-                    <AttributionFooter />
-                    {!isOnline && <OfflineBanner />}
-                    <div aria-hidden="true" className="h-[var(--nx-mobile-nav-h)] shrink-0" />
+                        </header>
+                        <main
+                            id="main-content"
+                            tabIndex={-1}
+                            className="flex-1 outline-none"
+                        >
+                            {mainContent}
+                        </main>
+                        <AttributionFooter />
+                        {!isOnline && <OfflineBanner />}
+                        <div aria-hidden="true" className="h-[var(--nx-mobile-nav-h)] shrink-0" />
+                    </div>
                 </div>
-            </div>
 
-            <CommandPaletteLauncher />
-        </div>
+                <CommandPaletteLauncher />
+            </div>
+        </NotificationCountProvider>
     );
 };
 

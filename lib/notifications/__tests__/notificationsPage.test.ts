@@ -26,9 +26,11 @@ describe("notifications workflow", () => {
     it("prowadzi do centrum z menu profilu i aktualizuje licznik", () => {
         const menu = source("components/layout/ProfileMenu.tsx");
         const center = source("components/notifications/NotificationCenter.tsx");
+        const provider = source("components/notifications/NotificationCountProvider.tsx");
 
         expect(menu).toContain('href="/notifications"');
-        expect(menu).toContain("NOTIFICATIONS_CHANGED_EVENT");
+        expect(menu).toContain("useNotificationCount()");
+        expect(provider).toContain("NOTIFICATIONS_CHANGED_EVENT");
         expect(center).toContain("NOTIFICATIONS_CHANGED_EVENT");
     });
 });

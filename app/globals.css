@@ -1,6 +1,5 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "./player.css";
 @source "../components";
 :root {
   --nx-bg: #07070A;

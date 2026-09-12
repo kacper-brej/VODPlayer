@@ -203,6 +203,35 @@ const ContentRowSection = ({
             numbered={numbered}
             variant={variant}
             itemCount={displayedItems.length}
+            renderPlaceholder={variant === "mosaic" ? undefined : (index) => {
+                const item = displayedItems[index];
+
+                return (
+                    <a
+                        href={item.href}
+                        data-content-card
+                        data-row-placeholder
+                        tabIndex={-1}
+                        aria-label={item.title}
+                        className={`relative block w-full scroll-mx-6 outline-none focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent ${
+                            variant === "ranking" ? "" : "overflow-hidden rounded-2xl border border-nx-border bg-nx-panel"
+                        }`}
+                    >
+                        <span className={`relative block bg-nx-panel ${variant === "ranking" ? "aspect-2/3 rounded-md border border-nx-border" : "aspect-video"}`}>
+                            <span className="absolute inset-x-4 bottom-4 line-clamp-2 text-sm font-semibold text-nx-text">
+                                {item.title}
+                            </span>
+                        </span>
+                        {variant === "ranking" && (
+                            <span className="mt-3 flex min-w-0 items-center gap-2.5 font-mono text-[10.5px] tabular-nums text-nx-text-2">
+                                {item.score && <span className="text-nx-accent-2">{item.score}</span>}
+                                {item.score && item.year && <span aria-hidden="true" className="h-px w-4 shrink-0 bg-nx-border" />}
+                                {item.year && <span>{item.year}</span>}
+                            </span>
+                        )}
+                    </a>
+                );
+            }}
             mosaicPanelHeader={mosaicPanelHeader}
             onMosaicMove={variant === "mosaic"
                 ? (direction) => setMosaicLead((current) =>

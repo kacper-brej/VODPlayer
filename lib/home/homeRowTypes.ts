@@ -44,6 +44,8 @@ export type HomeRowOmissionReason =
     | "no_seed"
     | "provider_unavailable";
 
+export type HomeRowPromises = ReadonlyMap<HomeRowId, Promise<HomeRowResult>>;
+
 export type HomeRowResult =
     | { kind: "ready"; row: HomeRow; diagnostics?: HomeRowDiagnostics }
     | {

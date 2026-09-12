@@ -4,8 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Bell, LogOut, Settings, User, UsersRound } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
-import { getUnreadNotificationsCountAction } from "@/lib/notifications/notificationsActions";
-import { NOTIFICATIONS_CHANGED_EVENT } from "@/lib/notifications/notificationEvents";
+import { useNotificationCount } from "@/components/notifications/NotificationCountProvider";
 
 const initialsFrom = (username: string) => {
     const trimmed = username.trim();
@@ -25,34 +24,11 @@ const ProfileMenu = ({ placement = "rail" }: ProfileMenuProps) => {
     const { user, logout } = useAuth();
     const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
-    const [unreadCount, setUnreadCount] = useState(0);
+    const unreadCount = useNotificationCount();
     const [logoutFailed, setLogoutFailed] = useState(false);
     const [logoutPending, setLogoutPending] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const triggerRef = useRef<HTMLButtonElement>(null);
-
-    useEffect(() => {
-        if (!user) return;
-
-        let active = true;
-        const refreshCount = () => {
-            getUnreadNotificationsCountAction().then((count) => {
-                if (active) setUnreadCount(count);
-            });
-        };
-        const handleCountChange = (event: Event) => {
-            const count = (event as CustomEvent<number>).detail;
-            if (Number.isSafeInteger(count) && count >= 0) setUnreadCount(count);
-        };
-
-        refreshCount();
-        window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, handleCountChange);
-
-        return () => {
-            active = false;
-            window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, handleCountChange);
-        };
-    }, [user]);
 
     const displayedUnreadCount = user ? unreadCount : 0;
 

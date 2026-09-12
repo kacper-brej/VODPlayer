@@ -1,7 +1,8 @@
 "use client";
 
-import { Children, useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { Children, isValidElement, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { getContentRowActiveIndex, getContentRowWindow, isContentRowItemMounted } from "@/lib/ui/contentRowWindow";
 
 export type ContentRowVariant = "progress" | "ranking" | "mosaic" | "classic";
 
@@ -12,6 +13,7 @@ interface ContentRowProps {
     variant: ContentRowVariant;
     itemCount: number;
     children: ReactNode;
+    renderPlaceholder?: (index: number) => ReactNode;
     onMosaicMove?: (direction: -1 | 1) => void;
     mosaicPanelHeader?: ReactNode;
 }
@@ -31,6 +33,7 @@ const ContentRow = ({
     variant,
     itemCount,
     children,
+    renderPlaceholder,
     onMosaicMove,
     mosaicPanelHeader,
 }: ContentRowProps) => {
@@ -39,9 +42,14 @@ const ContentRow = ({
     const cardStepRef = useRef(0);
     const pageStepRef = useRef(0);
     const navigationFrameRef = useRef<number | null>(null);
+    const pendingFocusRef = useRef(false);
     const [canMoveLeft, setCanMoveLeft] = useState(false);
     const [canMoveRight, setCanMoveRight] = useState(false);
-    const items = Children.toArray(children);
+    const [activeCard, setActiveCard] = useState<{ index: number; key: string | null }>({ index: 0, key: null });
+    const [visibleWindow, setVisibleWindow] = useState(() => getContentRowWindow(itemCount, 0, 0, 0));
+    const items = useMemo(() => Children.toArray(children), [children]);
+    const itemKeys = useMemo(() => items.map((child, index) => String(isValidElement(child) ? child.key : index)), [items]);
+    const activeCardIndex = getContentRowActiveIndex(itemKeys, activeCard.index, activeCard.key);
     const isMosaic = variant === "mosaic";
 
     const cards = useCallback(() => {
@@ -55,6 +63,11 @@ const ContentRow = ({
 
         const maxScroll = Math.max(0, row.scrollWidth - row.clientWidth);
         const startOffset = Number.parseFloat(getComputedStyle(row).paddingLeft) || 0;
+        const nextWindow = getContentRowWindow(itemCount, row.scrollLeft, row.clientWidth, cardStepRef.current, startOffset);
+
+        setVisibleWindow((current) => current.start === nextWindow.start && current.end === nextWindow.end
+            ? current
+            : nextWindow);
 
         if (maxScroll <= 2) {
             setCanMoveLeft(false);
@@ -64,7 +77,7 @@ const ContentRow = ({
 
         setCanMoveLeft(row.scrollLeft > startOffset + 2);
         setCanMoveRight(row.scrollLeft < maxScroll - 2);
-    }, [isMosaic]);
+    }, [isMosaic, itemCount]);
 
     const scheduleNavigationUpdate = useCallback(() => {
         if (navigationFrameRef.current !== null) return;
@@ -94,11 +107,6 @@ const ContentRow = ({
         const row = rowRef.current;
         if (!row) return;
 
-        const rowCards = cards();
-        rowCards.forEach((card, index) => {
-            card.tabIndex = index === 0 ? 0 : -1;
-        });
-
         measure();
 
         const observer = new ResizeObserver(measure);
@@ -111,7 +119,25 @@ const ContentRow = ({
                 navigationFrameRef.current = null;
             }
         };
-    }, [cards, itemCount, measure]);
+    }, [itemCount, measure]);
+
+    useLayoutEffect(() => {
+        const rowCards = cards();
+        rowCards.forEach((card) => {
+            card.tabIndex = Number(card.closest<HTMLElement>("[data-row-item]")?.dataset.rowItem) === activeCardIndex ? 0 : -1;
+        });
+
+        if (!pendingFocusRef.current) return;
+
+        const target = rowRef.current?.querySelector<HTMLElement>(
+            `[data-row-item="${activeCardIndex}"] [data-content-card]:not([data-row-placeholder])`,
+        );
+
+        if (target) {
+            pendingFocusRef.current = false;
+            target.focus({ preventScroll: true });
+        }
+    }, [activeCardIndex, cards, items, visibleWindow]);
 
     const setRovingCard = (target: HTMLElement) => {
         cards().forEach((card) => {
@@ -120,8 +146,8 @@ const ContentRow = ({
     };
 
     const focusCard = (index: number) => {
-        const rowCards = cards();
-        const target = rowCards[Math.max(0, Math.min(rowCards.length - 1, index))];
+        const targetIndex = Math.max(0, Math.min(items.length - 1, index));
+        const target = rowRef.current?.querySelector<HTMLElement>(`[data-row-item="${targetIndex}"] [data-content-card]`);
 
         if (!target) return;
 
@@ -137,8 +163,10 @@ const ContentRow = ({
     const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
         if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
 
-        const rowCards = cards();
-        const currentIndex = rowCards.findIndex((card) => card === document.activeElement);
+        const active = document.activeElement as HTMLElement | null;
+        const currentIndex = active?.matches("[data-content-card]")
+            ? Number(active.closest<HTMLElement>("[data-row-item]")?.dataset.rowItem ?? -1)
+            : -1;
 
         if (currentIndex < 0) return;
 
@@ -226,7 +254,14 @@ const ContentRow = ({
                 onKeyDown={handleKeyDown}
                 onFocusCapture={(event) => {
                     const target = (event.target as HTMLElement).closest<HTMLElement>("[data-content-card]");
-                    if (target) setRovingCard(target);
+                    if (!target) return;
+
+                    const index = Number(target.closest<HTMLElement>("[data-row-item]")?.dataset.rowItem);
+                    if (target.hasAttribute("data-row-placeholder")) pendingFocusRef.current = true;
+                    setActiveCard((current) => current.index === index && current.key === itemKeys[index]
+                        ? current
+                        : { index, key: itemKeys[index] });
+                    setRovingCard(target);
                 }}
                 onScroll={scheduleNavigationUpdate}
                 className={
@@ -243,7 +278,7 @@ const ContentRow = ({
                     <>
                         {items[0] && (
                             <div
-                                data-row-item
+                                data-row-item={0}
                                 className="nx-section-item min-h-0 lg:col-span-5 lg:h-full min-[1600px]:col-span-6"
                                 style={{ animationDelay: "0ms" }}
                             >
@@ -264,7 +299,7 @@ const ContentRow = ({
                                 {items.slice(1).map((child, index) => (
                                     <div
                                         key={index}
-                                        data-row-item
+                                        data-row-item={index + 1}
                                         className="nx-section-item min-w-0"
                                         style={{ animationDelay: `${Math.min((index + 1) * 60, 300)}ms` }}
                                     >
@@ -282,12 +317,14 @@ const ContentRow = ({
                     </>
                 ) : items.map((child, index) => (
                     <div
-                        key={index}
-                        data-row-item
+                        key={isValidElement(child) ? child.key : index}
+                        data-row-item={index}
                         className={`nx-section-item relative min-w-0 shrink-0 snap-start ${horizontalItemClass[variant]}`}
                         style={{ animationDelay: `${Math.min(index * 60, 300)}ms` }}
                     >
-                        {child}
+                        {!renderPlaceholder || isContentRowItemMounted(index, visibleWindow, activeCardIndex)
+                            ? child
+                            : renderPlaceholder(index)}
                     </div>
                 ))}
             </div>

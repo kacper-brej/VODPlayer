@@ -8,6 +8,7 @@ import { HOME_SECTION_PRESENTATION } from "@/lib/home/homeLayout";
 import type {
     HomeRow,
     HomeRowId,
+    HomeRowPromises,
     HomeRowResult,
     HomeRowSource,
     HomeRowVariant,
@@ -161,23 +162,25 @@ export const buildNewestHomeRow = (catalog: readonly CatalogSeries[]): HomeRowRe
     return { kind: "ready", row };
 };
 
-export const getPublicHomeRows = async (
+export const startPublicHomeRows = (
     catalog: readonly CatalogSeries[],
     sources: PublicHomeRowSources = defaultSources,
-): Promise<HomeRowResult[]> => {
-    const [trendingToday, popularNow, topRated, onTheAir, imageBaseUrl] = await Promise.all([
-        loadSafely(sources.trendingToday),
-        loadSafely(sources.popularNow),
-        loadSafely(sources.topRated),
-        loadSafely(sources.onTheAir),
-        resolveImageBaseUrl(),
-    ]);
+): HomeRowPromises => {
+    const imageBaseUrl = resolveImageBaseUrl();
+    const loadRow = (key: keyof PublicHomeRowSources): Promise<HomeRowResult> =>
+        Promise.all([loadSafely(sources[key]), imageBaseUrl])
+            .then(([result, baseUrl]) => buildTmdbHomeRow(TMDB_ROW_SPECS[key], result, catalog, baseUrl));
 
-    return [
-        buildTmdbHomeRow(TMDB_ROW_SPECS.trendingToday, trendingToday, catalog, imageBaseUrl),
-        buildNewestHomeRow(catalog),
-        buildTmdbHomeRow(TMDB_ROW_SPECS.popularNow, popularNow, catalog, imageBaseUrl),
-        buildTmdbHomeRow(TMDB_ROW_SPECS.topRated, topRated, catalog, imageBaseUrl),
-        buildTmdbHomeRow(TMDB_ROW_SPECS.onTheAir, onTheAir, catalog, imageBaseUrl),
-    ];
+    return new Map([
+        ["trending-today", loadRow("trendingToday")],
+        ["newest-local", Promise.resolve(buildNewestHomeRow(catalog))],
+        ["popular-now", loadRow("popularNow")],
+        ["top-rated", loadRow("topRated")],
+        ["on-the-air", loadRow("onTheAir")],
+    ]);
 };
+
+export const getPublicHomeRows = (
+    catalog: readonly CatalogSeries[],
+    sources: PublicHomeRowSources = defaultSources,
+): Promise<HomeRowResult[]> => Promise.all(startPublicHomeRows(catalog, sources).values());

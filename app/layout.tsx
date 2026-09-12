@@ -12,6 +12,7 @@ const geistMono = localFont({
   src: "./fonts/GeistMono-Variable.woff2",
   variable: "--font-geist-mono",
   display: "swap",
+  preload: false,
 });
 
 const bodoniModa = localFont({
@@ -29,6 +30,7 @@ const bodoniModaExt = localFont({
   weight: "400 900",
   style: "normal",
   display: "swap",
+  preload: false,
   adjustFontFallback: "Times New Roman",
 });
 

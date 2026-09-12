@@ -1,5 +1,5 @@
 "use client";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { X, Play, CheckCircle2, FileVideo, ArrowUpRight, Users } from "lucide-react";
 import Image from "next/image";
@@ -10,12 +10,12 @@ import type { DataErrorReason } from "@/lib/core/dataResult";
 import { partyWatchPath, seriesPath, watchPath } from "@/lib/core/routes";
 import { useModalFocus } from "@/lib/core/useModalFocus";
 import { startPartyForEpisode } from "@/lib/party/startPartyForEpisode";
+import { setSeriesInfoId } from "@/lib/catalog/seriesInfoHistory";
 
 const CLOSE_ANIMATION_MS = 200;
 
 const SeriesModal = () => {
     const router = useRouter();
-    const pathname = usePathname();
     const searchParams = useSearchParams();
     const movieId = searchParams.get("info");
 
@@ -38,10 +38,7 @@ const SeriesModal = () => {
 
     const closeModal = () => {
         scheduleAfterClose(() => {
-            const params = new URLSearchParams(searchParams.toString());
-            params.delete("info");
-            const query = params.toString();
-            router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
+            setSeriesInfoId(null);
         });
     };
     const modalRef = useModalFocus<HTMLDivElement>(Boolean(movieId), closeModal);
@@ -92,7 +89,8 @@ const SeriesModal = () => {
             setLoading(true);
             setFailure(null);
             setMissing(false);
-            const result = await getSeriesDetailsAction(Number(movieId));
+            const result = await getSeriesDetailsAction(Number(movieId))
+                .catch(() => ({ kind: "error" as const, reason: "network" as const }));
 
             if (cancelled) return;
 
@@ -114,6 +112,10 @@ const SeriesModal = () => {
         return () => {
             cancelled = true;
             cancelAnimationFrame(frame);
+            if (closeTimeoutRef.current) {
+                clearTimeout(closeTimeoutRef.current);
+                closeTimeoutRef.current = null;
+            }
         };
     }, [movieId, retryKey]);
 

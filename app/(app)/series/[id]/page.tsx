@@ -39,7 +39,7 @@ const decodeSeriesId = (id: string): string => {
 
 export const generateMetadata = async ({ params }: Pick<SeriesPageProps, "params">): Promise<Metadata> => {
     const { id } = await params;
-    const result = await resolveCatalogSeries(decodeSeriesId(id));
+    const result = await resolveCatalogSeries(decodeSeriesId(id), false);
 
     if (result.kind === "error" || !result.data) {
         return { title: "Serial niedostępny | Nocturna" };
@@ -93,7 +93,7 @@ const resolveSeasons = async (
 };
 
 const SeriesPage = async ({ params, searchParams }: SeriesPageProps) => {
-    const [{ id: rawId }, query, catalogResult] = await Promise.all([params, searchParams, getCatalog()]);
+    const [{ id: rawId }, query, catalogResult] = await Promise.all([params, searchParams, getCatalog(false)]);
     const id = decodeSeriesId(rawId);
 
     if (catalogResult.kind === "error") {
@@ -104,7 +104,7 @@ const SeriesPage = async ({ params, searchParams }: SeriesPageProps) => {
         );
     }
 
-    const seriesResult = await resolveCatalogSeries(id);
+    const seriesResult = await resolveCatalogSeries(id, false);
     if (seriesResult.kind === "error") {
         return (
             <div className="min-h-dvh bg-nx-bg px-5 py-28 sm:px-8">

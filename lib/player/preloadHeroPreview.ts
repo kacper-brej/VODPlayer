@@ -38,24 +38,24 @@ const mediaUrlsAtPosition = (playlist: string, startSeconds: number): string[] =
     return [...new Set(urls)];
 };
 
-const preloadHls = async (source: PreviewSessionSource): Promise<void> => {
-    const playlist = await fetchBody(source.src, { cache: "no-store" });
+const preloadHls = async (source: PreviewSessionSource, signal: AbortSignal): Promise<void> => {
+    const playlist = await fetchBody(source.src, { cache: "no-store", signal });
     const mediaUrls = mediaUrlsAtPosition(playlist, source.mediaOffsetSeconds);
 
     await Promise.all(mediaUrls.map(async (url) => {
-        const response = await fetch(url, { cache: "force-cache" });
+        const response = await fetch(url, { cache: "force-cache", signal });
         if (response.ok) await response.arrayBuffer();
     }));
 };
 
-const preloadSource = async (intent: PreviewSource): Promise<void> => {
-    const response = await fetch(intent.src, { credentials: "same-origin", cache: "no-store" });
+const preloadSource = async (intent: PreviewSource, signal: AbortSignal): Promise<void> => {
+    const response = await fetch(intent.src, { credentials: "same-origin", cache: "no-store", signal });
     if (!response.ok) return;
     const value: unknown = await response.json();
     if (!isPreviewSessionSource(value)) return;
 
     if (value.type === "hls") {
-        await preloadHls(value);
+        await preloadHls(value, signal);
         return;
     }
 
@@ -63,15 +63,27 @@ const preloadSource = async (intent: PreviewSource): Promise<void> => {
         credentials: "same-origin",
         cache: "no-store",
         headers: { Range: "bytes=0-262143" },
+        signal,
     });
     if (mediaResponse.ok) await mediaResponse.arrayBuffer();
 };
 
-export const preloadHeroPreview = async (source: PreviewSource | null): Promise<void> => {
-    if (!source) return;
+export const shouldPreloadHeroPreview = (): boolean => {
+    if (typeof window === "undefined" || typeof navigator === "undefined" || document.visibilityState !== "visible") return false;
+    const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
+    return !connection?.saveData && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+};
 
-    await Promise.race([
-        preloadSource(source).catch(() => {}),
-        new Promise<void>((resolve) => window.setTimeout(resolve, PRELOAD_TIMEOUT_MS)),
-    ]);
+export const preloadHeroPreview = async (source: PreviewSource | null): Promise<void> => {
+    if (!source || !shouldPreloadHeroPreview()) return;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), PRELOAD_TIMEOUT_MS);
+    try {
+        await preloadSource(source, controller.signal);
+    } catch {
+        controller.abort();
+    } finally {
+        clearTimeout(timeout);
+    }
 };
