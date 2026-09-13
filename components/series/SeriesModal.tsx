@@ -4,7 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { X, Play, CheckCircle2, FileVideo, ArrowUpRight, Users } from "lucide-react";
 import Image from "next/image";
 import { imageLoader } from "@/lib/catalog/imageDelivery";
-import getSeriesDetailsAction, { SeriesDetails } from "@/lib/catalog/getSeriesDetailsAction";
+import type { SeriesDetails } from "@/lib/catalog/getSeriesDetailsAction";
+import { loadSeriesDetails } from "@/lib/catalog/loadSeriesDetails";
+import { createSeriesDetailsCache, mergeSeriesDetailsMetadata, reuseSeriesDetailsMetadata } from "@/lib/catalog/seriesDetailsCache";
+import { useAuth } from "@/lib/auth/AuthContext";
 import { DataErrorState, DataState } from "@/components/data/DataState";
 import type { DataErrorReason } from "@/lib/core/dataResult";
 import { partyWatchPath, seriesPath, watchPath } from "@/lib/core/routes";
@@ -14,13 +17,16 @@ import { setSeriesInfoId } from "@/lib/catalog/seriesInfoHistory";
 
 const CLOSE_ANIMATION_MS = 200;
 
-const SeriesModal = () => {
+const SeriesModalForViewer = () => {
     const router = useRouter();
     const searchParams = useSearchParams();
     const movieId = searchParams.get("info");
 
     const [details, setDetails] = useState<SeriesDetails | null>(null);
+    const [loadedFor, setLoadedFor] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
+    const [detailsCache] = useState(createSeriesDetailsCache);
     const [failure, setFailure] = useState<DataErrorReason | null>(null);
     const [missing, setMissing] = useState(false);
     const [retryKey, setRetryKey] = useState(0);
@@ -29,6 +35,7 @@ const SeriesModal = () => {
     const [partyError, setPartyError] = useState<string | null>(null);
 
     const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const requestVersionRef = useRef(0);
 
     const scheduleAfterClose = (action: () => void) => {
         setShowAnimation(false);
@@ -37,6 +44,7 @@ const SeriesModal = () => {
     };
 
     const closeModal = () => {
+        requestVersionRef.current += 1;
         scheduleAfterClose(() => {
             setSeriesInfoId(null);
         });
@@ -56,13 +64,16 @@ const SeriesModal = () => {
     };
 
     const watchTogether = async () => {
+        if (refreshing) return;
         const seriesKey = details?.seriesKey;
         const episodeKey = details?.resumeEpisodeKey ?? details?.episodes[0]?.key;
         if (!seriesKey || !episodeKey) return;
 
         setPartyError(null);
         setStartingParty(true);
+        const version = requestVersionRef.current;
         const result = await startPartyForEpisode(seriesKey, episodeKey);
+        if (version !== requestVersionRef.current) return;
         setStartingParty(false);
 
         if (!result.ok || !result.code) {
@@ -81,43 +92,83 @@ const SeriesModal = () => {
         }
 
         let cancelled = false;
+        requestVersionRef.current += 1;
+        const controller = new AbortController();
+        const id = Number(movieId);
         const frame = requestAnimationFrame(() => {
             if (!cancelled) setShowAnimation(true);
         });
 
         const load = async () => {
-            setLoading(true);
+            const cached = detailsCache.get(id);
+            setLoadedFor(movieId);
+            setDetails(cached);
+            setLoading(!cached);
+            setRefreshing(true);
             setFailure(null);
             setMissing(false);
-            const result = await getSeriesDetailsAction(Number(movieId))
-                .catch(() => ({ kind: "error" as const, reason: "network" as const }));
+            setPartyError(null);
+            setStartingParty(false);
+            const result = await loadSeriesDetails(id, false, controller.signal);
 
             if (cancelled) return;
 
             if (result.kind === "error") {
+                if (result.reason === "unauthorized" || result.reason === "forbidden") detailsCache.clear();
+                else detailsCache.delete(id);
                 setDetails(null);
                 setFailure(result.reason);
             } else if (!result.data) {
+                detailsCache.delete(id);
                 setDetails(null);
                 setMissing(true);
             } else {
-                setDetails(result.data);
+                const fresh = reuseSeriesDetailsMetadata(result.data, cached);
+                detailsCache.set(fresh, id);
+                setDetails(fresh);
             }
 
             setLoading(false);
+            setRefreshing(false);
+
+            if (result.kind === "error" || !result.data) return;
+            const fresh = reuseSeriesDetailsMetadata(result.data, cached);
+            if (!fresh.metadataPending) return;
+
+            const enriched = await loadSeriesDetails(id, true, controller.signal);
+            if (cancelled) return;
+            if (enriched.kind === "error") {
+                if (enriched.reason === "unauthorized" || enriched.reason === "forbidden") {
+                    detailsCache.clear();
+                    setDetails(null);
+                    setFailure(enriched.reason);
+                }
+                return;
+            }
+            if (!enriched.data) {
+                detailsCache.delete(id);
+                setDetails(null);
+                setMissing(true);
+                return;
+            }
+            const updated = mergeSeriesDetailsMetadata(fresh, enriched.data);
+            detailsCache.set(updated, id);
+            setDetails(updated);
         };
 
         void load();
 
         return () => {
             cancelled = true;
+            requestVersionRef.current += 1;
+            controller.abort();
             cancelAnimationFrame(frame);
             if (closeTimeoutRef.current) {
                 clearTimeout(closeTimeoutRef.current);
                 closeTimeoutRef.current = null;
             }
         };
-    }, [movieId, retryKey]);
+    }, [movieId, retryKey, detailsCache]);
 
     useEffect(() => {
         return () => {
@@ -150,14 +201,17 @@ const SeriesModal = () => {
                     <X size={20} className="md:w-6 md:h-6" />
                 </button>
 
-                {failure ? (
+                {failure && loadedFor === movieId ? (
                     <div className="p-4 md:p-8">
                         <DataErrorState
                             reason={failure}
-                            onRetry={() => setRetryKey((value) => value + 1)}
+                            onRetry={() => {
+                                detailsCache.delete(Number(movieId));
+                                setRetryKey((value) => value + 1);
+                            }}
                         />
                     </div>
-                ) : missing ? (
+                ) : missing && loadedFor === movieId ? (
                     <div className="p-4 md:p-8">
                         <DataState
                             kind="empty"
@@ -165,7 +219,7 @@ const SeriesModal = () => {
                             description="Ten tytuł nie jest już dostępny."
                         />
                     </div>
-                ) : loading || !details ? (
+                ) : loading || !details || loadedFor !== movieId ? (
                     <div className="flex min-h-0 w-full flex-1 flex-col pb-[calc(32px+env(safe-area-inset-bottom))] text-foreground">
                         <div className="w-full h-62.5 md:h-100 min-h-35 md:min-h-45 bg-surface-light animate-pulse relative">
                             <div className="absolute inset-0 bg-linear-to-t from-surface via-surface/40 to-transparent" />
@@ -227,7 +281,7 @@ const SeriesModal = () => {
                                     <button
                                         type="button"
                                         onClick={watchTogether}
-                                        disabled={startingParty}
+                                        disabled={startingParty || refreshing}
                                         className={`flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface-light px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:border-primary hover:bg-primary hover:text-on-accent focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-primary md:px-5 md:py-2.5 md:text-base ${startingParty ? "opacity-70" : ""}`}
                                     >
                                         <Users size={18} />
@@ -243,7 +297,7 @@ const SeriesModal = () => {
                                 Odcinki ({details.episodes.length})
                             </h3>
 
-                            <div className="-mr-1 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain pb-[calc(24px+env(safe-area-inset-bottom))] pr-1 scrollbar-hide">
+                            <div aria-busy={refreshing} className="-mr-1 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain pb-[calc(24px+env(safe-area-inset-bottom))] pr-1 scrollbar-hide">
                                 {details.episodes.map((episode) => (
                                     <button
                                         type="button"
@@ -309,6 +363,11 @@ const SeriesModal = () => {
             </div>
         </div>
     );
+};
+
+const SeriesModal = () => {
+    const { user } = useAuth();
+    return user ? <SeriesModalForViewer key={user.id} /> : null;
 };
 
 export default SeriesModal;

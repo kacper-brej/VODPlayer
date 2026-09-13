@@ -10,7 +10,7 @@ import selectProfileAction from "@/lib/profiles/selectProfileAction";
 import updateProfileAction from "@/lib/profiles/updateProfileAction";
 import { isProfileAvatar, PROFILE_AVATARS, type ProfileAvatar } from "@/lib/core/onboarding";
 import { useModalFocus } from "@/lib/core/useModalFocus";
-import { preloadHeroPreview, shouldPreloadHeroPreview } from "@/lib/player/preloadHeroPreview";
+import { preloadSelectedProfilePreview } from "@/lib/profiles/preloadSelectedProfilePreview";
 import { AvatarPicker } from "@/components/onboarding/AvatarPicker";
 import { ProfileAvatarTile } from "@/components/profiles/ProfileAvatarTile";
 import { useAuth } from "@/lib/auth/AuthContext";
@@ -89,14 +89,14 @@ export default function ProfileSelector({ profiles: initialProfiles, initiallyMa
 
         startTransition(async () => {
             try {
-                const result = await selectProfileAction(profile.id, shouldPreloadHeroPreview());
+                const result = await selectProfileAction(profile.id);
                 if (!result.success) {
                     resetFailedHandoff();
                     return;
                 }
 
                 router.prefetch("/");
-                void preloadHeroPreview(result.previewSource).catch(() => undefined);
+                void preloadSelectedProfilePreview(profile.id).catch(() => undefined);
                 clearSpinnerTimer();
                 setHandoff((current) => current?.profile.id === profile.id
                     ? { ...current, phase: "leaving", showSpinner: false }

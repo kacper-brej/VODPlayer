@@ -3,43 +3,14 @@ import { cookies } from "next/headers";
 import { PROFILE_COOKIE } from "@/lib/core/vodConfig";
 import { getProfiles } from "@/lib/profiles/profiles";
 import { getSessionUser } from "@/lib/auth/session";
-import { getCatalog } from "@/lib/catalog/catalog";
-import { getNewestSeries } from "@/lib/catalog/catalogRows";
-import { getLatestResume } from "@/lib/progress/continueWatching";
-import { resolvePreviewSource, type PreviewSource } from "@/lib/player/videoAccess";
-import { getProfileSettingsRow } from "@/lib/settings/settingsRepository";
 
 const PROFILE_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 type SelectProfileResult =
-    | { success: true; previewSource: PreviewSource | null }
+    | { success: true }
     | { success: false; error: "unauthorized" | "not_found" | "backend" };
 
-const resolveSelectedProfilePreview = async (): Promise<PreviewSource | null> => {
-    const [catalogResult, resumeResult] = await Promise.all([
-        getCatalog(false),
-        getLatestResume(),
-    ]);
-    if (catalogResult.kind !== "success") return null;
-
-    const resume = resumeResult.kind === "success" ? resumeResult.data : null;
-    const series = (resume
-        ? catalogResult.data.find((item) => item.key === resume.seriesKey)
-        : null)
-        ?? getNewestSeries(catalogResult.data).find((item) => item.episodes.length > 0)
-        ?? catalogResult.data.find((item) => item.episodes.length > 0)
-        ?? null;
-    if (!series) return null;
-
-    const episode = series.episodes.find((item) => item.key === resume?.episodeKey)
-        ?? series.episodes[0]
-        ?? null;
-    if (!episode) return null;
-
-    return resolvePreviewSource(series.key, episode, resume?.positionSeconds ?? null);
-};
-
-const selectProfileAction = async (profileId: number, preloadPreview = true): Promise<SelectProfileResult> => {
+const selectProfileAction = async (profileId: number): Promise<SelectProfileResult> => {
     if (!await getSessionUser()) return { success: false, error: "unauthorized" };
     if (!Number.isSafeInteger(profileId) || profileId <= 0) return { success: false, error: "not_found" };
     const result = await getProfiles();
@@ -59,17 +30,7 @@ const selectProfileAction = async (profileId: number, preloadPreview = true): Pr
         path: "/",
         maxAge: PROFILE_COOKIE_MAX_AGE,
     });
-    if (!preloadPreview) return { success: true, previewSource: null };
-
-    try {
-        const settings = await getProfileSettingsRow(profileId);
-        const previewSource = settings && (!settings.autoPreviewsEnabled || settings.reduceData)
-            ? null
-            : await resolveSelectedProfilePreview();
-        return { success: true, previewSource };
-    } catch {
-        return { success: true, previewSource: null };
-    }
+    return { success: true };
 };
 
 export default selectProfileAction;

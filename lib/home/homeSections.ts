@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import { getSessionUser } from "@/lib/auth/session";
 import { getCatalog } from "@/lib/catalog/catalog";
 import {
     HOME_SECTION_ORDER,
@@ -41,8 +42,11 @@ export const createHomeSectionPromises = (
 
 const getHomeSectionPromises = cache(async () => {
     try {
-        const catalogResult = await getCatalog(false);
-        const catalog = catalogResult.kind === "error" ? [] : catalogResult.data;
+        const user = await getSessionUser();
+        if (!user) return new Map<HomeSectionId, Promise<HomeSectionRow | undefined>>();
+
+        const catalog = getCatalog(false)
+            .then((result) => result.kind === "error" ? [] : result.data);
         return createHomeSectionPromises(new Map([
             ...startPublicHomeRows(catalog),
             ...startPersonalizedHomeRows(catalog),
@@ -52,6 +56,11 @@ const getHomeSectionPromises = cache(async () => {
         return new Map<HomeSectionId, Promise<HomeSectionRow | undefined>>();
     }
 });
+
+export const preloadHomeRowSections = async (): Promise<void> => {
+    const sections = await getHomeSectionPromises();
+    await Promise.allSettled(sections.values());
+};
 
 export const getHomeRowSection = async (id: HomeSectionId): Promise<HomeSectionRow | undefined> =>
     (await getHomeSectionPromises()).get(id);

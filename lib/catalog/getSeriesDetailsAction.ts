@@ -1,4 +1,5 @@
 "use server";
+import { after } from "next/server";
 import { resolveCatalogSeries } from "@/lib/catalog/catalog";
 import { isVirtualTmdbKey } from "@/lib/catalog/tmdbVirtualSeries";
 import { getSeriesProgressAction } from "@/lib/progress/getProgressAction";
@@ -41,12 +42,14 @@ export interface SeriesDetails {
     isLocal: boolean;
     resumeEpisodeKey: string | null;
     episodes: SeriesDetailsEpisode[];
+    metadataPending?: boolean;
+    hasSynopsis?: boolean;
 }
 
 const MAX_JIKAN_EPISODE_PAGES = 3;
 
-const localDetails = async (id: number): Promise<DataResult<SeriesDetails | null>> => {
-    const seriesResult = await resolveCatalogSeries(String(id));
+const localDetails = async (id: number, enrichMetadata: boolean): Promise<DataResult<SeriesDetails | null>> => {
+    const seriesResult = await resolveCatalogSeries(String(id), enrichMetadata);
     if (seriesResult.kind === "error") return seriesResult;
 
     if (!seriesResult.data) return dataEmpty(null);
@@ -61,8 +64,9 @@ const localDetails = async (id: number): Promise<DataResult<SeriesDetails | null
     let bannerImage = series.bannerImage;
     let year = series.year;
     let rating = series.rating;
+    const metadataPending = !isVirtualTmdbKey(series.key) && (!series.hasMetadata || !synopsis);
 
-    if (!isVirtualTmdbKey(series.key) && (!series.hasMetadata || !synopsis)) {
+    if (enrichMetadata && metadataPending) {
         const identityResult = await resolveSeriesIdentity(series.title);
         if (identityResult.kind === "error") return identityResult;
 
@@ -75,8 +79,14 @@ const localDetails = async (id: number): Promise<DataResult<SeriesDetails | null
             year = providerSeries.year ?? year;
             rating = providerSeries.score !== null ? String(providerSeries.score) : rating;
 
-            const saved = await persistSeriesIdentity(series.key, providerId, externalId, providerSeries, artwork, "auto");
-            if (saved) invalidateCatalogCache();
+            after(async () => {
+                try {
+                    const saved = await persistSeriesIdentity(series.key, providerId, externalId, providerSeries, artwork, "auto");
+                    if (saved) invalidateCatalogCache();
+                } catch (error) {
+                    console.error("Series details metadata persistence failed", error);
+                }
+            });
         }
     }
 
@@ -89,6 +99,8 @@ const localDetails = async (id: number): Promise<DataResult<SeriesDetails | null
         year,
         rating,
         isLocal: true,
+        metadataPending: metadataPending && !enrichMetadata,
+        hasSynopsis: Boolean(synopsis),
         resumeEpisodeKey: resume?.episodeKey ?? null,
         episodes: series.episodes.map((episode) => {
             const entry = progress[episode.key];
@@ -164,12 +176,12 @@ const remoteDetails = async (id: number): Promise<DataResult<SeriesDetails | nul
     });
 };
 
-const getSeriesDetailsAction = async (id: number): Promise<DataResult<SeriesDetails | null>> => {
+const getSeriesDetailsAction = async (id: number, enrichMetadata = true): Promise<DataResult<SeriesDetails | null>> => {
     if (!await getSessionUser()) return dataFailure("unauthorized", 401);
     if (!Number.isSafeInteger(id) || id <= 0) return dataEmpty(null);
 
     try {
-        const localResult = await localDetails(id);
+        const localResult = await localDetails(id, enrichMetadata);
 
         if (localResult.kind === "error" || localResult.data) {
             return localResult;

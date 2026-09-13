@@ -13,7 +13,7 @@ import { toContentCard, toResumeCard } from "@/lib/catalog/contentCards";
 import { selectFallbackHero } from "@/lib/home/homeHero";
 import { resolveResumeCatalogSeries } from "@/lib/home/resumeCatalogSeries";
 import { HOME_SECTION_PRESENTATION, type HomeSectionId, type HomeSectionRow } from "@/lib/home/homeLayout";
-import { getHomeRowSection } from "@/lib/home/homeSections";
+import { getHomeRowSection, preloadHomeRowSections } from "@/lib/home/homeSections";
 import { buildNewestHomeRow } from "@/lib/home/publicHomeRows";
 import { buildWatchlistHomeRow } from "@/lib/home/personalizedHomeRows";
 import { watchPath } from "@/lib/core/routes";
@@ -247,6 +247,7 @@ const EmptyArchive = ({ canManageLibrary }: { canManageLibrary: boolean }) => (
 );
 
 const HomeDashboard = async () => {
+    void preloadHomeRowSections();
     const [catalogResult, user] = await Promise.all([
         getCatalog(false),
         getSessionUser(),

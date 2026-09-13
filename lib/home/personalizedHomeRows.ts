@@ -189,11 +189,14 @@ export const buildRecommendationHomeRow = (
 };
 
 const loadRecommendationHomeRow = async (
-    catalog: readonly CatalogSeries[],
+    catalogPromise: Promise<readonly CatalogSeries[]>,
     sources: PersonalizedHomeRowSources,
 ): Promise<HomeRowResult> => {
-    const progressResult = await Promise.resolve().then(sources.progress)
-        .catch(() => ({ kind: "error" as const, reason: "server" as const }));
+    const [catalog, progressResult] = await Promise.all([
+        catalogPromise,
+        Promise.resolve().then(sources.progress)
+            .catch(() => ({ kind: "error" as const, reason: "server" as const })),
+    ]);
 
     if (progressResult.kind === "error") {
         return errorResult("recommendations", "tmdb-recommendations", progressResult);
@@ -221,14 +224,20 @@ const loadRecommendationHomeRow = async (
 };
 
 export const startPersonalizedHomeRows = (
-    catalog: readonly CatalogSeries[],
+    catalog: readonly CatalogSeries[] | Promise<readonly CatalogSeries[]>,
     sources: PersonalizedHomeRowSources = defaultSources,
-): HomeRowPromises => new Map([
-    ["watchlist", Promise.resolve().then(sources.watchlist)
-        .catch(() => ({ kind: "error" as const, reason: "server" as const }))
-        .then((result) => buildWatchlistHomeRow(catalog, result))],
-    ["recommendations", loadRecommendationHomeRow(catalog, sources)],
-]);
+): HomeRowPromises => {
+    const catalogPromise = Promise.resolve(catalog);
+
+    return new Map([
+        ["watchlist", Promise.all([
+            catalogPromise,
+            Promise.resolve().then(sources.watchlist)
+                .catch(() => ({ kind: "error" as const, reason: "server" as const })),
+        ]).then(([series, result]) => buildWatchlistHomeRow(series, result))],
+        ["recommendations", loadRecommendationHomeRow(catalogPromise, sources)],
+    ]);
+};
 
 export const getPersonalizedHomeRows = (
     catalog: readonly CatalogSeries[],

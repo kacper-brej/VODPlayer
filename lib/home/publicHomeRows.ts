@@ -163,17 +163,18 @@ export const buildNewestHomeRow = (catalog: readonly CatalogSeries[]): HomeRowRe
 };
 
 export const startPublicHomeRows = (
-    catalog: readonly CatalogSeries[],
+    catalog: readonly CatalogSeries[] | Promise<readonly CatalogSeries[]>,
     sources: PublicHomeRowSources = defaultSources,
 ): HomeRowPromises => {
     const imageBaseUrl = resolveImageBaseUrl();
+    const catalogPromise = Promise.resolve(catalog);
     const loadRow = (key: keyof PublicHomeRowSources): Promise<HomeRowResult> =>
-        Promise.all([loadSafely(sources[key]), imageBaseUrl])
-            .then(([result, baseUrl]) => buildTmdbHomeRow(TMDB_ROW_SPECS[key], result, catalog, baseUrl));
+        Promise.all([loadSafely(sources[key]), imageBaseUrl, catalogPromise])
+            .then(([result, baseUrl, series]) => buildTmdbHomeRow(TMDB_ROW_SPECS[key], result, series, baseUrl));
 
     return new Map([
         ["trending-today", loadRow("trendingToday")],
-        ["newest-local", Promise.resolve(buildNewestHomeRow(catalog))],
+        ["newest-local", catalogPromise.then(buildNewestHomeRow)],
         ["popular-now", loadRow("popularNow")],
         ["top-rated", loadRow("topRated")],
         ["on-the-air", loadRow("onTheAir")],
