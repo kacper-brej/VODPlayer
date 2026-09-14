@@ -1,16 +1,22 @@
 import "server-only";
 import { DatabaseError } from "@/lib/db/errors";
 import { resolveOwnedProfileId } from "@/lib/profiles/profileService";
+import { resolveOwnedProfileIdForRead } from "@/lib/profiles/profileRead";
 import type { NotificationsResponse } from "@/lib/core/contracts";
 import * as repo from "@/lib/notifications/notificationRepository";
 
 export const getNotifications = async (userId: number, username: string): Promise<NotificationsResponse> => {
-    const profileId = await resolveOwnedProfileId(userId, username);
+    const profileId = await resolveOwnedProfileIdForRead(userId, username);
     const [count, items] = await Promise.all([
         repo.countUnreadNotifications(profileId),
         repo.listUnreadNotifications(profileId),
     ]);
     return { count, items };
+};
+
+export const getUnreadNotificationsCount = async (userId: number, username: string): Promise<number> => {
+    const profileId = await resolveOwnedProfileIdForRead(userId, username);
+    return repo.countUnreadNotifications(profileId);
 };
 
 export type MarkReadResult = { ok: true } | { ok: false; code: "invalid" | "server" };

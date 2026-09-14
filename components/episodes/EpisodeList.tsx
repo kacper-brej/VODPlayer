@@ -13,6 +13,8 @@ import { useModalFocus } from "@/lib/core/useModalFocus";
 import { usePreviewSurface } from "@/components/preview/usePreviewSurface";
 import { DataErrorState } from "@/components/data/DataState";
 import type { DataErrorReason } from "@/lib/core/dataResult";
+import EpisodeWindow, { type EpisodeWindowHandle } from "@/components/episodes/EpisodeWindow";
+import { playerButtonIntentProps, preloadPlayerOnIntent } from "@/lib/player/preloadPlayerOnIntent";
 
 export interface SeasonEpisodes extends SeasonOption {
     seriesId: number;
@@ -33,7 +35,7 @@ const EpisodeList = ({ seasons, initialSeason, authRequired }: EpisodeListProps)
     const [isSeasonPending, startSeasonTransition] = useTransition();
     const [activeCard, setActiveCard] = useState(0);
     const [blockedEpisode, setBlockedEpisode] = useState<EpisodeCardData | null>(null);
-    const cards = useRef<Array<HTMLButtonElement | null>>([]);
+    const episodeWindowRef = useRef<EpisodeWindowHandle>(null);
     const closeBlockedEpisode = () => setBlockedEpisode(null);
     const loginDialogRef = useModalFocus<HTMLDivElement>(Boolean(blockedEpisode), closeBlockedEpisode);
     const season = seasons.find((entry) => entry.id === activeSeason) ?? seasons[0];
@@ -62,6 +64,7 @@ const EpisodeList = ({ seasons, initialSeason, authRequired }: EpisodeListProps)
             setBlockedEpisode(episode);
             return;
         }
+        void preloadPlayerOnIntent();
         router.push(watchPath(episode.seriesId, episode.episodeKey));
     };
 
@@ -78,7 +81,7 @@ const EpisodeList = ({ seasons, initialSeason, authRequired }: EpisodeListProps)
         event.preventDefault();
         const next = Math.max(0, Math.min((season?.episodes.length ?? 1) - 1, index + offset));
         setActiveCard(next);
-        cards.current[next]?.focus();
+        episodeWindowRef.current?.focusItem(next);
     };
 
     if (!season) {
@@ -139,6 +142,12 @@ const EpisodeList = ({ seasons, initialSeason, authRequired }: EpisodeListProps)
                                 type="button"
                                 onClick={() => play(resumeEpisode)}
                                 {...resumePreview.surfaceProps}
+                                onPointerEnter={authRequired ? undefined : playerButtonIntentProps.onPointerEnter}
+                                onPointerDown={authRequired ? undefined : playerButtonIntentProps.onPointerDown}
+                                onFocus={(event) => {
+                                    resumePreview.surfaceProps.onFocus(event);
+                                    if (!authRequired) playerButtonIntentProps.onFocus(event);
+                                }}
                                 className="block w-full text-left focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-nx-accent"
                             >
                             <span className="relative block aspect-video overflow-hidden bg-nx-panel">
@@ -200,23 +209,35 @@ const EpisodeList = ({ seasons, initialSeason, authRequired }: EpisodeListProps)
                         </article>
                     )}
 
-                    <div
-                        role="grid"
-                        aria-label={`Odcinki — ${season.label}`}
+                    <EpisodeWindow
+                        key={season.id}
+                        windowRef={episodeWindowRef}
+                        count={season.episodes.length}
+                        layout="grid"
+                        label={`Odcinki — ${season.label}`}
                         className="grid grid-cols-1 gap-4 lg:col-span-6 lg:grid-cols-2 xl:col-span-6 xl:grid-cols-3"
-                    >
-                        {season.episodes.map((episode, index) => (
+                        placeholderButtons={(index) => {
+                            const episode = season.episodes[index];
+                            return [
+                                { label: `Odtwórz ${episode.title}`, tabIndex: index === activeCard ? 0 : -1 },
+                                ...(episode.previewSource ? [{ label: `Odtwórz podgląd: ${episode.title}`, tabIndex: 0 }] : []),
+                            ];
+                        }}
+                        renderItem={(index) => {
+                            const episode = season.episodes[index];
+                            return (
                             <EpisodeCard
                                 key={episode.id}
                                 episode={episode}
                                 tabIndex={index === activeCard ? 0 : -1}
-                                cardRef={(element) => { cards.current[index] = element; }}
+                                preloadOnIntent={!authRequired}
                                 onFocus={() => setActiveCard(index)}
                                 onPlay={play}
                                 onKeyDown={(event) => moveCard(event, index)}
                             />
-                        ))}
-                    </div>
+                            );
+                        }}
+                    />
                         </>
                     )}
                 </div>

@@ -9,6 +9,7 @@ import type { PreviewSource } from "@/lib/player/videoAccess";
 import { setPreviewMuted } from "@/components/series/previewController";
 import { usePreviewSurface } from "@/components/preview/usePreviewSurface";
 import { setSeriesInfoId } from "@/lib/catalog/seriesInfoHistory";
+import { playerButtonIntentProps, playerLinkIntentProps, preloadPlayerOnIntent } from "@/lib/player/preloadPlayerOnIntent";
 
 export interface LastWatchedData {
     seriesKey: string;
@@ -69,7 +70,10 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
         ...(activeContent.genres ?? []).slice(0, 2),
     ].filter((part): part is string => Boolean(part));
 
-    const openEpisode = () => router.push(activeContent.href);
+    const openEpisode = () => {
+        void preloadPlayerOnIntent();
+        router.push(activeContent.href);
+    };
 
     const openInfo = (event: MouseEvent<HTMLButtonElement>) => {
         event.stopPropagation();
@@ -103,6 +107,11 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
             onClick={openEpisode}
             onKeyDown={handleKeyDown}
             {...preview.surfaceProps}
+            onPointerEnter={playerLinkIntentProps.onPointerEnter}
+            onFocus={(event) => {
+                preview.surfaceProps.onFocus(event);
+                playerLinkIntentProps.onFocus(event);
+            }}
             className="group/hero relative h-[62vh] min-h-[440px] max-h-[560px] w-full cursor-pointer overflow-hidden border-b border-nx-border bg-nx-panel outline-none sm:h-[64vh] lg:h-[70vh] lg:min-h-[520px] lg:max-h-[680px] xl:h-[72vh] xl:max-h-[760px] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-nx-accent"
             style={safeDominantColor ? {
                 background: `linear-gradient(to top, var(--nx-bg), color-mix(in srgb, ${safeDominantColor} 8%, var(--nx-panel)))`,
@@ -231,6 +240,7 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
                             event.stopPropagation();
                             openEpisode();
                         }}
+                        {...playerButtonIntentProps}
                         className="flex h-12 min-w-0 flex-1 items-center justify-center gap-2.5 rounded-full bg-nx-accent px-5 text-[15px] font-semibold text-nx-on-accent outline-none transition-[transform,background-color] duration-140 hover:bg-[color-mix(in_srgb,var(--nx-accent)_86%,var(--nx-text))] active:scale-[.98] focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent motion-reduce:transition-none sm:flex-none sm:px-6"
                     >
                         <Play size={17} fill="currentColor" />

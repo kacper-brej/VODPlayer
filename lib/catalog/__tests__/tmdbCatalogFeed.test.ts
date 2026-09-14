@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { catalogSeriesFixture } from "@/lib/catalog/__tests__/catalogSeriesFixture";
 import type { TmdbMovieListItem, TmdbTvListItem } from "@/lib/core/contracts";
+import type { CatalogSeries } from "@/lib/catalog/catalog";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/access/demoAsset", () => ({ getDemoAsset: async () => null }));
@@ -62,7 +63,71 @@ const sourcesFor = ({
     ),
 });
 
+const deferred = <T>() => {
+    let resolve!: (value: T) => void;
+    let reject!: (reason: unknown) => void;
+    const promise = new Promise<T>((complete, fail) => {
+        resolve = complete;
+        reject = fail;
+    });
+    return { promise, resolve, reject };
+};
+
 describe("katalog zasilany z TMDB", () => {
+    it("rozpoczyna zrodla przed katalogiem i zachowuje dopasowania, deduplikacje oraz kolejnosc", async () => {
+        const pendingCatalog = deferred<readonly CatalogSeries[]>();
+        const local = catalogSeriesFixture("gra-o-tron", { tmdbExternalId: 1399 });
+        const sources = sourcesFor({
+            tv: [tvItem(1399, "Gra o tron"), tvItem(1400, "Inny serial"), tvItem(1400, "Duplikat"), tvItem(1401, "Nastepny")],
+            movies: [movieItem(603, "Matrix"), movieItem(603, "Duplikat"), movieItem(604, "Drugi film")],
+        });
+        const imageBaseUrl = vi.spyOn(sources, "imageBaseUrl");
+        const genres = vi.spyOn(sources, "genres");
+        let completed = false;
+        const result = getTmdbCatalogFeed(pendingCatalog.promise, {}, sources).then((feed) => {
+            completed = true;
+            return feed;
+        });
+
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(sources.tvLists).toHaveBeenCalledOnce();
+        expect(sources.movieLists).toHaveBeenCalledOnce();
+        expect(imageBaseUrl).toHaveBeenCalledOnce();
+        expect(genres.mock.calls).toEqual([["tv"], ["movie"]]);
+        expect(completed).toBe(false);
+
+        pendingCatalog.resolve([local]);
+        const feed = await result;
+
+        expect(feed.map((entry) => entry.key)).toEqual(["tmdb:1400", "tmdb:movie:603", "tmdb:1401", "tmdb:movie:604"]);
+        expect(feed).toEqual(await getTmdbCatalogFeed([local], {}, sources));
+    });
+
+    it("obsluguje odrzucenie katalogu, gdy zrodla jeszcze trwaja", async () => {
+        const pendingCatalog = deferred<readonly CatalogSeries[]>();
+        const pendingTv = deferred<TmdbTvListItem[]>();
+        const sources = sourcesFor();
+        sources.tvLists.mockReturnValue(pendingTv.promise);
+        const result = getTmdbCatalogFeed(pendingCatalog.promise, {}, sources);
+        const assertion = expect(result).rejects.toThrow("catalog unavailable");
+
+        pendingCatalog.reject(new Error("catalog unavailable"));
+        await assertion;
+        pendingTv.reject(new Error("late TMDB failure"));
+        await new Promise<void>((resolve) => setImmediate(resolve));
+    });
+
+    it("obsluguje odrzucenie zrodla przed zakonczeniem katalogu", async () => {
+        const pendingCatalog = deferred<readonly CatalogSeries[]>();
+        const sources = sourcesFor();
+        sources.tvLists.mockRejectedValue(new Error("TMDB unavailable"));
+
+        await expect(getTmdbCatalogFeed(pendingCatalog.promise, {}, sources)).rejects.toThrow("TMDB unavailable");
+        pendingCatalog.reject(new Error("late catalog failure"));
+        await new Promise<void>((resolve) => setImmediate(resolve));
+    });
+
     it("zwraca seriale i filmy przeplatane, z kluczami wirtualnymi", async () => {
         const feed = await getTmdbCatalogFeed(
             [],

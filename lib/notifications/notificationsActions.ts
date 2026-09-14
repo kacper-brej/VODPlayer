@@ -1,8 +1,8 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { getSessionUser } from "@/lib/auth/session";
-import { getNotifications } from "@/lib/notifications/notifications";
 import {
+    getUnreadNotificationsCount,
     markNotificationRead as markNotificationReadInService,
     markAllNotificationsRead as markAllNotificationsReadInService,
 } from "@/lib/notifications/notificationService";
@@ -38,6 +38,13 @@ export const markNotificationReadAction = async (
 };
 
 export const getUnreadNotificationsCountAction = async (): Promise<number> => {
-    const result = await getNotifications();
-    return result.kind === "error" ? 0 : result.data.count;
+    const user = await getSessionUser();
+    if (!user) return 0;
+
+    try {
+        return await getUnreadNotificationsCount(user.id, user.username);
+    } catch (error) {
+        console.error("getUnreadNotificationsCount failed:", error);
+        return 0;
+    }
 };

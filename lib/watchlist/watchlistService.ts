@@ -2,6 +2,7 @@ import "server-only";
 import { DatabaseError } from "@/lib/db/errors";
 import type { WatchlistItem } from "@/lib/core/contracts";
 import { resolveOwnedProfileId } from "@/lib/profiles/profileService";
+import { resolveOwnedProfileIdForRead } from "@/lib/profiles/profileRead";
 import * as repo from "@/lib/watchlist/watchlistRepository";
 
 const MAX_SERIES_KEY_LENGTH = 255;
@@ -13,7 +14,7 @@ const validateSeriesKey = (raw: string): string | null => {
 };
 
 export const getWatchlist = async (userId: number, username: string): Promise<WatchlistItem[]> => {
-    const profileId = await resolveOwnedProfileId(userId, username);
+    const profileId = await resolveOwnedProfileIdForRead(userId, username);
     return repo.listWatchlistForProfile(profileId);
 };
 

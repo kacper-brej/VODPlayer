@@ -12,7 +12,7 @@ vi.mock("@/lib/notifications/notificationRepository", () => repo);
 const resolveOwnedProfileId = vi.fn();
 vi.mock("@/lib/profiles/profileService", () => ({ resolveOwnedProfileId }));
 
-const { getNotifications, markNotificationRead, markAllNotificationsRead } = await import("../notificationService");
+const { getNotifications, getUnreadNotificationsCount, markNotificationRead, markAllNotificationsRead } = await import("../notificationService");
 
 const USER_ID = 1;
 const USERNAME = "Kacper";
@@ -38,6 +38,28 @@ describe("getNotifications", () => {
         expect(repo.countUnreadNotifications).toHaveBeenCalledWith(PROFILE_ID);
         expect(repo.listUnreadNotifications).toHaveBeenCalledWith(PROFILE_ID);
         expect(result).toEqual({ count: 2, items: [{ id: 1, seriesKey: "Naruto", episodeKey: "01.mp4", createdAt: 1000 }] });
+    });
+});
+
+describe("getUnreadNotificationsCount", () => {
+    it("returns the full count for the owned profile without loading notification items", async () => {
+        repo.countUnreadNotifications.mockResolvedValue(125);
+
+        await expect(getUnreadNotificationsCount(USER_ID, USERNAME)).resolves.toBe(125);
+
+        expect(resolveOwnedProfileId).toHaveBeenCalledWith(USER_ID, USERNAME);
+        expect(repo.countUnreadNotifications).toHaveBeenCalledWith(PROFILE_ID);
+        expect(repo.listUnreadNotifications).not.toHaveBeenCalled();
+    });
+
+    it("does not query notifications when profile resolution fails", async () => {
+        const error = new Error("Profile lookup failed");
+        resolveOwnedProfileId.mockRejectedValueOnce(error);
+
+        await expect(getUnreadNotificationsCount(USER_ID, USERNAME)).rejects.toBe(error);
+
+        expect(repo.countUnreadNotifications).not.toHaveBeenCalled();
+        expect(repo.listUnreadNotifications).not.toHaveBeenCalled();
     });
 });
 

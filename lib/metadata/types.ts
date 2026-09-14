@@ -52,7 +52,7 @@ export interface ProviderEpisode {
 
 export interface MetadataProvider {
     id: ProviderId;
-    searchSeries(query: string): Promise<DataResult<SeriesCandidate[]>>;
+    searchSeries(query: string, signal?: AbortSignal): Promise<DataResult<SeriesCandidate[]>>;
     getSeries(externalId: string): Promise<DataResult<ProviderSeries>>;
     getArtwork?(externalId: string): Promise<DataResult<ProviderArtwork[]>>;
     getEpisodes?(externalId: string): Promise<DataResult<ProviderEpisode[]>>;

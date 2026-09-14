@@ -14,6 +14,8 @@ import { partyWatchPath, seriesPath, watchPath } from "@/lib/core/routes";
 import { useModalFocus } from "@/lib/core/useModalFocus";
 import { startPartyForEpisode } from "@/lib/party/startPartyForEpisode";
 import { setSeriesInfoId } from "@/lib/catalog/seriesInfoHistory";
+import EpisodeWindow from "@/components/episodes/EpisodeWindow";
+import { playerButtonIntentProps, preloadPlayerOnIntent } from "@/lib/player/preloadPlayerOnIntent";
 
 const CLOSE_ANIMATION_MS = 200;
 
@@ -59,6 +61,7 @@ const SeriesModalForViewer = () => {
 
     const openEpisode = (episodeKey: string) => {
         if (!details?.seriesKey) return;
+        void preloadPlayerOnIntent();
         const seriesKey = details.seriesKey;
         scheduleAfterClose(() => router.push(watchPath(seriesKey, episodeKey)));
     };
@@ -69,6 +72,7 @@ const SeriesModalForViewer = () => {
         const episodeKey = details?.resumeEpisodeKey ?? details?.episodes[0]?.key;
         if (!seriesKey || !episodeKey) return;
 
+        void preloadPlayerOnIntent();
         setPartyError(null);
         setStartingParty(true);
         const version = requestVersionRef.current;
@@ -281,6 +285,7 @@ const SeriesModalForViewer = () => {
                                     <button
                                         type="button"
                                         onClick={watchTogether}
+                                        {...playerButtonIntentProps}
                                         disabled={startingParty || refreshing}
                                         className={`flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface-light px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:border-primary hover:bg-primary hover:text-on-accent focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-primary md:px-5 md:py-2.5 md:text-base ${startingParty ? "opacity-70" : ""}`}
                                     >
@@ -297,12 +302,22 @@ const SeriesModalForViewer = () => {
                                 Odcinki ({details.episodes.length})
                             </h3>
 
-                            <div aria-busy={refreshing} className="-mr-1 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain pb-[calc(24px+env(safe-area-inset-bottom))] pr-1 scrollbar-hide">
-                                {details.episodes.map((episode) => (
+                            <EpisodeWindow
+                                key={movieId}
+                                count={details.episodes.length}
+                                layout="list"
+                                label="Odcinki serialu"
+                                busy={refreshing}
+                                className="-mr-1 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain pb-[calc(24px+env(safe-area-inset-bottom))] pr-1 scrollbar-hide"
+                                placeholderButtons={(index) => [{ label: `${details.episodes[index].number}. ${details.episodes[index].title}`, tabIndex: 0 }]}
+                                renderItem={(index) => {
+                                    const episode = details.episodes[index];
+                                    return (
                                     <button
                                         type="button"
                                         key={episode.key}
                                         onClick={() => openEpisode(episode.key)}
+                                        {...playerButtonIntentProps}
                                         className="group flex w-full cursor-pointer items-center gap-4 rounded-lg border border-border bg-surface-light/50 p-3 text-left transition-[background-color,border-color] hover:border-border-hover hover:bg-surface-light focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-primary md:p-4"
                                     >
                                         <span className={`relative h-20 w-32 shrink-0 overflow-hidden rounded-md bg-background transition-opacity md:h-24 md:w-40 ${episode.watched ? "opacity-75 ring-2 ring-nx-text-2/40" : ""}`}>
@@ -351,12 +366,12 @@ const SeriesModalForViewer = () => {
                                             </span>
                                         </span>
                                     </button>
-                                ))}
-
-                                {details.episodes.length === 0 && (
-                                    <div className="text-muted text-sm py-4">Brak dostępnych odcinków.</div>
-                                )}
-                            </div>
+                                    );
+                                }}
+                            />
+                            {details.episodes.length === 0 && (
+                                <div className="text-muted text-sm py-4">Brak dostępnych odcinków.</div>
+                            )}
                         </div>
                     </div>
                 )}

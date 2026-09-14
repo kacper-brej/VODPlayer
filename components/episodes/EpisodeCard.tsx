@@ -2,11 +2,12 @@
 
 import Image from "next/image";
 import { Check, Play } from "lucide-react";
-import { useState, type KeyboardEvent, type Ref } from "react";
+import { useState, type KeyboardEvent } from "react";
 import { formatEpisodeNumber } from "@/lib/catalog/seriesPage";
 import { ARTWORK_SIZES, imageLoader } from "@/lib/catalog/imageDelivery";
 import type { PreviewSource } from "@/lib/player/videoAccess";
 import { usePreviewSurface } from "@/components/preview/usePreviewSurface";
+import { playerButtonIntentProps } from "@/lib/player/preloadPlayerOnIntent";
 
 export interface EpisodeCardData {
     id: string;
@@ -28,7 +29,7 @@ export interface EpisodeCardData {
 interface EpisodeCardProps {
     episode: EpisodeCardData;
     tabIndex: number;
-    cardRef: Ref<HTMLButtonElement>;
+    preloadOnIntent?: boolean;
     onFocus: () => void;
     onPlay: (episode: EpisodeCardData) => void;
     onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
@@ -37,7 +38,7 @@ interface EpisodeCardProps {
 const EpisodeCard = ({
     episode,
     tabIndex,
-    cardRef,
+    preloadOnIntent = true,
     onFocus,
     onPlay,
     onKeyDown,
@@ -54,14 +55,16 @@ const EpisodeCard = ({
             className="group relative w-full scroll-m-6 overflow-hidden rounded-2xl border border-nx-border bg-nx-panel text-left transition-colors hover:bg-nx-raised"
         >
             <button
-                ref={cardRef}
                 type="button"
                 tabIndex={tabIndex}
                 onClick={() => onPlay(episode)}
                 onKeyDown={onKeyDown}
                 {...preview.surfaceProps}
+                onPointerEnter={preloadOnIntent ? playerButtonIntentProps.onPointerEnter : undefined}
+                onPointerDown={preloadOnIntent ? playerButtonIntentProps.onPointerDown : undefined}
                 onFocus={(event) => {
                     preview.surfaceProps.onFocus(event);
+                    if (preloadOnIntent) playerButtonIntentProps.onFocus(event);
                     onFocus();
                 }}
                 aria-label={`Odtwórz ${episode.title}`}

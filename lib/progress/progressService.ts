@@ -7,6 +7,7 @@ import { getDemoAsset } from "@/lib/access/demoAsset";
 import { parseVirtualEpisodeKey, parseVirtualTmdbRef } from "@/lib/catalog/tmdbVirtualSeries";
 import type { ResumePoint, EpisodeProgress, SeriesResumePoint } from "@/lib/core/contracts";
 import { resolveOwnedProfileId } from "@/lib/profiles/profileService";
+import { resolveOwnedProfileIdForRead } from "@/lib/profiles/profileRead";
 import { isEpisodeComplete } from "@/lib/progress/watchProgress";
 import * as repo from "@/lib/progress/progressRepository";
 
@@ -17,7 +18,7 @@ const MAX_KEY_LENGTH = 255;
 export interface ProgressReadModel { episodesBySeries: Record<string, Record<string, EpisodeProgress>>; resumes: ResumePoint[] }
 
 export const getProgressSnapshot = async (userId: number, username: string, seriesKeys?: readonly string[]): Promise<ProgressReadModel> => {
-    const profileId = await resolveOwnedProfileId(userId, username);
+    const profileId = await resolveOwnedProfileIdForRead(userId, username);
     return repo.loadProgressSnapshot(profileId, seriesKeys);
 };
 

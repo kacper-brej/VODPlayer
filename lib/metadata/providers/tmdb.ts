@@ -82,10 +82,12 @@ const fetchTvDetails = async (id: number): Promise<DataResult<TmdbTvDetails>> =>
     return result.ok ? dataSuccess(result.data) : dataFailure("invalid_response");
 };
 
-const searchSeries = async (query: string): Promise<DataResult<SeriesCandidate[]>> => {
+const searchSeries = async (query: string, signal?: AbortSignal): Promise<DataResult<SeriesCandidate[]>> => {
     const response = await fetchTmdbResult(
         `/search/tv?language=${TMDB_LANGUAGE}&query=${encodeURIComponent(query)}`,
         (value) => validateTmdbTvSearchResponse(value).ok,
+        undefined,
+        signal,
     );
 
     if (response.kind === "error") return response;

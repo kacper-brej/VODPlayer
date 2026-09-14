@@ -118,7 +118,7 @@ const interleave = (
 };
 
 export const getTmdbCatalogFeed = async (
-    catalog: readonly CatalogSeries[],
+    catalog: readonly CatalogSeries[] | Promise<readonly CatalogSeries[]>,
     options: TmdbCatalogFeedOptions = {},
     sources: TmdbCatalogFeedSources = defaultSources,
 ): Promise<CatalogSeries[]> => {
@@ -128,15 +128,16 @@ export const getTmdbCatalogFeed = async (
         : TMDB_CATALOG_LIMIT;
     const searching = query.length >= TMDB_CATALOG_MIN_QUERY_LENGTH;
 
-    const [tvItems, movieItems, imageBaseUrl, tvGenres, movieGenres] = await Promise.all([
+    const [tvItems, movieItems, imageBaseUrl, tvGenres, movieGenres, catalogEntries] = await Promise.all([
         searching ? sources.tvSearch(query) : sources.tvLists(),
         searching ? sources.movieSearch(query) : sources.movieLists(),
         sources.imageBaseUrl(),
         sources.genres("tv"),
         sources.genres("movie"),
+        catalog,
     ]);
 
-    const mappedSeries = mapTmdbListToCatalog(tvItems, catalog, limit, {
+    const mappedSeries = mapTmdbListToCatalog(tvItems, catalogEntries, limit, {
         createFallback: (item) => virtualSeriesFromListItem(
             item,
             imageBaseUrl,

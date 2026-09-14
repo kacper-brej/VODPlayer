@@ -176,6 +176,23 @@ describe("timeout providera", () => {
     });
 });
 
+describe("cancellation", () => {
+    it("passes cancellation to fetch and does not retry an aborted request", async () => {
+        const controller = new AbortController();
+        vi.mocked(fetch).mockImplementationOnce((_url, options) => new Promise((_resolve, reject) => {
+            const rejectAbort = () => reject(new DOMException("Aborted", "AbortError"));
+            if (options?.signal?.aborted) rejectAbort();
+            else options?.signal?.addEventListener("abort", rejectAbort, { once: true });
+        }));
+        const client = createRateLimitedClient({ ...baseConfig, maxRetries: 2 });
+        const pending = client.fetchResult("/search", { signal: controller.signal });
+        controller.abort();
+
+        await expect(pending).resolves.toMatchObject({ kind: "error", reason: "network" });
+        expect(fetch).toHaveBeenCalledOnce();
+    });
+});
+
 describe("limit prob dla konkretnego endpointu", () => {
     it("obniza liczbe podejsc ponizej globalnego limitu", async () => {
         vi.mocked(fetch).mockResolvedValue(jsonResponse({ error: "boom" }, 500));

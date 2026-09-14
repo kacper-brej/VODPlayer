@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { partyWatchPath, watchPath } from "@/lib/core/routes";
 import { ARTWORK_SIZES, blurProps, imageLoader, safeArtworkColor } from "@/lib/catalog/imageDelivery";
 import { startPartyForEpisode } from "@/lib/party/startPartyForEpisode";
+import { playerButtonIntentProps, preloadPlayerOnIntent } from "@/lib/player/preloadPlayerOnIntent";
 
 interface SeriesHeroProps {
     seriesId: number;
@@ -69,6 +70,7 @@ const SeriesHero = ({
             setNotice("Ten tytuł nie ma jeszcze odcinków.");
             return;
         }
+        void preloadPlayerOnIntent();
         router.push(watchPath(seriesId, activeEpisodeKey));
     };
 
@@ -77,6 +79,7 @@ const SeriesHero = ({
             setNotice("Ten tytuł nie ma jeszcze odcinków.");
             return;
         }
+        void preloadPlayerOnIntent();
         setStartingParty(true);
         const result = await startPartyForEpisode(seriesKey, activeEpisodeKey);
         setStartingParty(false);
@@ -189,6 +192,7 @@ const SeriesHero = ({
                         <button
                             type="button"
                             onClick={play}
+                            {...(activeEpisodeKey ? playerButtonIntentProps : {})}
                             aria-disabled={!activeEpisodeKey}
                             className={`flex h-12 items-center justify-center gap-2 rounded-xl bg-nx-accent px-6 text-[15px] font-semibold text-nx-on-accent transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent xl:h-13 ${activeEpisodeKey ? "" : "opacity-45"}`}
                         >
@@ -200,6 +204,7 @@ const SeriesHero = ({
                         <button
                             type="button"
                             onClick={watchTogether}
+                            {...(activeEpisodeKey ? playerButtonIntentProps : {})}
                             disabled={startingParty}
                             aria-disabled={!activeEpisodeKey}
                             className={`flex h-12 items-center justify-center gap-2 rounded-xl border border-nx-border bg-nx-panel/70 px-6 text-[15px] font-semibold text-nx-text transition-colors hover:border-nx-accent focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent xl:h-13 ${activeEpisodeKey ? "" : "opacity-45"} ${startingParty ? "opacity-70" : ""}`}

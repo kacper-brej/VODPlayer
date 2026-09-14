@@ -137,9 +137,13 @@ export const createRateLimitedClient = (config: RateLimitedClientConfig): RateLi
 
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
             try {
+                const timeoutSignal = AbortSignal.timeout(NETWORK_TIMEOUT_MS);
+                const signal = options?.signal
+                    ? AbortSignal.any([options.signal, timeoutSignal])
+                    : timeoutSignal;
                 const res = await fetch(`${config.baseUrl}${path}`, {
                     ...options,
-                    signal: AbortSignal.timeout(NETWORK_TIMEOUT_MS),
+                    signal,
                 });
 
                 if (res.status === 429 || res.status >= 500) {
@@ -179,6 +183,9 @@ export const createRateLimitedClient = (config: RateLimitedClientConfig): RateLi
                 await writePersistentCache(config.providerId, path, data);
                 return dataSuccess(data);
             } catch (error) {
+                if (error instanceof Error && error.name === "AbortError") {
+                    return dataFailure("network");
+                }
                 const timedOut = error instanceof Error && error.name === "TimeoutError";
                 console.error(`rateLimitedClient[${config.providerId}] request failed:`, timedOut ? "timeout" : error);
 

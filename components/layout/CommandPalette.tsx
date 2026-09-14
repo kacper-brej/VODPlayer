@@ -12,7 +12,8 @@ import { addRecentSearch, getRecentSearches } from "@/lib/search/recentSearches"
 import { seriesPath } from "@/lib/core/routes";
 import { DataErrorState } from "@/components/data/DataState";
 import type { DataResult } from "@/lib/core/dataResult";
-import searchTmdbAction, { type TmdbSearchHit } from "@/lib/search/searchTmdbAction";
+import { loadTmdbSearch } from "@/lib/search/loadTmdbSearch";
+import type { TmdbSearchHit } from "@/lib/search/tmdbSearchTypes";
 import { useModalFocus } from "@/lib/core/useModalFocus";
 import { searchEntries, type SearchRange } from "@/lib/search";
 import type { SearchIndexEntry } from "@/lib/search/searchIndex";
@@ -143,21 +144,19 @@ const CommandPalette = ({ searchIndex, initiallyOpen = false, onRetry }: Command
     }, [trimmedQuery, searchIndex]);
 
     useEffect(() => {
-        if (!isOpen || trimmedQuery.length < 2) return;
+        if (!isOpen || trimmedQuery.length < 2 || trimmedQuery !== query.trim()) return;
 
-        let active = true;
-        searchTmdbAction(trimmedQuery)
+        const controller = new AbortController();
+        loadTmdbSearch(trimmedQuery, controller.signal)
             .then((hits) => {
-                if (active) setTmdbSearch({ query: trimmedQuery, hits });
+                if (!controller.signal.aborted) setTmdbSearch({ query: trimmedQuery, hits });
             })
             .catch(() => {
-                if (active) setTmdbSearch({ query: trimmedQuery, hits: [] });
+                if (!controller.signal.aborted) setTmdbSearch({ query: trimmedQuery, hits: [] });
             });
 
-        return () => {
-            active = false;
-        };
-    }, [isOpen, trimmedQuery]);
+        return () => controller.abort();
+    }, [isOpen, query, trimmedQuery]);
 
     const tmdbHits = useMemo(
         () => tmdbSearch.query === trimmedQuery ? tmdbSearch.hits : [],

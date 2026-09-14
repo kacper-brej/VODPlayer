@@ -1,6 +1,7 @@
 import "server-only";
 import { DatabaseError } from "@/lib/db/errors";
 import { resolveOwnedProfileId } from "@/lib/profiles/profileService";
+import { resolveOwnedProfileIdForRead } from "@/lib/profiles/profileRead";
 import type { ProfileSettings } from "@/lib/core/contracts";
 import * as repo from "@/lib/settings/settingsRepository";
 import type { SettingsColumnUpdates } from "@/lib/settings/settingsRepository";
@@ -18,7 +19,7 @@ export const DEFAULT_PROFILE_SETTINGS: ProfileSettings = {
 const ALLOWED_LANGUAGE_CODES = new Set(["pl", "en", "ja", "ko", "de", "fr", "es", "it", "pt", "ru", "zh"]);
 
 export const getSettings = async (userId: number, username: string): Promise<ProfileSettings> => {
-    const profileId = await resolveOwnedProfileId(userId, username);
+    const profileId = await resolveOwnedProfileIdForRead(userId, username);
     const row = await repo.getProfileSettingsRow(profileId);
     return row ?? DEFAULT_PROFILE_SETTINGS;
 };

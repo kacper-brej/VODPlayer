@@ -228,12 +228,23 @@ const CatalogScreen = async ({
     basePath,
     searchParams,
 }: CatalogScreenProps) => {
+    const catalogPromise = getCatalog(false);
+    const userPromise = getSessionUser();
+    const tmdbFeedPromise = Promise.all([searchParams, userPromise]).then(([params, user]) =>
+        user && (mode === "all" || mode === "genres")
+            ? getTmdbCatalogFeed(
+                catalogPromise.then((result) => result.kind === "error" ? [] : result.data),
+                { query: firstValue(params.q).trim() },
+            )
+            : [],
+    );
+    void tmdbFeedPromise.catch(() => undefined);
     const [params, catalogResult, resumeResult, watchlistResult, user] = await Promise.all([
         searchParams,
-        getCatalog(false),
+        catalogPromise,
         getResumeMap(),
         getWatchlist(),
-        getSessionUser(),
+        userPromise,
     ]);
     const copy = screenCopy[mode];
     const canManageLibrary = user?.role === "admin";
@@ -264,9 +275,7 @@ const CatalogScreen = async ({
     const page = Number.isFinite(requestedPage) && requestedPage > 0
         ? Math.min(requestedPage, 100)
         : 1;
-    const tmdbFeed = mode === "all" || mode === "genres"
-        ? await getTmdbCatalogFeed(catalogResult.data, { query })
-        : [];
+    const tmdbFeed = await tmdbFeedPromise;
     const collapsed = [...collapseSeriesGroups(catalogResult.data), ...tmdbFeed];
     const listedItems = watchlistResult.kind === "success" ? watchlistResult.data : [];
     const listedKeys = new Set(listedItems.map((item) => item.seriesKey));
@@ -282,14 +291,14 @@ const CatalogScreen = async ({
     const genreFiltered = source.filter((series) =>
         !genre || series.genres.some((item) => item.slug === genre)
     );
-    const preparedSearch = prepareSearchEntries(genreFiltered.map((series) => ({
+    const preparedSearch = query ? prepareSearchEntries(genreFiltered.map((series) => ({
         key: series.key,
         title: series.baseTitle ?? series.title,
         altTitles: [series.title, ...series.altTitles],
         inWatchlist: listedKeys.has(series.key),
         hasProgress: resumeMap.has(series.key),
         series,
-    })));
+    }))) : [];
     const searchResults = query ? searchEntries(preparedSearch, query) : [];
     const filtered = query ? searchResults.map((result) => result.entry.series) : genreFiltered;
     const matchedBy = new Map(searchResults.map((result) => [result.entry.key, result]));

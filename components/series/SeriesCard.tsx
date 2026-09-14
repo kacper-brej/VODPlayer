@@ -9,6 +9,7 @@ import { blurProps, imageLoader, safeArtworkColor } from "@/lib/catalog/imageDel
 import type { PreviewSource } from "@/lib/player/videoAccess";
 import { usePreviewSurface } from "@/components/preview/usePreviewSurface";
 import { setSeriesInfoId } from "@/lib/catalog/seriesInfoHistory";
+import { playerLinkIntentProps, preloadPlayerOnIntent } from "@/lib/player/preloadPlayerOnIntent";
 
 export type ContentCardVariant = "landscape" | "poster" | "row" | "mosaic";
 
@@ -137,7 +138,11 @@ const SeriesCard = ({
         : undefined;
     const objectPosition = `${Math.round((item.focal?.x ?? 0.5) * 100)}% ${Math.round((item.focal?.y ?? 0.4) * 100)}%`;
 
-    const navigate = () => router.push(item.href);
+    const opensPlayer = /^\/watch(?:[?#]|$)/.test(item.href);
+    const navigate = () => {
+        if (opensPlayer) void preloadPlayerOnIntent();
+        router.push(item.href);
+    };
 
     const openInfo = () => {
         if (item.infoId === undefined) return;
@@ -500,6 +505,11 @@ const SeriesCard = ({
             onClick={navigate}
             onKeyDown={handleCardKeyDown}
             {...preview.surfaceProps}
+            onPointerEnter={opensPlayer ? playerLinkIntentProps.onPointerEnter : undefined}
+            onFocus={(event) => {
+                preview.surfaceProps.onFocus(event);
+                if (opensPlayer) playerLinkIntentProps.onFocus(event);
+            }}
             onContextMenu={(event) => {
                 if (item.infoId === undefined) return;
                 event.preventDefault();

@@ -39,19 +39,20 @@ export const fetchTmdbResult = async (
     path: string,
     validator: (value: unknown) => boolean,
     requestConfig?: RateLimitedRequestConfig,
+    signal?: AbortSignal,
 ): Promise<DataResult<unknown>> => {
     const token = tmdbToken();
     if (!token) return dataFailure("not_configured");
 
     return client.fetchResult(
         path,
-        { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
+        { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" }, signal },
         validator,
         requestConfig,
     );
 };
 
-export const getTmdbImageBaseUrl = async (): Promise<DataResult<string>> => {
+export const getTmdbImageBaseUrl = async (signal?: AbortSignal): Promise<DataResult<string>> => {
     if (cachedImageBaseUrl && cachedImageBaseUrl.expiresAt > Date.now()) {
         return dataSuccess(cachedImageBaseUrl.value);
     }
@@ -59,6 +60,8 @@ export const getTmdbImageBaseUrl = async (): Promise<DataResult<string>> => {
     const response = await fetchTmdbResult(
         "/configuration",
         (value) => validateTmdbConfigurationResponse(value).ok,
+        undefined,
+        signal,
     );
     if (response.kind === "error") return response;
 
