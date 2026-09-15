@@ -85,7 +85,24 @@ describe("setCachedResponse — walidacja i brak zapisu uszkodzonych odpowiedzi"
     it("sukces -- zapisuje zserializowany JSON pod zahashowanym kluczem", async () => {
         repo.upsertCachedResponse.mockResolvedValue(undefined);
         await expect(setCachedResponse("tmdb", "/tv/1", { title: "Naruto" })).resolves.toEqual({ ok: true });
-        expect(repo.upsertCachedResponse).toHaveBeenCalledWith("tmdb", hashOf("/tv/1"), "/tv/1", '{"title":"Naruto"}');
+        expect(repo.upsertCachedResponse).toHaveBeenCalledWith("tmdb", hashOf("/tv/1"), "/tv/1", '{"title":"Naruto"}', expect.any(Number));
+    });
+
+    it("forwards the original fetch time for a deferred write", async () => {
+        repo.upsertCachedResponse.mockResolvedValue(undefined);
+        const fetchedAt = Date.now() - 120_000;
+        await expect(setCachedResponse("tmdb", "/tv/1", {}, fetchedAt)).resolves.toEqual({ ok: true });
+        expect(repo.upsertCachedResponse).toHaveBeenCalledWith("tmdb", hashOf("/tv/1"), "/tv/1", "{}", fetchedAt);
+    });
+
+    it.each([NaN, Infinity, -1, 8_640_000_000_000_001])("rejects an invalid fetch time %s", async (fetchedAt) => {
+        await expect(setCachedResponse("tmdb", "/tv/1", {}, fetchedAt)).resolves.toEqual({ ok: false, code: "invalid" });
+        expect(repo.upsertCachedResponse).not.toHaveBeenCalled();
+    });
+
+    it("rejects a future fetch timestamp", async () => {
+        await expect(setCachedResponse("tmdb", "/tv/1", {}, Date.now() + 60_000)).resolves.toEqual({ ok: false, code: "invalid" });
+        expect(repo.upsertCachedResponse).not.toHaveBeenCalled();
     });
 
     it("blad bazy przy zapisie -> server", async () => {

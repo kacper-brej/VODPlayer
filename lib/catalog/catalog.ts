@@ -35,7 +35,7 @@ export type CatalogSeries = Omit<CatalogSeriesPayload, "coverImage" | "rating" |
     episodes: CatalogEpisode[];
 };
 
-const loadCatalogPayload = unstable_cache(
+export const loadCatalogPayload = unstable_cache(
     buildCatalog,
     ["catalog-from-media-assets-v2"],
     { tags: [CATALOG_TAG], revalidate: CATALOG_REVALIDATE_SECONDS },

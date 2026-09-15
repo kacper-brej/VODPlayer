@@ -1,4 +1,5 @@
 import "server-only";
+import { after } from "next/server";
 import {
     dataFailure,
     dataSuccess,
@@ -78,16 +79,22 @@ const readPersistentCache = async (providerId: string, path: string): Promise<Pe
     return cached ? { data: cached.data, fetchedAt: cached.fetchedAtMs } : null;
 };
 
-const writePersistentCache = async (providerId: string, path: string, data: unknown): Promise<void> => {
-    const result = await setCachedResponse(providerId, path, data);
-    if (!result.ok) {
-        console.error(`providerCache[${providerId}]: zapis odrzucony (${result.code})`, path);
+const writePersistentCache = async (providerId: string, path: string, entry: PersistedEntry): Promise<void> => {
+    try {
+        const result = await setCachedResponse(providerId, path, entry.data, entry.fetchedAt);
+        if (!result.ok) {
+            console.error(`providerCache[${providerId}]: zapis odrzucony (${result.code})`, path);
+        }
+    } catch (error) {
+        console.error(`providerCache[${providerId}]: zapis nie powiodl sie`, path, error);
     }
 };
 
 export const createRateLimitedClient = (config: RateLimitedClientConfig): RateLimitedClient => {
     const cache = new Map<string, { data: unknown; fetchedAt: number }>();
     const pending = new Map<string, PendingRequest>();
+    const queuedCacheWrites = new Map<string, PersistedEntry>();
+    const activeCacheWrites = new Map<string, Promise<void>>();
     let schedule: Promise<void> = Promise.resolve();
     let lastRequestAt = 0;
     let consecutiveFailures = 0;
@@ -118,6 +125,27 @@ export const createRateLimitedClient = (config: RateLimitedClientConfig): RateLi
     const writeLocalCache = (path: string, data: unknown, fetchedAt = Date.now()) => {
         pruneCache();
         cache.set(path, { data, fetchedAt });
+    };
+
+    const persistResponse = async (path: string, entry: PersistedEntry): Promise<void> => {
+        queuedCacheWrites.set(path, entry);
+        const commit = async () => {
+            const active = activeCacheWrites.get(path);
+            if (active) await active;
+            if (queuedCacheWrites.get(path) !== entry) return;
+
+            const write = writePersistentCache(config.providerId, path, entry);
+            activeCacheWrites.set(path, write);
+            await write;
+            if (activeCacheWrites.get(path) === write) activeCacheWrites.delete(path);
+            if (queuedCacheWrites.get(path) === entry) queuedCacheWrites.delete(path);
+        };
+
+        try {
+            after(commit);
+        } catch {
+            await commit();
+        }
     };
 
     const scheduleStart = (signal: AbortSignal) => {
@@ -210,8 +238,9 @@ export const createRateLimitedClient = (config: RateLimitedClientConfig): RateLi
                 }
 
                 recordSuccess();
-                writeLocalCache(path, data);
-                await writePersistentCache(config.providerId, path, data);
+                const fetchedAt = Date.now();
+                writeLocalCache(path, data, fetchedAt);
+                await persistResponse(path, { data, fetchedAt });
                 return dataSuccess(data);
             } catch (error) {
                 if (requestSignal.aborted || (error instanceof Error && error.name === "AbortError")) {

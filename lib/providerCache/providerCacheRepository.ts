@@ -40,17 +40,18 @@ export const upsertCachedResponse = async (
     cacheKey: string,
     requestPath: string,
     responseJson: string,
+    fetchedAtMs = Date.now(),
     db: Executor = getDbPool(),
 ): Promise<void> => {
     try {
         await db.execute(
             `INSERT INTO provider_response_cache (provider, cache_key, request_path, response_json, fetched_at)
-             VALUES (?, ?, ?, ?, UTC_TIMESTAMP())
+             VALUES (?, ?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE
-                request_path = VALUES(request_path),
-                response_json = VALUES(response_json),
-                fetched_at = VALUES(fetched_at)`,
-            [provider, cacheKey, requestPath, responseJson],
+                request_path = IF(VALUES(fetched_at) > fetched_at, VALUES(request_path), request_path),
+                response_json = IF(VALUES(fetched_at) > fetched_at, VALUES(response_json), response_json),
+                fetched_at = GREATEST(fetched_at, VALUES(fetched_at))`,
+            [provider, cacheKey, requestPath, responseJson, new Date(fetchedAtMs).toISOString().slice(0, 19).replace("T", " ")],
         );
     } catch (error) {
         throw mapDatabaseError(error);

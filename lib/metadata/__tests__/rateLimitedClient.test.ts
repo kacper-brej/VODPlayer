@@ -2,7 +2,9 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const getCachedResponse = vi.fn();
 const setCachedResponse = vi.fn();
+const after = vi.fn();
 vi.mock("@/lib/providerCache/providerCacheService", () => ({ getCachedResponse, setCachedResponse }));
+vi.mock("next/server", () => ({ after }));
 
 const { createRateLimitedClient } = await import("../rateLimitedClient");
 
@@ -25,6 +27,7 @@ const jsonResponse = (body: unknown, status = 200) =>
 
 beforeEach(() => {
     vi.clearAllMocks();
+    after.mockImplementation(() => { throw new Error("No request context"); });
     getCachedResponse.mockResolvedValue(null);
     setCachedResponse.mockResolvedValue({ ok: true });
     vi.stubGlobal("fetch", vi.fn());
@@ -39,7 +42,7 @@ describe("cache miss — pierwsze zapytanie, brak wpisu trwalego", () => {
 
         expect(fetch).toHaveBeenCalledOnce();
         expect(result).toEqual({ kind: "success", data: { title: "Naruto" } });
-        expect(setCachedResponse).toHaveBeenCalledWith("tmdb", "/tv/1", { title: "Naruto" });
+        expect(setCachedResponse).toHaveBeenCalledWith("tmdb", "/tv/1", { title: "Naruto" }, expect.any(Number));
     });
 });
 
@@ -97,6 +100,132 @@ describe("fresh hit — wpis trwaly mlodszy niz TTL", () => {
     });
 });
 
+describe("deferred persistent cache", () => {
+    const captureWrites = () => {
+        const writes: (() => Promise<void>)[] = [];
+        after.mockImplementation((write: () => Promise<void>) => { writes.push(write); });
+        return writes;
+    };
+
+    it("returns provider data before the database write and serves subsequent callers from memory", async () => {
+        const writes = captureWrites();
+        let finishWrite!: (value: { ok: true }) => void;
+        setCachedResponse.mockReturnValueOnce(new Promise((resolve) => { finishWrite = resolve; }));
+        vi.mocked(fetch).mockResolvedValue(jsonResponse({ title: "Fresh" }));
+        const client = createRateLimitedClient(baseConfig);
+
+        expect(await client.fetchResult("/deferred")).toMatchObject({ kind: "success" });
+        expect(setCachedResponse).not.toHaveBeenCalled();
+        const write = writes[0]();
+        expect(setCachedResponse).toHaveBeenCalledOnce();
+        expect(await client.fetchResult("/deferred")).toMatchObject({ kind: "success" });
+        expect(fetch).toHaveBeenCalledOnce();
+        expect(getCachedResponse).toHaveBeenCalledOnce();
+        finishWrite({ ok: true });
+        await write;
+    });
+
+    it("keeps the original fetch time when the response finishes later", async () => {
+        const writes = captureWrites();
+        const clock = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+        try {
+            vi.mocked(fetch).mockResolvedValue(jsonResponse({ title: "Fresh" }));
+            const client = createRateLimitedClient(baseConfig);
+            await client.fetchResult("/timestamp");
+            clock.mockReturnValue(1_120_000);
+            await writes[0]();
+            expect(setCachedResponse).toHaveBeenCalledWith("tmdb", "/timestamp", { title: "Fresh" }, 1_000_000);
+        } finally {
+            clock.mockRestore();
+        }
+    });
+
+    it("does not replace newer data when response callbacks finish out of order", async () => {
+        const writes = captureWrites();
+        vi.mocked(fetch)
+            .mockResolvedValueOnce(jsonResponse({ version: 1 }))
+            .mockResolvedValueOnce(jsonResponse({ version: 2 }));
+        const client = createRateLimitedClient({ ...baseConfig, cacheTtlMs: 0 });
+        await client.fetchResult("/latest");
+        await client.fetchResult("/latest");
+
+        await writes[1]();
+        await writes[0]();
+
+        expect(setCachedResponse).toHaveBeenCalledExactlyOnceWith("tmdb", "/latest", { version: 2 }, expect.any(Number));
+    });
+
+    it("serializes a newer write behind an already running write of the same key", async () => {
+        const writes = captureWrites();
+        let finishFirst!: (value: { ok: true }) => void;
+        setCachedResponse.mockReturnValueOnce(new Promise((resolve) => { finishFirst = resolve; }));
+        vi.mocked(fetch)
+            .mockResolvedValueOnce(jsonResponse({ version: 1 }))
+            .mockResolvedValueOnce(jsonResponse({ version: 2 }));
+        const client = createRateLimitedClient({ ...baseConfig, cacheTtlMs: 0 });
+        await client.fetchResult("/ordered");
+        const first = writes[0]();
+        await client.fetchResult("/ordered");
+        const second = writes[1]();
+        expect(setCachedResponse).toHaveBeenCalledOnce();
+        finishFirst({ ok: true });
+        await Promise.all([first, second]);
+        expect(setCachedResponse).toHaveBeenNthCalledWith(2, "tmdb", "/ordered", { version: 2 }, expect.any(Number));
+    });
+
+    it("does not serialize writes for independent keys", async () => {
+        const writes = captureWrites();
+        let finishFirst!: (value: { ok: true }) => void;
+        setCachedResponse.mockReturnValueOnce(new Promise((resolve) => { finishFirst = resolve; }));
+        vi.mocked(fetch).mockResolvedValue(jsonResponse({ title: "Fresh" }));
+        const client = createRateLimitedClient(baseConfig);
+        await client.fetchResult("/first");
+        const first = writes[0]();
+        await client.fetchResult("/second");
+        await writes[1]();
+        expect(setCachedResponse).toHaveBeenCalledTimes(2);
+        finishFirst({ ok: true });
+        await first;
+    });
+
+    it.each([false, true])("isolates cache failures from provider retries and its circuit with deferral %s", async (deferred) => {
+        const writes = deferred ? captureWrites() : [];
+        setCachedResponse.mockRejectedValue(new Error("Database write failed"));
+        vi.mocked(fetch).mockResolvedValue(jsonResponse({ title: "Fresh" }));
+        const client = createRateLimitedClient({ ...baseConfig, maxRetries: 3 });
+
+        for (let index = 0; index < 6; index++) {
+            expect(await client.fetchResult(`/failure/${index}`)).toMatchObject({ kind: "success" });
+            if (deferred) await expect(writes[index]()).resolves.toBeUndefined();
+        }
+
+        expect(fetch).toHaveBeenCalledTimes(6);
+        expect(setCachedResponse).toHaveBeenCalledTimes(6);
+    });
+
+    it("awaits a shared write outside Next request context while callers cancel independently", async () => {
+        let finishWrite!: (value: { ok: true }) => void;
+        setCachedResponse.mockReturnValueOnce(new Promise((resolve) => { finishWrite = resolve; }));
+        vi.mocked(fetch).mockResolvedValue(jsonResponse({ title: "Fresh" }));
+        const client = createRateLimitedClient(baseConfig);
+        const controller = new AbortController();
+        const first = client.fetchResult("/fallback", { signal: controller.signal });
+        let secondFinished = false;
+        const second = client.fetchResult("/fallback").then((result) => {
+            secondFinished = true;
+            return result;
+        });
+        await vi.waitFor(() => expect(setCachedResponse).toHaveBeenCalledOnce());
+        controller.abort();
+        expect(await first).toMatchObject({ kind: "error", reason: "network" });
+        expect(secondFinished).toBe(false);
+        finishWrite({ ok: true });
+        expect(await second).toMatchObject({ kind: "success" });
+        expect(fetch).toHaveBeenCalledOnce();
+        expect(setCachedResponse).toHaveBeenCalledOnce();
+    });
+});
+
 describe("stale hit — wpis trwaly starszy niz TTL, provider odpowiada", () => {
     it("odswieza z sieci i nadpisuje trwaly cache", async () => {
         getCachedResponse.mockResolvedValue({ data: { title: "stary" }, fetchedAtMs: Date.now() - 120_000 });
@@ -107,7 +236,7 @@ describe("stale hit — wpis trwaly starszy niz TTL, provider odpowiada", () => 
 
         expect(fetch).toHaveBeenCalledOnce();
         expect(result).toEqual({ kind: "success", data: { title: "nowy" } });
-        expect(setCachedResponse).toHaveBeenCalledWith("tmdb", "/tv/1", { title: "nowy" });
+        expect(setCachedResponse).toHaveBeenCalledWith("tmdb", "/tv/1", { title: "nowy" }, expect.any(Number));
     });
 });
 
@@ -261,7 +390,7 @@ describe("shared request cancellation", () => {
         expect(await fresh).toEqual({ kind: "success", data: { title: "Fresh" } });
         expect(await joined).toEqual({ kind: "success", data: { title: "Fresh" } });
         expect(fetch).toHaveBeenCalledTimes(2);
-        expect(setCachedResponse).toHaveBeenCalledExactlyOnceWith("tmdb", "/same", { title: "Fresh" });
+        expect(setCachedResponse).toHaveBeenCalledExactlyOnceWith("tmdb", "/same", { title: "Fresh" }, expect.any(Number));
     });
 
     it("does not open the provider circuit for canceled response bodies", async () => {

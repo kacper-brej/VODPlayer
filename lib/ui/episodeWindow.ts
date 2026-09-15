@@ -26,3 +26,23 @@ export const episodeColumns = (width: number) => width >= 1280 ? 3 : width >= 10
 
 export const estimateEpisodeRowHeight = (width: number, columns: number, gap: number) =>
     Math.max(120, ((width - gap * (columns - 1)) / columns) * 9 / 16 + 114);
+
+export const findVisibleEpisodeRow = (
+    rowCount: number,
+    readBounds: (index: number) => { top: number; bottom: number } | undefined,
+    viewportTop: number,
+    viewportBottom: number,
+): number | null => {
+    let first = 0;
+    let last = rowCount;
+    while (first < last) {
+        const middle = Math.floor((first + last) / 2);
+        const bounds = readBounds(middle);
+        if (!bounds) return null;
+        if (bounds.bottom <= viewportTop) first = middle + 1;
+        else last = middle;
+    }
+    if (first >= rowCount) return null;
+    const bounds = readBounds(first);
+    return bounds && bounds.top < viewportBottom ? first : null;
+};

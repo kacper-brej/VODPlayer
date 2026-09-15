@@ -46,10 +46,17 @@ export const setCachedResponse = async (
     provider: string,
     path: string,
     data: unknown,
+    fetchedAtMs = Date.now(),
 ): Promise<SetCachedResponseResult> => {
     const normalizedProvider = provider.trim();
     if (normalizedProvider === "" || normalizedProvider.length > MAX_PROVIDER_LENGTH) return { ok: false, code: "invalid" };
     if (path === "" || path.length > MAX_PATH_LENGTH) return { ok: false, code: "invalid" };
+    if (
+        !Number.isFinite(fetchedAtMs)
+        || fetchedAtMs < 0
+        || fetchedAtMs > Date.now()
+        || Number.isNaN(new Date(fetchedAtMs).getTime())
+    ) return { ok: false, code: "invalid" };
 
     let responseJson: string | undefined;
     try {
@@ -65,6 +72,7 @@ export const setCachedResponse = async (
             cacheKeyFor(path),
             path.slice(0, MAX_PATH_LENGTH),
             responseJson,
+            fetchedAtMs,
         );
         return { ok: true };
     } catch (error) {

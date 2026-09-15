@@ -1,14 +1,11 @@
 import { DataErrorState } from "@/components/data/DataState";
 import NotificationCenter, { type NotificationViewItem } from "@/components/notifications/NotificationCenter";
-import { getCatalog } from "@/lib/catalog/catalog";
+import { getNotificationCatalogLabels } from "@/lib/catalog/notificationCatalogLabels";
 import { watchPath } from "@/lib/core/routes";
 import { getNotifications } from "@/lib/notifications/notifications";
 
 const NotificationsPage = async () => {
-    const [notificationsResult, catalogResult] = await Promise.all([
-        getNotifications(),
-        getCatalog(false),
-    ]);
+    const notificationsResult = await getNotifications();
 
     if (notificationsResult.kind === "error") {
         return (
@@ -18,16 +15,16 @@ const NotificationsPage = async () => {
         );
     }
 
-    const catalog = catalogResult.kind === "error" ? [] : catalogResult.data;
-    const byKey = new Map(catalog.map((series) => [series.key, series]));
+    const labelsResult = await getNotificationCatalogLabels(notificationsResult.data.items);
+    const byKey = labelsResult.kind === "error" ? undefined : labelsResult.data;
     const items: NotificationViewItem[] = notificationsResult.data.items.map((notification) => {
-        const series = byKey.get(notification.seriesKey);
-        const episode = series?.episodes.find((entry) => entry.key === notification.episodeKey);
+        const series = byKey?.get(notification.seriesKey);
+        const episodeNumber = series?.episodeNumbers.get(notification.episodeKey);
 
         return {
             id: notification.id,
-            title: series?.baseTitle ?? series?.title ?? notification.seriesKey,
-            episodeLabel: episode ? `odcinek ${episode.number}` : "odcinek",
+            title: series?.title ?? notification.seriesKey,
+            episodeLabel: episodeNumber === undefined ? "odcinek" : `odcinek ${episodeNumber}`,
             href: watchPath(notification.seriesKey, notification.episodeKey),
             createdAt: notification.createdAt,
         };
