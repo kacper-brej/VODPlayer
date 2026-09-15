@@ -34,7 +34,21 @@ const NETWORK_TIMEOUT_MS = 8_000;
 const CIRCUIT_BREAKER_THRESHOLD = 5;
 const CIRCUIT_BREAKER_COOLDOWN_MS = 60_000;
 
-const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const wait = (ms: number, signal: AbortSignal): Promise<boolean> => new Promise((resolve) => {
+    if (signal.aborted) {
+        resolve(false);
+        return;
+    }
+
+    const finish = (completed: boolean) => {
+        clearTimeout(timer);
+        signal.removeEventListener("abort", onAbort);
+        resolve(completed);
+    };
+    const onAbort = () => finish(false);
+    const timer = setTimeout(() => finish(true), ms);
+    signal.addEventListener("abort", onAbort, { once: true });
+});
 
 const retryAfterMs = (res: Response): number | null => {
     const header = res.headers.get("Retry-After");
@@ -52,6 +66,13 @@ interface PersistedEntry {
     fetchedAt: number;
 }
 
+interface PendingRequest {
+    promise: Promise<DataResult<unknown>>;
+    controller: AbortController;
+    subscribers: number;
+    settled: boolean;
+}
+
 const readPersistentCache = async (providerId: string, path: string): Promise<PersistedEntry | null> => {
     const cached = await getCachedResponse(providerId, path);
     return cached ? { data: cached.data, fetchedAt: cached.fetchedAtMs } : null;
@@ -66,7 +87,7 @@ const writePersistentCache = async (providerId: string, path: string, data: unkn
 
 export const createRateLimitedClient = (config: RateLimitedClientConfig): RateLimitedClient => {
     const cache = new Map<string, { data: unknown; fetchedAt: number }>();
-    const pending = new Map<string, Promise<DataResult<unknown>>>();
+    const pending = new Map<string, PendingRequest>();
     let schedule: Promise<void> = Promise.resolve();
     let lastRequestAt = 0;
     let consecutiveFailures = 0;
@@ -99,16 +120,19 @@ export const createRateLimitedClient = (config: RateLimitedClientConfig): RateLi
         cache.set(path, { data, fetchedAt });
     };
 
-    const scheduleStart = () => {
+    const scheduleStart = (signal: AbortSignal) => {
         const turn = schedule.then(async () => {
+            if (signal.aborted) return false;
             const elapsed = Date.now() - lastRequestAt;
             if (elapsed < config.minRequestIntervalMs) {
-                await wait(config.minRequestIntervalMs - elapsed);
+                if (!await wait(config.minRequestIntervalMs - elapsed, signal)) return false;
             }
+            if (signal.aborted) return false;
             lastRequestAt = Date.now();
+            return true;
         });
 
-        schedule = turn;
+        schedule = turn.then(() => {});
         return turn;
     };
 
@@ -132,26 +156,27 @@ export const createRateLimitedClient = (config: RateLimitedClientConfig): RateLi
         options: RequestInit | undefined,
         validator: ((value: unknown) => boolean) | undefined,
         maxRetries: number,
+        requestSignal: AbortSignal,
     ): Promise<DataResult<unknown>> => {
-        await scheduleStart();
+        if (!await scheduleStart(requestSignal)) return dataFailure("network");
 
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
             try {
                 const timeoutSignal = AbortSignal.timeout(NETWORK_TIMEOUT_MS);
-                const signal = options?.signal
-                    ? AbortSignal.any([options.signal, timeoutSignal])
-                    : timeoutSignal;
+                const signal = AbortSignal.any([requestSignal, timeoutSignal]);
+                signal.throwIfAborted();
                 const res = await fetch(`${config.baseUrl}${path}`, {
                     ...options,
                     signal,
                 });
+                signal.throwIfAborted();
 
                 if (res.status === 429 || res.status >= 500) {
                     if (attempt < maxRetries) {
                         const delay = res.status === 429
                             ? retryAfterMs(res) ?? config.minRequestIntervalMs * (attempt + 2)
                             : config.minRequestIntervalMs * (attempt + 2);
-                        await wait(delay);
+                        if (!await wait(delay, requestSignal)) return dataFailure("network");
                         continue;
                     }
                     console.error("rateLimitedClient request failed after retries:", path, res.status);
@@ -168,10 +193,16 @@ export const createRateLimitedClient = (config: RateLimitedClientConfig): RateLi
 
                 try {
                     data = await res.json();
-                } catch {
+                } catch (error) {
+                    signal.throwIfAborted();
+                    if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
+                        throw error;
+                    }
                     recordFailure();
                     return dataFailure("invalid_response");
                 }
+
+                signal.throwIfAborted();
 
                 if (validator && !validator(data)) {
                     recordFailure();
@@ -183,14 +214,14 @@ export const createRateLimitedClient = (config: RateLimitedClientConfig): RateLi
                 await writePersistentCache(config.providerId, path, data);
                 return dataSuccess(data);
             } catch (error) {
-                if (error instanceof Error && error.name === "AbortError") {
+                if (requestSignal.aborted || (error instanceof Error && error.name === "AbortError")) {
                     return dataFailure("network");
                 }
                 const timedOut = error instanceof Error && error.name === "TimeoutError";
                 console.error(`rateLimitedClient[${config.providerId}] request failed:`, timedOut ? "timeout" : error);
 
                 if (attempt < maxRetries) {
-                    await wait(config.minRequestIntervalMs * (attempt + 2));
+                    if (!await wait(config.minRequestIntervalMs * (attempt + 2), requestSignal)) return dataFailure("network");
                     continue;
                 }
 
@@ -203,12 +234,49 @@ export const createRateLimitedClient = (config: RateLimitedClientConfig): RateLi
         return dataFailure("server");
     };
 
+    const subscribe = (path: string, entry: PendingRequest, signal?: AbortSignal | null): Promise<DataResult<unknown>> => {
+        entry.subscribers += 1;
+
+        return new Promise((resolve, reject) => {
+            let finished = false;
+            const release = () => {
+                if (finished) return false;
+                finished = true;
+                signal?.removeEventListener("abort", onAbort);
+                entry.subscribers -= 1;
+                return true;
+            };
+            const onAbort = () => {
+                if (!release()) return;
+                resolve(dataFailure("network"));
+
+                if (entry.subscribers === 0 && !entry.settled) {
+                    if (pending.get(path) === entry) pending.delete(path);
+                    entry.controller.abort();
+                }
+            };
+
+            signal?.addEventListener("abort", onAbort, { once: true });
+            if (signal?.aborted) onAbort();
+
+            entry.promise.then(
+                (result) => {
+                    if (release()) resolve(result);
+                },
+                (error) => {
+                    if (release()) reject(error);
+                },
+            );
+        });
+    };
+
     const fetchResult = async (
         path: string,
         options?: RequestInit,
         validator?: (value: unknown) => boolean,
         requestConfig?: RateLimitedRequestConfig,
     ): Promise<DataResult<unknown>> => {
+        if (options?.signal?.aborted) return dataFailure("network");
         const cacheTtlMs = requestConfig?.cacheTtlMs ?? config.cacheTtlMs;
         const maxRetries = Math.max(0, Math.min(config.maxRetries, requestConfig?.maxRetries ?? config.maxRetries));
         const cachedLocal = readLocalCache(path, cacheTtlMs);
@@ -218,11 +286,13 @@ export const createRateLimitedClient = (config: RateLimitedClientConfig): RateLi
 
         const inFlight = pending.get(path);
         if (inFlight) {
-            return inFlight;
+            return subscribe(path, inFlight, options?.signal);
         }
 
+        const controller = new AbortController();
         const run = (async () => {
             const persisted = await readPersistentCache(config.providerId, path);
+            if (controller.signal.aborted) return dataFailure("network");
             const now = Date.now();
 
             if (persisted !== null && now - persisted.fetchedAt < cacheTtlMs) {
@@ -241,7 +311,9 @@ export const createRateLimitedClient = (config: RateLimitedClientConfig): RateLi
 
             const result = circuitOpen
                 ? dataFailure("network")
-                : await attemptNetwork(path, options, validator, maxRetries);
+                : await attemptNetwork(path, options, validator, maxRetries, controller.signal);
+
+            if (controller.signal.aborted) return dataFailure("network");
 
             if (result.kind !== "error") {
                 return result;
@@ -261,10 +333,15 @@ export const createRateLimitedClient = (config: RateLimitedClientConfig): RateLi
             return result;
         })();
 
-        pending.set(path, run);
-        run.finally(() => pending.delete(path));
+        const entry: PendingRequest = { promise: run, controller, subscribers: 0, settled: false };
+        pending.set(path, entry);
+        const settle = () => {
+            entry.settled = true;
+            if (pending.get(path) === entry) pending.delete(path);
+        };
+        run.then(settle, settle);
 
-        return run;
+        return subscribe(path, entry, options?.signal);
     };
 
     return { fetchResult };

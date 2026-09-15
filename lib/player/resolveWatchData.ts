@@ -5,7 +5,6 @@ import {
     isVirtualTmdbTvKey,
     parseVirtualEpisodeKey,
 } from "@/lib/catalog/tmdbVirtualSeries";
-import { getSeriesResume } from "@/lib/progress/continueWatching";
 import { getSeriesProgressAction } from "@/lib/progress/getProgressAction";
 import { playbackSourceFromAsset, resolvePlaybackSource } from "@/lib/player/videoAccess";
 import { getDemoAsset } from "@/lib/access/demoAsset";
@@ -26,6 +25,7 @@ export type WatchDataResult =
 export const resolveWatchData = async (seriesQueryId?: string, epQuery?: string, partyCode?: string): Promise<WatchDataResult> => {
     if (!seriesQueryId) return { kind: "error", message: "Błędny link", status: 400 };
 
+    const settingsPromise = getSettings().catch(() => ({ kind: "error", reason: "server" } as const));
     const seriesResult = await resolveCatalogSeries(seriesQueryId, false);
 
     if (seriesResult.kind === "error") {
@@ -57,6 +57,7 @@ export const resolveWatchData = async (seriesQueryId?: string, epQuery?: string,
     let episode = null;
     let savedTime = 0;
     let timeResolved = false;
+    let seriesProgress: Awaited<ReturnType<typeof getSeriesProgressAction>> | undefined;
 
     if (epQuery && (epQuery.toLowerCase().endsWith(".mp4") || requestedVirtualEpisode)) {
         episode = series.episodes.find((item) => item.key === epQuery) ?? null;
@@ -68,13 +69,13 @@ export const resolveWatchData = async (seriesQueryId?: string, epQuery?: string,
 
         if (!episode) return { kind: "error", message: `Nie znaleziono odcinka nr ${epQuery}`, status: 404 };
     } else {
-        const resumeResult = await getSeriesResume(series.key);
+        seriesProgress = await getSeriesProgressAction(series.key);
 
-        if (resumeResult.kind === "error") {
-            return { kind: "data-error", reason: resumeResult.reason };
+        if (seriesProgress.kind === "error") {
+            return { kind: "data-error", reason: seriesProgress.reason };
         }
 
-        const resume = resumeResult.data;
+        const resume = seriesProgress.data.resume;
         episode = series.episodes.find((item) => item.key === resume?.episodeKey) ?? series.episodes[0] ?? null;
 
         if (resume && episode?.key === resume.episodeKey) {
@@ -86,12 +87,11 @@ export const resolveWatchData = async (seriesQueryId?: string, epQuery?: string,
     if (!episode) return { kind: "error", message: "Nie znaleziono pliku odcinka na serwerze", status: 404 };
 
     const chaptersPromise = getEpisodeChapters(series.key, episode.key);
-    const settingsPromise = getSettings();
     let chaptersResult;
 
     if (!timeResolved) {
         const [progressResult, resolvedChapters] = await Promise.all([
-            getSeriesProgressAction(series.key),
+            seriesProgress ?? getSeriesProgressAction(series.key),
             chaptersPromise,
         ]);
         chaptersResult = resolvedChapters;

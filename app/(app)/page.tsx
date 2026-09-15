@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import HeroBanerSection, { type LastWatchedData } from "@/components/series/HeroBanerSection";
 import ContentRowSection from "@/components/series/ContentRowSection";
 import ContentRowSkeleton from "@/components/series/ContentRowSkeleton";
-import SeriesModal from "@/components/series/SeriesModal";
+import SeriesModal from "@/components/series/LazySeriesModal";
 import { DataErrorState } from "@/components/data/DataState";
 import { getCatalog, type CatalogSeries } from "@/lib/catalog/catalog";
 import { collapseSeriesGroups } from "@/lib/catalog/catalogRows";

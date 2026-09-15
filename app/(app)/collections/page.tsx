@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowUpRight, FolderOpen } from "lucide-react";
 import { DataErrorState } from "@/components/data/DataState";
 import CatalogGrid from "@/components/series/CatalogGrid";
 import SeriesCard from "@/components/series/SeriesCard";
-import SeriesModal from "@/components/series/SeriesModal";
+import SeriesModal from "@/components/series/LazySeriesModal";
 import {
     CollectionControls,
     CreateCollectionForm,

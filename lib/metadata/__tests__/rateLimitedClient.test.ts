@@ -177,7 +177,7 @@ describe("timeout providera", () => {
 });
 
 describe("cancellation", () => {
-    it("passes cancellation to fetch and does not retry an aborted request", async () => {
+    it("does not start or retry a request canceled before its network turn", async () => {
         const controller = new AbortController();
         vi.mocked(fetch).mockImplementationOnce((_url, options) => new Promise((_resolve, reject) => {
             const rejectAbort = () => reject(new DOMException("Aborted", "AbortError"));
@@ -189,7 +189,112 @@ describe("cancellation", () => {
         controller.abort();
 
         await expect(pending).resolves.toMatchObject({ kind: "error", reason: "network" });
+        expect(fetch).not.toHaveBeenCalled();
+    });
+});
+
+describe("shared request cancellation", () => {
+    it.each([0, 1])("canceling subscriber %i preserves the other subscriber's response", async (canceledIndex) => {
+        let finish!: (response: Response) => void;
+        let upstream!: AbortSignal;
+        vi.mocked(fetch).mockImplementationOnce((_url, options) => {
+            upstream = options!.signal!;
+            return new Promise((resolve, reject) => {
+                finish = resolve;
+                upstream.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+            });
+        });
+        const client = createRateLimitedClient(baseConfig);
+        const controllers = [new AbortController(), new AbortController()];
+        const requests = controllers.map((controller) => client.fetchResult("/shared", { signal: controller.signal }));
+        await vi.waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+        controllers[canceledIndex].abort();
+        expect(await requests[canceledIndex]).toMatchObject({ kind: "error", reason: "network" });
+        expect(upstream.aborted).toBe(false);
+        finish(jsonResponse({ title: "Shared" }));
+        expect(await requests[1 - canceledIndex]).toEqual({ kind: "success", data: { title: "Shared" } });
         expect(fetch).toHaveBeenCalledOnce();
+    });
+
+    it("keeps a shared configuration request alive for callers without a signal", async () => {
+        let finish!: (response: Response) => void;
+        let upstream!: AbortSignal;
+        vi.mocked(fetch).mockImplementationOnce((_url, options) => {
+            upstream = options!.signal!;
+            return new Promise((resolve) => { finish = resolve; });
+        });
+        const controller = new AbortController();
+        const client = createRateLimitedClient(baseConfig);
+        const search = client.fetchResult("/configuration", { signal: controller.signal });
+        const artwork = client.fetchResult("/configuration");
+        await vi.waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+        controller.abort();
+        expect(await search).toMatchObject({ kind: "error" });
+        expect(upstream.aborted).toBe(false);
+        finish(jsonResponse({ images: {} }));
+        expect(await artwork).toMatchObject({ kind: "success" });
+    });
+
+    it("aborts the upstream only after the last subscriber leaves and permits a fresh request", async () => {
+        const responses: ((response: Response) => void)[] = [];
+        const signals: AbortSignal[] = [];
+        vi.mocked(fetch).mockImplementation((_url, options) => {
+            signals.push(options!.signal!);
+            return new Promise((resolve) => { responses.push(resolve); });
+        });
+        const client = createRateLimitedClient(baseConfig);
+        const first = new AbortController();
+        const second = new AbortController();
+        const oldRequests = [client.fetchResult("/same", { signal: first.signal }), client.fetchResult("/same", { signal: second.signal })];
+        await vi.waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+        first.abort();
+        expect(signals[0].aborted).toBe(false);
+        second.abort();
+        expect(signals[0].aborted).toBe(true);
+        await Promise.all(oldRequests);
+        const fresh = client.fetchResult("/same");
+        await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+        responses[0](jsonResponse({ title: "Old" }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        const joined = client.fetchResult("/same");
+        responses[1](jsonResponse({ title: "Fresh" }));
+        expect(await fresh).toEqual({ kind: "success", data: { title: "Fresh" } });
+        expect(await joined).toEqual({ kind: "success", data: { title: "Fresh" } });
+        expect(fetch).toHaveBeenCalledTimes(2);
+        expect(setCachedResponse).toHaveBeenCalledExactlyOnceWith("tmdb", "/same", { title: "Fresh" });
+    });
+
+    it("does not open the provider circuit for canceled response bodies", async () => {
+        const response = Response.json({});
+        vi.spyOn(response, "json").mockRejectedValue(new DOMException("Aborted", "AbortError"));
+        vi.mocked(fetch).mockResolvedValue(response);
+        const client = createRateLimitedClient({ ...baseConfig, maxRetries: 3 });
+        for (let index = 0; index < 5; index++) {
+            expect(await client.fetchResult(`/canceled-body/${index}`)).toMatchObject({ kind: "error", reason: "network" });
+        }
+        vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ healthy: true }));
+        expect(await client.fetchResult("/healthy")).toMatchObject({ kind: "success" });
+        expect(fetch).toHaveBeenCalledTimes(6);
+    });
+
+    it("cancels a long Retry-After delay without another provider call", async () => {
+        vi.useFakeTimers();
+        try {
+            const response = jsonResponse({}, 429);
+            response.headers.set("Retry-After", "60");
+            vi.mocked(fetch).mockResolvedValue(response);
+            const controller = new AbortController();
+            const client = createRateLimitedClient({ ...baseConfig, maxRetries: 3 });
+            const request = client.fetchResult("/limited", { signal: controller.signal });
+            await vi.advanceTimersByTimeAsync(0);
+            expect(fetch).toHaveBeenCalledOnce();
+            controller.abort();
+            expect(await request).toMatchObject({ kind: "error", reason: "network" });
+            await vi.advanceTimersByTimeAsync(60_000);
+            expect(fetch).toHaveBeenCalledOnce();
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });
 

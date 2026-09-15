@@ -9,6 +9,7 @@ import { blurProps, imageLoader, safeArtworkColor } from "@/lib/catalog/imageDel
 import type { PreviewSource } from "@/lib/player/videoAccess";
 import { usePreviewSurface } from "@/components/preview/usePreviewSurface";
 import { setSeriesInfoId } from "@/lib/catalog/seriesInfoHistory";
+import { preloadSeriesModal, seriesInfoIntentProps } from "@/lib/catalog/loadSeriesModal";
 import { playerLinkIntentProps, preloadPlayerOnIntent } from "@/lib/player/preloadPlayerOnIntent";
 
 export type ContentCardVariant = "landscape" | "poster" | "row" | "mosaic";
@@ -146,6 +147,7 @@ const SeriesCard = ({
 
     const openInfo = () => {
         if (item.infoId === undefined) return;
+        preloadSeriesModal();
         setSeriesInfoId(item.infoId);
     };
 
@@ -358,6 +360,7 @@ const SeriesCard = ({
                     type="button"
                     tabIndex={variant === "row" ? 0 : -1}
                     onClick={handleInfoClick}
+                    {...seriesInfoIntentProps}
                     aria-label={`Więcej informacji o ${item.title}`}
                     className="flex size-11 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text-2 outline-none transition-colors duration-140 hover:bg-nx-raised hover:text-nx-text sm:size-12"
                 >

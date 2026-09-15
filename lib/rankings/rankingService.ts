@@ -8,7 +8,7 @@ const RANKING_LIMIT = 10;
 export const getWeeklyRanking = async (): Promise<RankingItem[]> => {
     const [playCounts, catalogResult] = await Promise.all([
         listCurrentWeekPlayCounts(),
-        getCatalog(),
+        getCatalog(false),
     ]);
 
     if (playCounts.length === 0) return [];

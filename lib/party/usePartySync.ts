@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { WatchPartyCommand, WatchPartyRoomState, WatchPartyState } from "@/lib/core/contracts";
-import { estimateClockOffset, type ClockSample } from "@/lib/party/clockSync";
+import { loadPartyClock } from "@/lib/party/loadPartyClock";
 import { decideDriftCorrection, type DriftCorrectionDecision } from "@/lib/party/driftCorrection";
 import { governDriftCorrection, initialDriftGovernorState } from "@/lib/party/driftGovernor";
 import {
@@ -19,10 +19,10 @@ import {
 } from "@/lib/party/partyEvents";
 import { PARTY_HEARTBEAT_INTERVAL_MS, partyReconnectDelay, recoveredPartyPosition } from "@/lib/party/partyRecovery";
 
-const CLOCK_SAMPLE_COUNT = 7;
 const CLOCK_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 const CORRECTION_INTERVAL_MS = 1000;
 const CHANNEL_RENEWAL_MARGIN_MS = 60_000;
+const CHANNEL_REQUEST_TIMEOUT_MS = 8_000;
 const TELEMETRY_FLUSH_INTERVAL_MS = 60_000;
 
 export interface PartyPlaybackSnapshot {
@@ -51,11 +51,6 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 
 const readUnknownJson = async (response: Response): Promise<unknown> =>
     response.json().catch(() => null) as Promise<unknown>;
-
-const readServerTime = (value: unknown): number | null =>
-    isObject(value) && typeof value.serverNowMs === "number" && Number.isFinite(value.serverNowMs)
-        ? value.serverNowMs
-        : null;
 
 const readChannelGrant = (value: unknown): ChannelGrant | null =>
     isObject(value)
@@ -120,22 +115,9 @@ export const usePartySync = (code: string, options: UsePartySyncOptions = {}) =>
         }
     }, [code, installRoom]);
 
-    const synchronizeClock = useCallback(async (): Promise<boolean> => {
-        const samples: ClockSample[] = [];
-        for (let index = 0; index < CLOCK_SAMPLE_COUNT; index += 1) {
-            const clientSentAtMs = Date.now();
-            try {
-                const response = await fetch("/api/party/time", { cache: "no-store" });
-                const clientReceivedAtMs = Date.now();
-                if (!response.ok) continue;
-                const serverNowMs = readServerTime(await readUnknownJson(response));
-                if (serverNowMs === null) continue;
-                samples.push({ clientSentAtMs, serverNowMs, clientReceivedAtMs });
-            } catch {
-            }
-        }
-
-        const estimate = estimateClockOffset(samples);
+    const synchronizeClock = useCallback(async (signal: AbortSignal): Promise<boolean> => {
+        const estimate = await loadPartyClock(signal);
+        if (signal.aborted) return false;
         if (estimate === null) {
             setError("Nie udało się zsynchronizować zegara pokoju.");
             return false;
@@ -301,16 +283,18 @@ export const usePartySync = (code: string, options: UsePartySyncOptions = {}) =>
     useEffect(() => {
         if (soloMode) return;
         let active = true;
+        const controller = new AbortController();
         const initialSync = setTimeout(() => {
             if (!active) return;
             void resync();
-            void synchronizeClock();
+            void synchronizeClock(controller.signal);
         }, 0);
         const interval = setInterval(() => {
-            if (active) void synchronizeClock();
+            if (active) void synchronizeClock(controller.signal);
         }, CLOCK_REFRESH_INTERVAL_MS);
         return () => {
             active = false;
+            controller.abort();
             clearTimeout(initialSync);
             clearInterval(interval);
         };
@@ -324,6 +308,7 @@ export const usePartySync = (code: string, options: UsePartySyncOptions = {}) =>
         let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
         let reconnectAttempt = 0;
         let connecting = false;
+        let requestController: AbortController | null = null;
 
         const scheduleReconnect = () => {
             if (!active || reconnectTimer !== null) return;
@@ -348,15 +333,23 @@ export const usePartySync = (code: string, options: UsePartySyncOptions = {}) =>
         const connect = async () => {
             if (!active || connecting) return;
             connecting = true;
+            const controller = new AbortController();
+            requestController = controller;
+            const timer = setTimeout(() => controller.abort(), CHANNEL_REQUEST_TIMEOUT_MS);
             try {
-                const response = await fetch(`/api/party/${encodeURIComponent(code)}/channel-token`, { method: "POST" });
+                const response = await fetch(`/api/party/${encodeURIComponent(code)}/channel-token`, { method: "POST", signal: controller.signal });
+                if (!active) return;
+                if (controller.signal.aborted) throw new Error("channel");
                 if (!response.ok) throw new Error("channel");
                 const grant = readChannelGrant(await readUnknownJson(response));
+                if (!active) return;
+                if (controller.signal.aborted) throw new Error("channel");
                 if (grant === null) throw new Error("channel");
 
                 source?.close();
                 source = new EventSource(grant.streamUrl);
                 const handleMessage = (message: MessageEvent<string>) => {
+                    if (!active) return;
                     const event = parsePartyEventMessage(message.data);
                     if (event !== null) applyEvent(event);
                 };
@@ -391,6 +384,8 @@ export const usePartySync = (code: string, options: UsePartySyncOptions = {}) =>
             } catch {
                 scheduleReconnect();
             } finally {
+                clearTimeout(timer);
+                if (requestController === controller) requestController = null;
                 connecting = false;
             }
         };
@@ -398,6 +393,7 @@ export const usePartySync = (code: string, options: UsePartySyncOptions = {}) =>
         scheduleReconnect();
         return () => {
             active = false;
+            requestController?.abort();
             if (renewal) clearTimeout(renewal);
             if (reconnectTimer) clearTimeout(reconnectTimer);
             source?.close();

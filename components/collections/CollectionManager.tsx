@@ -37,7 +37,6 @@ export const CreateCollectionForm = () => {
 
             setName("");
             router.push(`/collections?collection=${result.data.id}`);
-            router.refresh();
         });
     };
 
@@ -88,7 +87,6 @@ export const CollectionControls = ({
         startTransition(async () => {
             const result = await renameCollectionAction(collectionId, name);
             setMessage(result.kind === "success" ? "Nazwa została zapisana." : errorMessage);
-            if (result.kind === "success") router.refresh();
         });
     };
 
@@ -100,7 +98,6 @@ export const CollectionControls = ({
         startTransition(async () => {
             const result = await addToCollectionAction(collectionId, selectedSeries);
             setMessage(result.kind === "success" ? "Tytuł został dodany." : errorMessage);
-            if (result.kind === "success") router.refresh();
         });
     };
 
@@ -115,7 +112,6 @@ export const CollectionControls = ({
             }
 
             router.replace("/collections");
-            router.refresh();
         });
     };
 
@@ -193,7 +189,6 @@ export const RemoveFromCollectionButton = ({
     seriesKey: string;
     title: string;
 }) => {
-    const router = useRouter();
     const [failed, setFailed] = useState(false);
     const [pending, startTransition] = useTransition();
 
@@ -206,8 +201,7 @@ export const RemoveFromCollectionButton = ({
                     setFailed(false);
                     startTransition(async () => {
                         const result = await removeFromCollectionAction(collectionId, seriesKey);
-                        if (result.kind === "success") router.refresh();
-                        else setFailed(true);
+                        if (result.kind !== "success") setFailed(true);
                     });
                 }}
                 aria-label={`Usuń ${title} z kolekcji`}

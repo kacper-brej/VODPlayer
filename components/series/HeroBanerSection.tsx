@@ -9,6 +9,7 @@ import type { PreviewSource } from "@/lib/player/videoAccess";
 import { setPreviewMuted } from "@/components/series/previewController";
 import { usePreviewSurface } from "@/components/preview/usePreviewSurface";
 import { setSeriesInfoId } from "@/lib/catalog/seriesInfoHistory";
+import { preloadSeriesModal, seriesInfoIntentProps } from "@/lib/catalog/loadSeriesModal";
 import { playerButtonIntentProps, playerLinkIntentProps, preloadPlayerOnIntent } from "@/lib/player/preloadPlayerOnIntent";
 
 export interface LastWatchedData {
@@ -79,6 +80,7 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
         event.stopPropagation();
         if (activeContent.infoId === null || activeContent.infoId === undefined) return;
 
+        preloadSeriesModal();
         setSeriesInfoId(activeContent.infoId);
     };
 
@@ -253,6 +255,7 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
                         <button
                             type="button"
                             onClick={openInfo}
+                            {...seriesInfoIntentProps}
                             aria-label={`Informacje o ${activeContent.title}`}
                             className="flex size-12 shrink-0 items-center justify-center gap-2.5 rounded-full border border-nx-border bg-[color-mix(in_srgb,var(--nx-panel)_74%,transparent)] text-[15px] font-semibold text-nx-text outline-none backdrop-blur-md transition-colors duration-140 hover:bg-nx-raised focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent sm:w-auto sm:px-6"
                         >
