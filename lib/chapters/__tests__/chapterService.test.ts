@@ -16,8 +16,8 @@ const repo = {
 };
 vi.mock("@/lib/chapters/chapterRepository", () => repo);
 
-const getCatalogSeriesByKey = vi.fn();
-vi.mock("@/lib/catalog/catalog", () => ({ getCatalogSeriesByKey }));
+const getCatalogEpisodeKeys = vi.fn();
+vi.mock("@/lib/catalog/catalogEpisodeKeys", () => ({ getCatalogEpisodeKeys }));
 
 const { getEpisodeChapters, saveChapter, deleteChapter } = await import("../chapterService");
 
@@ -168,10 +168,7 @@ describe("saveChapter — applyToSeries: dziedziczenie i ochrona override", () =
     });
 
     it("applyToSeries: rozwiazuje liste odcinkow z katalogu, dopisuje biezacy odcinek do zbioru", async () => {
-        getCatalogSeriesByKey.mockResolvedValue({
-            kind: "success",
-            data: { episodes: [{ key: "01.mp4" }, { key: "02.mp4" }] },
-        });
+        getCatalogEpisodeKeys.mockResolvedValue(["01.mp4", "02.mp4"]);
 
         const result = await saveChapter("Naruto", "03.mp4", "intro", 0, 90, true);
 
@@ -182,7 +179,7 @@ describe("saveChapter — applyToSeries: dziedziczenie i ochrona override", () =
     });
 
     it("applyToSeries z katalogiem niedostepnym (blad/pusty) -> nadal zapisuje przynajmniej biezacy odcinek", async () => {
-        getCatalogSeriesByKey.mockResolvedValue({ kind: "error", reason: "server" });
+        getCatalogEpisodeKeys.mockResolvedValue([]);
 
         const result = await saveChapter("Naruto", "01.mp4", "intro", 0, 90, true);
 
@@ -191,7 +188,7 @@ describe("saveChapter — applyToSeries: dziedziczenie i ochrona override", () =
     });
 
     it("applyToSeries uzywa upsertEpisodeChapterInherited (chroni reczny override), nie upsertEpisodeChapterManual", async () => {
-        getCatalogSeriesByKey.mockResolvedValue({ kind: "success", data: { episodes: [] } });
+        getCatalogEpisodeKeys.mockResolvedValue([]);
 
         await saveChapter("Naruto", "01.mp4", "intro", 0, 90, true);
 
@@ -202,10 +199,7 @@ describe("saveChapter — applyToSeries: dziedziczenie i ochrona override", () =
 
 describe("saveChapter — atomowosc / rollback", () => {
     it("blad SQL w trakcie zapisu wielu odcinkow -> caly zapis zwraca server, zaden pozniejszy upsert nie wystartowal", async () => {
-        getCatalogSeriesByKey.mockResolvedValue({
-            kind: "success",
-            data: { episodes: [{ key: "01.mp4" }, { key: "02.mp4" }] },
-        });
+        getCatalogEpisodeKeys.mockResolvedValue(["01.mp4", "02.mp4"]);
         repo.upsertEpisodeChapterInherited
             .mockResolvedValueOnce(undefined)
             .mockRejectedValueOnce(new DatabaseError("unknown", 500, "blad"));

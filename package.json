@@ -12,6 +12,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "test:load": "node scripts/performance-load.mjs",
     "audit:no-php": "node tools/audit-no-php.mjs",
     "audit:stage10-db": "node tools/audit-stage10-db.mjs",
     "audit:legacy-origin": "node tools/audit-legacy-origin.mjs",

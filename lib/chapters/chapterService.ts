@@ -1,7 +1,7 @@
 import "server-only";
 import { withTransaction } from "@/lib/db/transaction";
 import { DatabaseError } from "@/lib/db/errors";
-import { getCatalogSeriesByKey } from "@/lib/catalog/catalog";
+import { getCatalogEpisodeKeys } from "@/lib/catalog/catalogEpisodeKeys";
 import type { EpisodeChapter, EpisodeChapterType } from "@/lib/core/contracts";
 import * as repo from "@/lib/chapters/chapterRepository";
 import type { ChapterRow, SeriesChapterDefaults } from "@/lib/chapters/chapterRepository";
@@ -73,10 +73,7 @@ export const getEpisodeChapters = async (seriesKey: string, episodeKey: string):
 };
 
 const resolveSeriesEpisodeKeys = async (seriesKey: string, currentEpisodeKey: string): Promise<string[]> => {
-    const catalogResult = await getCatalogSeriesByKey(seriesKey);
-    const catalogKeys = catalogResult.kind === "error" || catalogResult.data === null
-        ? []
-        : catalogResult.data.episodes.map((episode) => episode.key);
+    const catalogKeys = await getCatalogEpisodeKeys(seriesKey);
 
     return [...new Set([...catalogKeys, currentEpisodeKey])];
 };

@@ -4,6 +4,7 @@ import { getCurrentUserAction } from "@/lib/auth/authActions";
 import { AuthProvider } from "@/lib/auth/AuthContext";
 import { getSettings } from "@/lib/settings/settings";
 import { PreviewPreferencesProvider } from "@/components/preview/PreviewPreferences";
+import PerformanceMonitor from "@/components/performance/PerformanceMonitor";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,7 @@ const AppLayout = async ({ children }: Readonly<{ children: React.ReactNode }>) 
 
     return (
         <AuthProvider initialUser={user}>
+            <PerformanceMonitor />
             <PreviewPreferencesProvider
                 autoPreviewsEnabled={settings.autoPreviewsEnabled}
                 reduceData={settings.reduceData}

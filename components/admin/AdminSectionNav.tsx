@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useRef, type KeyboardEvent } from "react";
-import { FolderOpen, HardDrive, HardDriveDownload, LayoutDashboard, ListVideo, ShieldCheck, UploadCloud, Users } from "lucide-react";
+import { Activity, FolderOpen, HardDrive, HardDriveDownload, LayoutDashboard, ListVideo, ShieldCheck, UploadCloud, Users } from "lucide-react";
 
 const ADMIN_ITEMS = [
     { label: "Przegląd", href: "/admin", icon: LayoutDashboard },
+    { label: "Wydajność", href: "/admin/performance", icon: Activity },
     { label: "Biblioteka", href: "/admin/library", icon: FolderOpen },
     { label: "Pliki na serwerze", href: "/admin/library-scan", icon: HardDriveDownload },
     { label: "Rozdziały", href: "/admin/chapters", icon: ListVideo },

@@ -40,6 +40,7 @@ import type { PlaybackSource } from '@/lib/player/videoAccess';
 import { buildHlsConfig } from '@/lib/player/videoPlayerConfig';
 import { loadHlsLibrary } from '@/lib/player/loadHlsLibrary';
 import { createProgressQueue } from '@/lib/player/progressQueue';
+import { usePlaybackMeasurements } from '@/lib/performance/usePlaybackMeasurements';
 import {
     HLS_REFRESH_BACKOFF_MS,
     HLS_REFRESH_MAX_ATTEMPTS,
@@ -217,6 +218,8 @@ export const VideoPlayer = ({
     const anchorVersion = sync?.anchor.anchorVersion;
     const partyStarted = sync?.partyStarted ?? false;
     const visiblePartyPanelOpen = partyStarted && partyPanelOpen;
+
+    usePlaybackMeasurements(playerRef, `${seriesKey}/${episodeKey}:${mediaInstanceKey}`, playback.kind, Boolean(sync));
 
     useEffect(() => {
         syncRef.current = sync;
