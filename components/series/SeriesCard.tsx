@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import Image, { getImageProps } from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
 import { Check, Clock3, Info, MoreVertical, Plus, Star } from "lucide-react";
@@ -48,6 +48,7 @@ export interface CardInput {
 export interface SeriesCardProps {
     item: CardInput;
     variant?: ContentCardVariant;
+    mobileVariant?: "poster" | "progress";
     featured?: boolean;
     catalog?: boolean;
     imagePreload?: boolean;
@@ -77,6 +78,7 @@ const formatTime = (value: number | null | undefined) => {
 const SeriesCard = ({
     item,
     variant = "landscape",
+    mobileVariant,
     featured = false,
     catalog = false,
     imagePreload = false,
@@ -91,6 +93,7 @@ const SeriesCard = ({
     const watchlistErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const preview = usePreviewSurface(item.previewSource);
     const [failedArtwork, setFailedArtwork] = useState<string | null>(null);
+    const [failedMobilePoster, setFailedMobilePoster] = useState<string | null>(null);
     const [watchlisted, setWatchlisted] = useState(Boolean(item.inWatchlist));
     const [syncedWatchlist, setSyncedWatchlist] = useState(Boolean(item.inWatchlist));
     const [watchlistError, setWatchlistError] = useState<string | null>(null);
@@ -111,6 +114,15 @@ const SeriesCard = ({
         ? item.poster ?? item.backdrop
         : item.backdrop ?? item.poster;
     const artwork = preferredArtwork === failedArtwork ? null : preferredArtwork;
+    const mobilePoster = mobileVariant === "poster" && item.poster && item.poster !== failedMobilePoster && item.poster !== preferredArtwork
+        ? getImageProps({
+            src: item.poster,
+            alt: item.title,
+            fill: true,
+            sizes: "44vw",
+            loader: imageLoader(item.poster, "poster"),
+        }).props
+        : null;
     const usingPoster = Boolean(preferredArtwork && item.poster && preferredArtwork === item.poster);
     const artworkRole = usingPoster ? "poster" : "catalog";
     const artworkPlaceholder = usingPoster ? item.posterPlaceholder : item.backdropPlaceholder;
@@ -152,6 +164,8 @@ const SeriesCard = ({
     };
 
     const handleCardKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+        if (event.target !== event.currentTarget) return;
+
         if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
             navigate();
@@ -196,6 +210,7 @@ const SeriesCard = ({
 
     const media = (
         <span
+            data-card-media
             className={`relative block overflow-hidden bg-nx-panel ${
                 variant === "poster"
                     ? "nx-content-card aspect-2/3 rounded-md border border-nx-border"
@@ -212,18 +227,29 @@ const SeriesCard = ({
             style={artworkStyle}
         >
             {artwork ? (
-                <Image
-                    src={artwork}
-                    alt={item.title}
-                    fill
-                    preload={imagePreload}
-                    sizes={sizes}
-                    loader={imageLoader(artwork, artworkRole)}
-                    {...blurProps(artworkPlaceholder ?? item.placeholder)}
-                    onError={() => setFailedArtwork(artwork)}
-                    className={`nx-card-artwork object-cover transition-[transform,opacity] duration-500 ease-out motion-reduce:transition-none ${completed ? "opacity-75" : ""}`}
-                    style={{ objectPosition }}
-                />
+                <picture className="absolute inset-0">
+                    {mobilePoster && (
+                        <source media="(max-width: 639px)" srcSet={mobilePoster.srcSet ?? mobilePoster.src} sizes={mobilePoster.sizes} />
+                    )}
+                    <Image
+                        src={artwork}
+                        alt={item.title}
+                        fill
+                        preload={imagePreload}
+                        sizes={sizes}
+                        loader={imageLoader(artwork, artworkRole)}
+                        {...blurProps(artworkPlaceholder ?? item.placeholder)}
+                        onError={() => {
+                            if (mobilePoster && window.matchMedia("(max-width: 639px)").matches) {
+                                setFailedMobilePoster(item.poster);
+                            } else {
+                                setFailedArtwork(artwork);
+                            }
+                        }}
+                        className={`nx-card-artwork object-cover transition-[transform,opacity] duration-500 ease-out motion-reduce:transition-none ${completed ? "opacity-75" : ""}`}
+                        style={{ objectPosition }}
+                    />
+                </picture>
             ) : (
                 <span className="absolute inset-0 flex flex-col justify-end gap-2 p-4">
                     {item.episodeNumber !== undefined && (
@@ -266,7 +292,7 @@ const SeriesCard = ({
             </span>
 
             {variant !== "row" && (progress !== null || completed) && (
-                <span className="absolute inset-x-0 bottom-0 z-20 h-0.5 bg-nx-border">
+                <span data-card-media-progress className="absolute inset-x-0 bottom-0 z-20 h-0.5 bg-nx-border">
                     <span
                         className={`block h-full ${completed ? "bg-nx-text-2" : "bg-nx-accent"}`}
                         style={{ width: `${completed ? 100 : progress}%` }}
@@ -307,13 +333,13 @@ const SeriesCard = ({
         </span>
     );
     const landscapeMetadataLine = (
-        <span className="mt-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] leading-4 tracking-[0.04em] text-nx-text-2">
+        <span data-card-meta className="mt-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] leading-4 tracking-[0.04em] text-nx-text-2">
             {item.episodeNumber !== undefined && (
                 <span>Odc. {formatEpisode(item.episodeNumber)}</span>
             )}
-            {item.year && <span>{item.year}</span>}
+            {item.year && <span data-card-year>{item.year}</span>}
             {item.score && (
-                <span className="inline-flex items-center gap-1">
+                <span data-card-score className="inline-flex items-center gap-1">
                     <Star size={11} fill="currentColor" className="text-nx-accent" aria-hidden="true" />
                     {item.score}
                 </span>
@@ -342,7 +368,7 @@ const SeriesCard = ({
         >
             <button
                 type="button"
-                tabIndex={variant === "row" ? 0 : -1}
+                tabIndex={variant === "row" || mobileVariant ? 0 : -1}
                 onClick={handleToggleWatchlist}
                 aria-pressed={watchlisted}
                 aria-label={watchlisted ? "Usuń z listy" : "Dodaj do listy"}
@@ -358,7 +384,7 @@ const SeriesCard = ({
             {item.infoId !== undefined && (
                 <button
                     type="button"
-                    tabIndex={variant === "row" ? 0 : -1}
+                    tabIndex={variant === "row" || mobileVariant ? 0 : -1}
                     onClick={handleInfoClick}
                     {...seriesInfoIntentProps}
                     aria-label={`Więcej informacji o ${item.title}`}
@@ -480,7 +506,7 @@ const SeriesCard = ({
             )}
         </span>
     ) : variant === "landscape" ? (
-        <span className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col justify-end bg-[linear-gradient(0deg,color-mix(in_srgb,var(--nx-bg)_96%,transparent)_0%,color-mix(in_srgb,var(--nx-bg)_72%,transparent)_48%,transparent_100%)] px-4 pb-4 pt-16 sm:px-5 sm:pb-5">
+        <span data-card-body className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col justify-end bg-[linear-gradient(0deg,color-mix(in_srgb,var(--nx-bg)_96%,transparent)_0%,color-mix(in_srgb,var(--nx-bg)_72%,transparent)_48%,transparent_100%)] px-4 pb-4 pt-16 sm:px-5 sm:pb-5">
             <span className="line-clamp-2 text-[17px] font-semibold leading-[1.25] text-nx-text sm:text-lg" title={item.title}>
                 {item.title}
             </span>
@@ -500,6 +526,7 @@ const SeriesCard = ({
         <article
             ref={containerRef}
             data-content-card
+            data-card-mobile={mobileVariant}
             data-catalog-card={catalog ? "true" : undefined}
             role="link"
             tabIndex={tabIndex}
@@ -535,9 +562,23 @@ const SeriesCard = ({
             {rankedMedia}
             {body}
 
-            <span className={`absolute z-10 ${variant === "row" ? "right-3 top-1/2 -translate-y-1/2" : "right-2 top-2"}`}>
+            <span data-card-actions className={`absolute z-10 ${variant === "row" ? "right-3 top-1/2 -translate-y-1/2" : "right-2 top-2"}`}>
                 {actions}
             </span>
+
+            {mobileVariant === "progress" && progress !== null && (
+                <span
+                    data-card-resume-progress
+                    role="progressbar"
+                    aria-label={`Postęp oglądania ${item.title}`}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={progress}
+                    className="hidden"
+                >
+                    <span className={`block h-full rounded-full ${completed ? "bg-nx-text-2" : "bg-nx-accent"}`} style={{ width: `${progress}%` }} />
+                </span>
+            )}
 
             {watchlistError && (
                 <span

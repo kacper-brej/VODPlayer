@@ -82,7 +82,7 @@ const NavRailItems = ({ orientation }: NavRailItemsProps) => {
                                 />
                             )}
                             <Icon size={20} strokeWidth={2} aria-hidden="true" />
-                            <span className="font-ui text-[10px] leading-[1.2] lg:text-[9.5px] xl:text-[10px]">
+                            <span className="font-ui text-[11px] leading-[1.2] sm:text-[10px] lg:text-[9.5px] xl:text-[10px]">
                                 {name}
                             </span>
                         </Link>

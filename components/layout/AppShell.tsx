@@ -139,7 +139,7 @@ const AppShell = ({ children }: AppShellProps) => {
                     <div className="relative flex min-h-dvh min-w-0 flex-1 flex-col overflow-x-hidden">
                         <header className={`top-0 z-40 flex h-[var(--nx-header-offset)] w-full shrink-0 items-center justify-center border-b px-4 pt-[env(safe-area-inset-top)] sm:px-8 ${
                             heroHeader
-                                ? "absolute border-transparent bg-[linear-gradient(180deg,color-mix(in_srgb,var(--nx-bg)_92%,transparent)_0%,color-mix(in_srgb,var(--nx-bg)_52%,transparent)_62%,transparent_100%)]"
+                                ? "absolute border-transparent bg-[linear-gradient(180deg,color-mix(in_srgb,var(--nx-bg)_92%,transparent)_0%,color-mix(in_srgb,var(--nx-bg)_52%,transparent)_62%,transparent_100%)] max-sm:relative max-sm:border-nx-border/60 max-sm:bg-nx-bg max-sm:bg-none"
                                 : "sticky border-nx-border/70 bg-[color-mix(in_srgb,var(--nx-bg)_94%,transparent)] backdrop-blur-none sm:bg-[color-mix(in_srgb,var(--nx-bg)_88%,transparent)] sm:backdrop-blur-xl"
                         }`}>
                             <div className="mx-auto flex w-full max-w-[1440px] items-center gap-3">

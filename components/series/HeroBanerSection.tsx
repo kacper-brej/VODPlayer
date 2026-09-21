@@ -103,6 +103,7 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
 
     return (
         <section
+            data-home-hero
             role="link"
             tabIndex={0}
             aria-label={`${activeContent.isResume ? "Wznów" : "Odtwórz"} ${activeContent.title}`}
@@ -156,19 +157,20 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
             )}
 
             <div
-                className="absolute bottom-0 left-0 z-20 flex w-full max-w-full flex-col justify-end px-5 pb-8 pt-14 sm:px-8 sm:pb-12 sm:pt-24 md:max-w-[var(--nx-hero-copy-w)] lg:px-10 lg:pb-13 xl:px-11 xl:pb-14 min-[1440px]:px-12"
+                data-hero-copy
+                className="absolute bottom-0 left-0 z-20 flex min-h-[var(--nx-hero-copy-min-h)] w-full max-w-full flex-col justify-end px-5 pb-8 pt-14 sm:px-8 sm:pb-12 sm:pt-24 md:max-w-[var(--nx-hero-copy-w)] lg:px-10 lg:pb-13 xl:px-11 xl:pb-14 min-[1440px]:px-12"
                 style={{
                     "--nx-hero-copy-w": `min(620px, ${Math.round(safeLeft * 100)}vw)`,
-                    minHeight: `min(100%, max(320px, ${Math.round(safeBottom * 100)}vh))`,
+                    "--nx-hero-copy-min-h": `min(100%, max(320px, ${Math.round(safeBottom * 100)}vh))`,
                 } as CSSProperties}
             >
-                <span className="mb-4 flex w-fit items-center gap-2.5 font-mono text-[10px] tracking-[0.2em] uppercase text-nx-accent sm:text-[10.5px]">
+                <span data-hero-kicker className="mb-4 flex w-fit items-center gap-2.5 font-mono text-[10px] tracking-[0.2em] uppercase text-nx-accent sm:text-[10.5px]">
                     <span aria-hidden="true" className="h-px w-[18px] bg-nx-accent" />
                     {activeContent.isResume ? "Kontynuuj oglądanie" : "Dzisiejszy wybór"}
                 </span>
 
                 {logo ? (
-                    <h1 className="relative block h-20 w-full max-w-[460px] drop-shadow-[0_8px_28px_rgba(0,0,0,0.7)] sm:h-24 lg:h-28 xl:h-33">
+                    <h1 data-hero-logo className="relative block h-20 w-full max-w-[460px] drop-shadow-[0_8px_28px_rgba(0,0,0,0.7)] sm:h-24 lg:h-28 xl:h-33">
                         <Image
                             src={logo}
                             alt={activeContent.title}
@@ -181,6 +183,7 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
                     </h1>
                 ) : (
                     <h1
+                        data-hero-title
                         title={activeContent.title}
                         className="line-clamp-3 max-w-[16ch] text-balance font-display text-[34px] leading-none tracking-[-0.02em] text-nx-text drop-shadow-[0_8px_28px_rgba(0,0,0,0.7)] sm:text-[42px] lg:line-clamp-2 lg:text-[54px] lg:leading-[.92] lg:tracking-[-0.035em] xl:text-[64px] xl:leading-[.89]"
                     >
@@ -189,7 +192,7 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
                 )}
 
                 {(metaParts.length > 0 || activeContent.score) && (
-                    <div className="mt-5 flex flex-wrap items-center gap-x-2.5 gap-y-2 font-mono text-[10.5px] tracking-[0.1em] text-nx-text-2 sm:text-[11px]">
+                    <div data-hero-meta className="mt-5 flex flex-wrap items-center gap-x-2.5 gap-y-2 font-mono text-[10.5px] tracking-[0.1em] text-nx-text-2 sm:text-[11px]">
                         {activeContent.score && (
                             <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[color-mix(in_srgb,var(--nx-accent-2)_32%,transparent)] bg-[color-mix(in_srgb,var(--nx-bg)_72%,transparent)] px-2.5 py-1 text-nx-accent-2 backdrop-blur-sm">
                                 <Star size={11} fill="currentColor" aria-hidden="true" />
@@ -207,13 +210,13 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
                 )}
 
                 {activeContent.description && (
-                    <p className="mt-4 line-clamp-2 max-w-[52ch] text-[15px] leading-[1.62] text-[color-mix(in_srgb,var(--nx-text)_82%,transparent)] [text-shadow:0_2px_12px_rgba(0,0,0,0.6)] lg:text-[15.5px]">
+                    <p data-hero-description className="mt-4 line-clamp-2 max-w-[52ch] text-[15px] leading-[1.62] text-[color-mix(in_srgb,var(--nx-text)_82%,transparent)] [text-shadow:0_2px_12px_rgba(0,0,0,0.6)] lg:text-[15.5px]">
                         {activeContent.description}
                     </p>
                 )}
 
                 {activeContent.progressPercent !== null && (
-                    <div className="mt-6 flex max-w-[380px] items-center gap-3.5">
+                    <div data-hero-progress className="mt-6 flex max-w-[380px] items-center gap-3.5">
                         <span
                             role="progressbar"
                             aria-label={`Postęp odcinka ${activeContent.episodeNumber}`}
@@ -235,7 +238,7 @@ const HeroBanerSection = ({ lastWatchedData }: HeroBanerProps) => {
                     </div>
                 )}
 
-                <div className="mt-6 flex items-center gap-2.5 sm:mt-7 sm:gap-3">
+                <div data-hero-actions className="mt-6 flex items-center gap-2.5 sm:mt-7 sm:gap-3">
                     <button
                         type="button"
                         onClick={(event) => {

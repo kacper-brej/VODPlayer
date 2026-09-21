@@ -1,0 +1,199 @@
+@media (max-width: 639px) {
+    .home [data-home-hero],
+    .home [data-home-hero-skeleton] {
+        height: auto;
+        min-height: clamp(300px, 40svh, 380px);
+        max-height: none;
+    }
+
+    .home [data-home-hero] {
+        display: flex;
+        align-items: flex-end;
+    }
+
+    .home [data-hero-copy] {
+        position: relative;
+        min-height: 0;
+        padding: clamp(112px, 15svh, 144px) 16px 20px;
+    }
+
+    .home [data-hero-kicker] {
+        margin-bottom: 8px;
+    }
+
+    .home [data-hero-title] {
+        max-width: 18ch;
+        font-size: clamp(28px, 8vw, 38px);
+        line-height: 1.04;
+        -webkit-line-clamp: 2;
+    }
+
+    .home [data-hero-logo] {
+        height: 64px;
+        max-width: 82%;
+    }
+
+    .home [data-hero-meta] {
+        margin-top: 10px;
+        column-gap: 8px;
+        row-gap: 4px;
+        font-size: 11px;
+    }
+
+    .home [data-hero-description] {
+        margin-top: 8px;
+        font-size: 13px;
+        line-height: 1.5;
+    }
+
+    .home [data-hero-progress] {
+        margin-top: 12px;
+        gap: 12px;
+    }
+
+    .home [data-hero-actions] {
+        margin-top: 16px;
+        gap: 10px;
+    }
+
+    .home [data-hero-actions] > button:first-child {
+        padding-inline: 12px;
+        font-size: 14px;
+    }
+
+    .home :global(.nx-home-rows) {
+        gap: 24px;
+        padding: 20px 16px 32px;
+    }
+
+    .home [data-home-row] > header {
+        margin-bottom: 10px;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .home [data-home-row] > header > div {
+        flex: 1;
+    }
+
+    .home [data-home-row] > header > span {
+        display: none;
+    }
+
+    .home [data-home-row] h2 {
+        margin-top: 0;
+        font-size: clamp(18px, 5vw, 22px);
+        line-height: 1.3;
+    }
+
+    .home [data-home-view-all] {
+        display: inline-flex;
+        min-height: 44px;
+        margin-block: -6px;
+        align-items: center;
+        flex-shrink: 0;
+        color: var(--nx-accent);
+        font-size: 11px;
+    }
+
+    .home [data-home-row]:not([data-home-row="mosaic"]) > div {
+        width: calc(100% + 32px);
+        margin-inline: -16px;
+        padding: 4px 16px 8px;
+        gap: 12px;
+        scroll-padding-inline: 16px;
+    }
+
+    .home [data-home-row="progress"] [data-row-item] {
+        flex-basis: 76%;
+    }
+
+    .home [data-home-row="classic"] [data-row-item],
+    .home [data-home-row="ranking"] [data-row-item] {
+        flex-basis: 44%;
+    }
+
+    .home [data-home-row="ranking"] > div {
+        gap: 28px;
+        padding-bottom: 16px;
+    }
+
+    .home [data-card-mobile="poster"] [data-card-media],
+    .home [data-home-row="classic"][aria-busy] [data-card-media] {
+        aspect-ratio: 2 / 3;
+    }
+
+    .home [data-card-mobile="poster"] [data-card-body] {
+        padding: 48px 10px 12px;
+    }
+
+    .home [data-card-body] > span:first-child {
+        font-size: 14px;
+        line-height: 1.3;
+    }
+
+    .home [data-card-mobile="poster"] [data-card-meta] {
+        margin-top: 6px;
+        gap: 4px 8px;
+    }
+
+    .home [data-card-mobile="progress"] [data-card-body] {
+        position: static;
+        min-height: 76px;
+        justify-content: flex-start;
+        padding: 10px 10px 24px;
+        background: none;
+    }
+
+    .home [data-card-mobile="progress"] [data-card-body] > span:first-child {
+        -webkit-line-clamp: 1;
+    }
+
+    .home [data-card-mobile="progress"] [data-card-meta] {
+        margin-top: 6px;
+        padding-right: 86px;
+        gap: 2px 8px;
+        font-size: 11px;
+    }
+
+    .home [data-card-mobile="progress"] [data-card-year],
+    .home [data-card-mobile="progress"] [data-card-score],
+    .home [data-card-mobile="progress"] [data-card-media-progress] {
+        display: none;
+    }
+
+    .home [data-card-mobile="progress"] [data-card-actions] {
+        inset: auto 6px 6px auto;
+    }
+
+    .home [data-card-mobile] [data-card-actions] > span {
+        gap: 2px;
+    }
+
+    .home [data-card-mobile="poster"] [data-card-actions] > span {
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .home [data-card-mobile] [data-card-actions] button {
+        width: 44px;
+        height: 44px;
+    }
+
+    .home [data-card-resume-progress] {
+        position: absolute;
+        bottom: 10px;
+        left: 10px;
+        right: 102px;
+        display: block;
+        height: 3px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: var(--nx-border);
+    }
+
+    .home [data-card-mobile-placeholder] {
+        display: block;
+        height: 76px;
+    }
+}

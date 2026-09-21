@@ -42,7 +42,7 @@ const cardVariant = (
 
 const cardSizes = (variant: ContentRowVariant, index: number) => {
     if (variant === "ranking") {
-        return "(max-width: 639px) 34vw, (max-width: 1023px) 23vw, (max-width: 1279px) 19vw, (max-width: 1439px) 16vw, 14vw";
+        return "(max-width: 639px) 44vw, (max-width: 1023px) 23vw, (max-width: 1279px) 19vw, (max-width: 1439px) 16vw, 14vw";
     }
 
     if (variant === "mosaic") {
@@ -52,7 +52,7 @@ const cardSizes = (variant: ContentRowVariant, index: number) => {
     }
 
     if (variant === "progress") {
-        return "(max-width: 639px) 82vw, (max-width: 1023px) 48vw, (max-width: 1439px) 31vw, 24vw";
+        return "(max-width: 639px) 72vw, (max-width: 1023px) 48vw, (max-width: 1439px) 31vw, 24vw";
     }
 
     return "(max-width: 639px) 70vw, (max-width: 1023px) 44vw, (max-width: 1279px) 31vw, (max-width: 1439px) 24vw, 19vw";
@@ -203,6 +203,7 @@ const ContentRowSection = ({
             numbered={numbered}
             variant={variant}
             itemCount={displayedItems.length}
+            mobileViewAllHref={variant === "progress" ? "/continue" : undefined}
             renderPlaceholder={variant === "mosaic" ? undefined : (index) => {
                 const item = displayedItems[index];
 
@@ -211,17 +212,19 @@ const ContentRowSection = ({
                         href={item.href}
                         data-content-card
                         data-row-placeholder
+                        data-card-mobile={variant === "progress" ? "progress" : variant === "classic" ? "poster" : undefined}
                         tabIndex={-1}
                         aria-label={item.title}
                         className={`relative block w-full scroll-mx-6 outline-none focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent ${
                             variant === "ranking" ? "" : "overflow-hidden rounded-2xl border border-nx-border bg-nx-panel"
                         }`}
                     >
-                        <span className={`relative block bg-nx-panel ${variant === "ranking" ? "aspect-2/3 rounded-md border border-nx-border" : "aspect-video"}`}>
+                        <span data-card-media className={`relative block bg-nx-panel ${variant === "ranking" ? "aspect-2/3 rounded-md border border-nx-border" : "aspect-video"}`}>
                             <span className="absolute inset-x-4 bottom-4 line-clamp-2 text-sm font-semibold text-nx-text">
                                 {item.title}
                             </span>
                         </span>
+                        {variant === "progress" && <span data-card-mobile-placeholder className="hidden" />}
                         {variant === "ranking" && (
                             <span className="mt-3 flex min-w-0 items-center gap-2.5 font-mono text-[10.5px] tabular-nums text-nx-text-2">
                                 {item.score && <span className="text-nx-accent-2">{item.score}</span>}
@@ -252,6 +255,7 @@ const ContentRowSection = ({
                             isNew: showNew,
                         }}
                         variant={cardVariant(variant, index)}
+                        mobileVariant={variant === "progress" ? "progress" : variant === "classic" ? "poster" : undefined}
                         featured={variant === "mosaic" && index === 0}
                         fill={variant === "mosaic" && index === 0}
                         {...(variant === "ranking" ? { rank: index + 1 } : {})}

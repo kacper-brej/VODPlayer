@@ -21,6 +21,7 @@ import type { ResumePoint } from "@/lib/core/contracts";
 import { resolvePreviewSource } from "@/lib/player/videoAccess";
 import { getSessionUser } from "@/lib/auth/session";
 import { resolveSavedCatalogSeries } from "@/lib/catalog/savedCatalogSeries";
+import styles from "./home.module.css";
 
 interface ViewerRowContext {
     resumeMap: Map<string, ResumePoint>;
@@ -269,7 +270,7 @@ const HomeDashboard = async () => {
 
     return (
         <>
-            <Suspense fallback={<div className="h-[46vh] min-h-80 w-full bg-nx-panel skeleton-pulse lg:h-[52vh] lg:min-h-105 xl:h-[58vh] xl:min-h-130 min-[1440px]:h-[62vh]" />}>
+            <Suspense fallback={<div data-home-hero-skeleton className="h-[46vh] min-h-80 w-full bg-nx-panel skeleton-pulse lg:h-[52vh] lg:min-h-105 xl:h-[58vh] xl:min-h-130 min-[1440px]:h-[62vh]" />}>
                 <HeroSection catalog={catalog} />
             </Suspense>
 
@@ -316,7 +317,7 @@ const HomeDashboard = async () => {
 
 export default function Home() {
     return (
-        <div className="min-h-dvh w-full min-w-0 overflow-x-hidden bg-nx-bg">
+        <div className={`${styles.home} min-h-dvh w-full min-w-0 overflow-x-hidden bg-nx-bg`}>
             <Suspense fallback={<div className="min-h-dvh bg-nx-bg" />}>
                 <HomeDashboard />
             </Suspense>

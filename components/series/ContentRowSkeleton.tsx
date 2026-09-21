@@ -29,13 +29,13 @@ const ContentRowSkeleton = ({
     const itemCount = counts[variant];
 
     return (
-        <section aria-label={`Ładowanie sekcji ${title}`} aria-busy="true" className="w-full">
+        <section data-home-row={variant} aria-label={`Ładowanie sekcji ${title}`} aria-busy="true" className="w-full">
             <header className="mb-5 flex items-end gap-4 sm:mb-6">
                 <div>
                     {numbered
                         ? <span aria-hidden="true" className={`nx-row-index ${rowKickerClass}`} />
                         : kicker && <span className={rowKickerClass}>{kicker}</span>}
-                    <h2 className="mt-1 text-xl font-semibold text-nx-text sm:font-display sm:text-[28px]">
+                    <h2 className="mt-1 font-display text-xl text-nx-text sm:text-[28px]">
                         {title}
                     </h2>
                 </div>
@@ -70,8 +70,9 @@ const ContentRowSkeleton = ({
                     }`}
                 >
                     {Array.from({ length: itemCount }).map((_, index) => (
-                        <div key={index} className={`shrink-0 ${widthClass[variant]}`}>
-                            <div className={`${variant === "ranking" ? "aspect-2/3 rounded-md" : "aspect-video rounded-2xl"} bg-nx-panel skeleton-pulse`} />
+                        <div data-row-item={index} key={index} className={`shrink-0 ${widthClass[variant]}`}>
+                            <div data-card-media className={`${variant === "ranking" ? "aspect-2/3 rounded-md" : "aspect-video rounded-2xl"} bg-nx-panel skeleton-pulse`} />
+                            {variant === "progress" && <div data-card-mobile-placeholder className="hidden bg-nx-panel skeleton-pulse" />}
                             {variant === "ranking" && (
                                 <div className="mt-3 h-3 w-2/5 rounded-full bg-nx-panel skeleton-pulse" />
                             )}

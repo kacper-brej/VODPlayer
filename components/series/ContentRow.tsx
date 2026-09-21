@@ -2,6 +2,7 @@
 
 import { Children, isValidElement, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import Link from "next/link";
 import { getContentRowActiveIndex, getContentRowWindow, isContentRowItemMounted } from "@/lib/ui/contentRowWindow";
 
 export type ContentRowVariant = "progress" | "ranking" | "mosaic" | "classic";
@@ -16,6 +17,7 @@ interface ContentRowProps {
     renderPlaceholder?: (index: number) => ReactNode;
     onMosaicMove?: (direction: -1 | 1) => void;
     mosaicPanelHeader?: ReactNode;
+    mobileViewAllHref?: string;
 }
 
 export const rowKickerClass = "block font-mono text-[10px] tracking-[0.22em] text-nx-text-2 sm:text-[11px]";
@@ -36,6 +38,7 @@ const ContentRow = ({
     renderPlaceholder,
     onMosaicMove,
     mosaicPanelHeader,
+    mobileViewAllHref,
 }: ContentRowProps) => {
     const titleId = useId();
     const rowRef = useRef<HTMLDivElement | null>(null);
@@ -203,6 +206,7 @@ const ContentRow = ({
 
     return (
         <section
+            data-home-row={variant}
             aria-labelledby={titleId}
             className="group/section w-full min-w-0"
         >
@@ -213,13 +217,19 @@ const ContentRow = ({
                         : kicker && <span className={rowKickerClass}>{kicker}</span>}
                     <h2
                         id={titleId}
-                        className="mt-1 text-xl font-semibold leading-[1.08] text-nx-text sm:font-display sm:text-[28px] min-[1440px]:text-[30px]"
+                        className="mt-1 font-display text-xl leading-[1.08] text-nx-text sm:text-[28px] min-[1440px]:text-[30px]"
                     >
                         {title}
                     </h2>
                 </div>
 
                 <span className="mb-2 h-px min-w-6 flex-1 bg-nx-border" />
+
+                {mobileViewAllHref && (
+                    <Link data-home-view-all href={mobileViewAllHref} className="hidden rounded-sm outline-none focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent">
+                        Zobacz wszystkie
+                    </Link>
+                )}
 
                 {itemCount > 1 && (
                     <span className="mb-0.5 hidden items-center gap-2 [@media(pointer:fine)]:flex">
