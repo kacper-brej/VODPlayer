@@ -70,7 +70,7 @@ const SeasonsSelector = ({ seasons, activeSeason, onSeasonChange }: SeasonSelect
                                 selectAt(seasons.length - 1);
                             }
                         }}
-                        className={`min-h-11 shrink-0 snap-start rounded-full border px-4 py-2 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent xl:w-full xl:rounded-lg ${
+                        className={`min-h-11 shrink-0 snap-start rounded-lg border px-4 py-2 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent xl:w-full ${
                             active
                                 ? "border-nx-accent bg-nx-raised font-semibold text-nx-text"
                                 : "border-nx-border bg-transparent font-normal text-nx-text-2 hover:bg-nx-raised hover:text-nx-text"

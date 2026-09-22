@@ -186,7 +186,7 @@ const EpisodeList = ({ seasons, initialSeason, authRequired }: EpisodeListProps)
                             </span>
                             <span className="block p-5">
                                 <span className="font-mono text-[10px] tracking-[0.18em] text-nx-text-2">
-                                    {season.resumeEpisodeKey ? "WZNÓW OGLĄDANIE" : "ZACZNIJ OD POCZĄTKU"}
+                                    {season.resumeEpisodeKey === resumeEpisode.episodeKey ? "WZNÓW OGLĄDANIE" : "ZACZNIJ OD POCZĄTKU"}
                                 </span>
                                 <span className="mt-1 block text-lg font-semibold text-nx-text">{resumeEpisode.title}</span>
                                 {resumeEpisode.remainingTime && (
@@ -197,14 +197,16 @@ const EpisodeList = ({ seasons, initialSeason, authRequired }: EpisodeListProps)
                             </span>
                             </button>
                             {resumeEpisode.previewSource && (
-                                <button
-                                    type="button"
-                                    onClick={resumePreview.startManual}
-                                    aria-label={`Odtwórz podgląd: ${resumeEpisode.title}`}
-                                    className="absolute bottom-3 right-3 z-20 flex size-10 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text opacity-0 outline-none transition-opacity hover:bg-nx-raised focus:opacity-100 focus-visible:outline-2 focus-visible:outline-nx-accent group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100"
-                                >
-                                    <Play size={15} fill="currentColor" aria-hidden="true" />
-                                </button>
+                                <div className="pointer-events-none absolute inset-x-0 top-0 aspect-video">
+                                    <button
+                                        type="button"
+                                        onClick={resumePreview.startManual}
+                                        aria-label={`Odtwórz podgląd: ${resumeEpisode.title}`}
+                                        className="pointer-events-auto absolute bottom-3 right-3 z-20 flex size-10 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text opacity-0 outline-none transition-opacity hover:bg-nx-raised focus:opacity-100 focus-visible:outline-2 focus-visible:outline-nx-accent group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100"
+                                    >
+                                        <Play size={15} fill="currentColor" aria-hidden="true" />
+                                    </button>
+                                </div>
                             )}
                         </article>
                     )}

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { Play, Star, Users } from "lucide-react";
-import { useState, type CSSProperties } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { partyWatchPath, watchPath } from "@/lib/core/routes";
 import { ARTWORK_SIZES, blurProps, imageLoader, safeArtworkColor } from "@/lib/catalog/imageDelivery";
@@ -24,6 +24,7 @@ interface SeriesHeroProps {
     resumeEpisodeKey: string | null;
     resumeEpisodeNumber: number | null;
     firstEpisodeKey: string | null;
+    firstEpisodeNumber: number | null;
     dominantColor: string | null;
     focalX: number | null;
     focalY: number | null;
@@ -46,6 +47,7 @@ const SeriesHero = ({
     resumeEpisodeKey,
     resumeEpisodeNumber,
     firstEpisodeKey,
+    firstEpisodeNumber,
     dominantColor,
     focalX,
     focalY,
@@ -54,6 +56,9 @@ const SeriesHero = ({
 }: SeriesHeroProps) => {
     const router = useRouter();
     const [expanded, setExpanded] = useState(false);
+    const [synopsisClipped, setSynopsisClipped] = useState(false);
+    const synopsisRef = useRef<HTMLParagraphElement>(null);
+    const synopsisId = useId();
     const [imageStep, setImageStep] = useState(backdropImage ? 1 : dominantColor ? 2 : 3);
     const [logoFailed, setLogoFailed] = useState(false);
     const [notice, setNotice] = useState("");
@@ -64,6 +69,33 @@ const SeriesHero = ({
     const copyWidth = Math.min(0.9, Math.max(0.35, safeLeft ?? 0.52));
     const copyBottom = Math.min(0.7, Math.max(0.3, safeBottom ?? 0.42));
     const hasMetadata = Boolean(year || rating || ageRating || episodeCount > 0);
+
+    useEffect(() => {
+        const element = synopsisRef.current;
+        if (!element || expanded) return;
+
+        let active = true;
+        let frame: number | null = null;
+        const measure = () => {
+            if (!active || frame !== null) return;
+            frame = window.requestAnimationFrame(() => {
+                frame = null;
+                setSynopsisClipped(element.scrollHeight > element.clientHeight + 1);
+            });
+        };
+        const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+        observer?.observe(element);
+        window.addEventListener("resize", measure);
+        void document.fonts?.ready.then(measure);
+        measure();
+
+        return () => {
+            active = false;
+            observer?.disconnect();
+            window.removeEventListener("resize", measure);
+            if (frame !== null) window.cancelAnimationFrame(frame);
+        };
+    }, [expanded, synopsis]);
 
     const play = () => {
         if (!activeEpisodeKey) {
@@ -172,15 +204,16 @@ const SeriesHero = ({
 
                     {synopsis && (
                         <div className="mt-5 max-w-[46ch]">
-                            <p className={`text-[15px] leading-[1.65] text-nx-text-2 lg:text-[15.5px] xl:text-base ${expanded ? "" : "line-clamp-3 lg:line-clamp-4"}`}>
+                            <p ref={synopsisRef} id={synopsisId} className={`text-[15px] leading-[1.65] text-nx-text-2 lg:text-[15.5px] xl:text-base ${expanded ? "" : "line-clamp-3 lg:line-clamp-4"}`}>
                                 {synopsis}
                             </p>
-                            {synopsis.length > 240 && (
+                            {(expanded || synopsisClipped) && (
                                 <button
                                     type="button"
                                     onClick={() => setExpanded((value) => !value)}
                                     className="mt-2 text-sm text-nx-text underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent"
                                     aria-expanded={expanded}
+                                    aria-controls={synopsisId}
                                 >
                                     {expanded ? "Zwiń" : "Rozwiń"}
                                 </button>
@@ -197,9 +230,9 @@ const SeriesHero = ({
                             className={`flex h-12 items-center justify-center gap-2 rounded-xl bg-nx-accent px-6 text-[15px] font-semibold text-nx-on-accent transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent xl:h-13 ${activeEpisodeKey ? "" : "opacity-45"}`}
                         >
                             <Play size={18} fill="currentColor" />
-                            {resumeEpisodeKey && resumeEpisodeNumber
-                                ? `Wznów odcinek ${resumeEpisodeNumber}`
-                                : "Odtwórz odcinek 1"}
+                            {resumeEpisodeKey
+                                ? resumeEpisodeNumber === null ? "Wznów oglądanie" : `Wznów odcinek ${resumeEpisodeNumber}`
+                                : firstEpisodeNumber === null ? "Odtwórz" : `Odtwórz odcinek ${firstEpisodeNumber}`}
                         </button>
                         <button
                             type="button"

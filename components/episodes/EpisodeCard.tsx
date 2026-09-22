@@ -140,14 +140,16 @@ const EpisodeCard = ({
             </button>
 
             {episode.previewSource && (
-                <button
-                    type="button"
-                    onClick={preview.startManual}
-                    aria-label={`Odtwórz podgląd: ${episode.title}`}
-                    className="absolute bottom-3 right-3 z-20 flex size-10 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text opacity-0 outline-none transition-opacity hover:bg-nx-raised focus:opacity-100 focus-visible:outline-2 focus-visible:outline-nx-accent group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100"
-                >
-                    <Play size={15} fill="currentColor" aria-hidden="true" />
-                </button>
+                <div className="pointer-events-none absolute inset-x-0 top-0 aspect-video">
+                    <button
+                        type="button"
+                        onClick={preview.startManual}
+                        aria-label={`Odtwórz podgląd: ${episode.title}`}
+                        className="pointer-events-auto absolute bottom-3 right-3 z-20 flex size-10 items-center justify-center rounded-full border border-nx-border bg-nx-panel text-nx-text opacity-0 outline-none transition-opacity hover:bg-nx-raised focus:opacity-100 focus-visible:outline-2 focus-visible:outline-nx-accent group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100"
+                    >
+                        <Play size={15} fill="currentColor" aria-hidden="true" />
+                    </button>
+                </div>
             )}
         </article>
     );

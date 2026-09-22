@@ -1,4 +1,4 @@
-import type { EpisodeProgress } from "@/lib/core/contracts";
+import type { EpisodeProgress, ResumePoint } from "@/lib/core/contracts";
 import type { CatalogSeries } from "@/lib/catalog/catalog";
 import type { DataErrorReason } from "@/lib/core/dataResult";
 
@@ -52,6 +52,10 @@ export const getKnownProgressPercent = (progress?: EpisodeProgress) => {
     if (!progress.durationSeconds || progress.durationSeconds <= 0) return 0;
     return Math.min(100, Math.round((progress.positionSeconds / progress.durationSeconds) * 100));
 };
+
+export const getSeasonResume = (season: SeriesSeason, resumes: readonly ResumePoint[]): ResumePoint | null =>
+    resumes.find((resume) => resume.seriesKey === season.seriesKey
+        && season.episodes.some((episode) => episode.key === resume.episodeKey)) ?? null;
 
 export const getSeasonEpisodeCount = (season: SeriesSeason | undefined): number => {
     if (!season) return 0;

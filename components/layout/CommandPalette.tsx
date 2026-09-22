@@ -3,7 +3,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { imageLoader } from "@/lib/catalog/imageDelivery";
-import { Compass, Globe, History, LogOut, Search, type LucideIcon } from "lucide-react";
+import { Compass, Globe, History, LogOut, Search, X, type LucideIcon } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ADMIN_QUICK_JUMP_ITEM, QUICK_JUMP_ITEMS } from "@/config/menu";
 import { COMMAND_PALETTE_OPEN_EVENT } from "@/lib/search/commandPalette";
@@ -48,7 +48,6 @@ interface PaletteItem {
 interface PaletteSection {
     title: string;
     items: PaletteItem[];
-    moreCount?: number;
 }
 
 const DEBOUNCE_MS = 120;
@@ -207,6 +206,21 @@ const CommandPalette = ({ searchIndex, initiallyOpen = false, onRetry }: Command
             });
     }, [searchResults]);
 
+    const resultSectionItems = useMemo<PaletteItem[]>(() => {
+        if (searchResults.length <= resultItems.length) return resultItems;
+
+        return [...resultItems, {
+            id: "all-results",
+            label: "Zobacz wszystkie wyniki",
+            hint: String(searchResults.length),
+            icon: Search,
+            action: {
+                kind: "navigate",
+                href: `/explore?${new URLSearchParams({ q: trimmedQuery }).toString()}`,
+            },
+        }];
+    }, [resultItems, searchResults.length, trimmedQuery]);
+
     const onlyFuzzyResults = searchResults.length > 0 && searchResults.every((result) => result.fuzzy);
 
     const quickJumpItems: PaletteItem[] = useMemo(() => {
@@ -249,15 +263,14 @@ const CommandPalette = ({ searchIndex, initiallyOpen = false, onRetry }: Command
         () => [
             ...(trimmedQuery ? [{
                 title: onlyFuzzyResults ? "Czy chodziło Ci o…" : "Wyniki",
-                items: resultItems,
-                moreCount: Math.max(0, searchResults.length - resultItems.length),
+                items: resultSectionItems,
             }] : []),
             ...(tmdbItems.length ? [{ title: "Z bazy TMDB", items: tmdbItems }] : []),
             { title: "Szybkie przejście", items: quickJumpItems },
             { title: "Akcje", items: actionItems },
             ...(recentItems.length ? [{ title: "Ostatnie wyszukiwania", items: recentItems }] : []),
         ],
-        [trimmedQuery, onlyFuzzyResults, searchResults.length, resultItems, tmdbItems, quickJumpItems, actionItems, recentItems],
+        [trimmedQuery, onlyFuzzyResults, resultSectionItems, tmdbItems, quickJumpItems, actionItems, recentItems],
     );
 
     const flatItems = useMemo(() => sections.flatMap((section) => section.items), [sections]);
@@ -353,11 +366,12 @@ const CommandPalette = ({ searchIndex, initiallyOpen = false, onRetry }: Command
                         transition={{ duration: prefersReducedMotion ? 0 : 0.28, ease: [0.2, 0.8, 0.25, 1] }}
                     >
                         <div className="flex shrink-0 items-center gap-3 border-b border-border px-4">
-                            <Search size={18} className="text-muted" aria-hidden="true" />
+                            <Search size={18} className="shrink-0 text-muted" aria-hidden="true" />
                             <input
                                 ref={inputRef}
                                 type="text"
                                 role="combobox"
+                                aria-label="Szukaj tytułów"
                                 aria-expanded="true"
                                 aria-controls={listboxId}
                                 aria-activedescendant={activeItemId}
@@ -370,8 +384,16 @@ const CommandPalette = ({ searchIndex, initiallyOpen = false, onRetry }: Command
                                     setQuery(event.target.value);
                                 }}
                                 onKeyDown={handleInputKeyDown}
-                                className="h-14 w-full bg-transparent text-[15px] text-foreground outline-none placeholder:text-muted/70"
+                                className="h-14 min-w-0 flex-1 bg-transparent text-[15px] text-foreground outline-none placeholder:text-muted/70"
                             />
+                            <button
+                                type="button"
+                                onClick={close}
+                                aria-label="Zamknij wyszukiwanie"
+                                className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted outline-none transition-colors hover:bg-surface-light hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
+                            >
+                                <X size={20} aria-hidden="true" />
+                            </button>
                         </div>
 
                         <p className="sr-only" aria-live="polite" aria-atomic="true">
@@ -474,11 +496,6 @@ const CommandPalette = ({ searchIndex, initiallyOpen = false, onRetry }: Command
                                                 );
                                             })}
                                         </ul>
-                                        {Boolean(section.moreCount) && (
-                                            <p className="px-3 pb-1 pt-2 font-mono text-[10px] tracking-[0.12em] text-nx-text-2">
-                                                +{section.moreCount} kolejnych wyników
-                                            </p>
-                                        )}
                                     </div>
                                 );
                             })}

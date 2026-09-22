@@ -9,6 +9,7 @@ import {
     getVirtualTmdbEpisodesResult,
     getVirtualTmdbSeasons,
     isVirtualTmdbTvKey,
+    parseVirtualEpisodeKey,
 } from "@/lib/catalog/tmdbVirtualSeries";
 import { getProgressSnapshotAction } from "@/lib/progress/getProgressAction";
 import { seriesPath } from "@/lib/core/routes";
@@ -21,6 +22,7 @@ import {
     formatEpisodeNumber,
     formatRemainingTime,
     getKnownProgressPercent,
+    getSeasonResume,
 } from "@/lib/catalog/seriesPage";
 import { resolvePreviewSource } from "@/lib/player/videoAccess";
 
@@ -53,24 +55,38 @@ export const generateMetadata = async ({ params }: Pick<SeriesPageProps, "params
 
 const resolveSeasons = async (
     series: CatalogSeries,
-    catalog: CatalogSeries[],
+    local: SeriesSeason[],
     requestedSeason: string | undefined,
-): Promise<SeriesSeason[]> => {
-    const local = getSeriesSeasons(catalog, series);
+    progressPromise: ReturnType<typeof getProgressSnapshotAction>,
+): Promise<{ seasons: SeriesSeason[]; initialSeason: string }> => {
+    const localResult = {
+        seasons: local,
+        initialSeason: local.find((season) => season.id === requestedSeason)?.id
+            ?? local.find((season) => season.seriesId === series.id)?.id
+            ?? local[0]?.id
+            ?? "all",
+    };
 
-    if (!isVirtualTmdbTvKey(series.key) || series.tmdbExternalId === null) return local;
+    if (!isVirtualTmdbTvKey(series.key) || series.tmdbExternalId === null) return localResult;
 
-    const available = await getVirtualTmdbSeasons(series.tmdbExternalId);
-    if (available.length === 0) return local;
+    const [available, progressResult] = await Promise.all([
+        getVirtualTmdbSeasons(series.tmdbExternalId),
+        progressPromise,
+    ]);
+    if (available.length === 0) return localResult;
 
+    const resume = progressResult.kind === "error"
+        ? null
+        : progressResult.data.resumes.find((item) => item.seriesKey === series.key);
+    const resumeNumber = resume ? parseVirtualEpisodeKey(resume.episodeKey)?.season : undefined;
     const requested = Number(requestedSeason);
     const activeNumber = available.some((season) => season.number === requested)
         ? requested
-        : available[0].number;
+        : available.find((season) => season.number === resumeNumber)?.number ?? available[0].number;
     const activeEpisodesResult = await getVirtualTmdbEpisodesResult(series.tmdbExternalId, activeNumber);
     const activeEpisodes = activeEpisodesResult.kind === "error" ? [] : activeEpisodesResult.data;
 
-    return available.map((season) => ({
+    const seasons: SeriesSeason[] = available.map((season) => ({
         id: String(season.number),
         number: season.number,
         label: season.label,
@@ -90,6 +106,7 @@ const resolveSeasons = async (
             sourceRating: season.rating ?? series.sourceRating,
         },
     }));
+    return { seasons, initialSeason: String(activeNumber) };
 };
 
 const SeriesPage = async ({ params, searchParams }: SeriesPageProps) => {
@@ -134,19 +151,20 @@ const SeriesPage = async ({ params, searchParams }: SeriesPageProps) => {
 
     const displayTitle = getSeriesDisplayTitle(series);
     const requestedSeason = Array.isArray(query.season) ? query.season[0] : query.season;
-    const seasons = await resolveSeasons(series, catalogResult.data, requestedSeason);
-    const initialSeason = seasons.some((season) => season.id === requestedSeason)
-        ? requestedSeason as string
-        : seasons.find((season) => season.seriesId === series.id)?.id ?? seasons[0]?.id ?? "all";
+    const localSeasons = getSeriesSeasons(catalogResult.data, series);
+    const progressPromise = getProgressSnapshotAction(localSeasons.map((season) => season.seriesKey));
+    const [{ seasons, initialSeason }, progressResult] = await Promise.all([
+        resolveSeasons(series, localSeasons, requestedSeason, progressPromise),
+        progressPromise,
+    ]);
     const activeSeason = seasons.find((season) => season.id === initialSeason) ?? seasons[0];
     const activeSeries = activeSeason?.source ?? series;
 
-    const progressResult = await getProgressSnapshotAction(seasons.map((season) => season.seriesKey));
     const progressEntries = seasons.map((season) => {
         const episodes = progressResult.kind === "error" ? {} : progressResult.data.episodesBySeries[season.seriesKey] ?? {};
         const resume = progressResult.kind === "error"
             ? null
-            : progressResult.data.resumes.find((item) => item.seriesKey === season.seriesKey) ?? null;
+            : getSeasonResume(season, progressResult.data.resumes);
         return { season, episodes, resume };
     });
 
@@ -228,6 +246,7 @@ const SeriesPage = async ({ params, searchParams }: SeriesPageProps) => {
                     resumeEpisodeKey={resumeEpisodeKey}
                     resumeEpisodeNumber={resumeEpisodeNumber}
                     firstEpisodeKey={activeSeason?.episodes[0]?.key ?? null}
+                    firstEpisodeNumber={activeSeason?.episodes[0]?.number ?? null}
                     dominantColor={activeSeries.backdropDominantColor ?? activeSeries.dominantColor}
                     focalX={activeSeries.focalX}
                     focalY={activeSeries.focalY}
