@@ -1,59 +1,29 @@
-import { CheckCircle2, Terminal, TriangleAlert } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, FolderPlus } from "lucide-react";
 import MetadataReviewPanel from "@/components/upload/MetadataReviewPanel";
+import AdminFeedback from "@/components/admin/AdminFeedback";
+import s from "@/components/admin/admin.module.css";
 import type { UploadWorkflowSetup } from "@/lib/upload/uploadWorkflowTypes";
 
-const UploadWorkflow = ({ initialSetup }: { initialSetup: UploadWorkflowSetup }) => {
-    if (initialSetup.unauthorized) {
-        return (
-            <section className="rounded-2xl border border-nx-critical/30 bg-nx-critical/10 p-6" role="alert">
-                <h1 className="font-display text-3xl text-nx-text">Brak dostępu</h1>
-                <p className="mt-2 text-sm text-nx-text-2">Zaloguj się ponownie na konto administratora.</p>
-            </section>
-        );
-    }
+export default function UploadWorkflow({ initialSetup }: { initialSetup: UploadWorkflowSetup }) {
+    if (initialSetup.unauthorized) return <div className={s.page}><AdminFeedback tone="error">Zaloguj się na konto administratora, aby zarządzać materiałami.</AdminFeedback></div>;
 
-    const pendingWithoutPoster = initialSetup.metadataReview.filter((item) =>
-        !item.artwork.some((artwork) => artwork.kind === "poster" && artwork.isPrimary)
-    ).length;
-
-    return (
-        <div className="space-y-5">
-            <section className="rounded-2xl border border-nx-border bg-nx-panel p-4 md:p-5">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                    <div className="max-w-3xl">
-                        <p className="font-mono text-xs uppercase tracking-[0.18em] text-nx-accent">HLS-only</p>
-                        <h1 className="mt-1 font-display text-2xl text-nx-text md:text-3xl">Nowy materiał trafia przez transkoder</h1>
-                        <p className="mt-2 text-sm leading-5 text-nx-text-2">
-                            Pliki wideo nie są już wysyłane przez przeglądarkę. Transkoder przygotowuje HLS,
-                            zapisuje obiekty w B2 i rejestruje odcinek w aplikacji.
-                        </p>
-                    </div>
-                    <span className="inline-flex items-center gap-2 rounded-full border border-nx-border bg-nx-raised px-3 py-1.5 text-xs text-nx-text">
-                        <CheckCircle2 size={16} className="text-nx-accent" />
-                        {pendingWithoutPoster} czeka na plakat
-                    </span>
-                </div>
-
-                <div className="mt-4 rounded-xl border border-nx-border bg-nx-bg p-3 xl:flex xl:items-center xl:gap-5">
-                    <div className="flex shrink-0 items-center gap-2 font-mono text-xs uppercase tracking-[0.14em] text-nx-text-2">
-                        <Terminal size={15} /> Z katalogu głównego
-                    </div>
-                    <code className="mt-2 block overflow-x-auto whitespace-nowrap font-mono text-xs text-nx-text xl:mt-0 xl:text-sm">
-                        npm --prefix tools/transcode run transcode -- --input &lt;plik.mp4&gt; --series &quot;Nazwa serii&quot; --episode &lt;numer&gt;
-                    </code>
-                </div>
-
-                {initialSetup.unavailable && (
-                    <p className="mt-3 flex items-start gap-2 rounded-xl border border-nx-critical/30 bg-nx-critical/10 p-3 text-sm text-nx-critical" role="alert">
-                        <TriangleAlert size={17} className="mt-0.5 shrink-0" />
-                        Część danych panelu jest chwilowo niedostępna. Odśwież stronę przed podjęciem decyzji o publikacji.
-                    </p>
-                )}
-            </section>
-
-            <MetadataReviewPanel initialItems={initialSetup.metadataReview} />
+    return <div className={s.page}>
+        <div className={s.header}>
+            <div>
+                <h1>Materiały i grafiki</h1>
+                <p className={s.description}>Wybierz tytuł. Pobierz opis, plakat i baner z TMDB, a potem sprawdź, jak wyglądają.</p>
+            </div>
+            <a className={s.secondary} href="#add-material"><FolderPlus size={17} aria-hidden="true" />Dodaj materiał</a>
         </div>
-    );
-};
-
-export default UploadWorkflow;
+        {initialSetup.unavailable && <div className="mb-5"><AdminFeedback tone="error">Nie udało się wczytać całej biblioteki. Odśwież stronę, aby spróbować ponownie.</AdminFeedback></div>}
+        <MetadataReviewPanel initialItems={initialSetup.metadataReview} />
+        <section id="add-material" className={`${s.details} mt-8`}>
+            <h2 className="mb-4">Dodaj nowy film lub odcinek</h2>
+            <div className={s.stack}>
+                <p className={s.description}>Plik wideo musi najpierw trafić na serwer i zostać przygotowany do odtwarzania przez transkoder. Gotowy materiał pojawi się na liście powyżej, gdzie dobierzesz jego opis i grafiki.</p>
+                <div className={s.row}><Link href="/admin/library-scan" className={s.secondary}>Sprawdź pliki na serwerze <ArrowRight size={16} aria-hidden="true" /></Link><span className={s.muted}>Przesyłanie wideo przez przeglądarkę nie jest dostępne.</span></div>
+            </div>
+        </section>
+    </div>;
+}

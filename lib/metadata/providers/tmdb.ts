@@ -17,6 +17,7 @@ import {
     type TmdbTvDetails,
 } from "@/lib/core/contracts";
 import { dataFailure, dataSuccess, type DataResult } from "@/lib/core/dataResult";
+import { getTmdbMovie } from "@/lib/metadata/tmdbMovies";
 
 const EXTERNAL_ID_PATTERN = /^tv:(\d+)$/;
 const TMDB_LANGUAGE = "pl-PL";
@@ -109,6 +110,18 @@ const searchSeries = async (query: string, signal?: AbortSignal): Promise<DataRe
 };
 
 const getSeries = async (externalId: string): Promise<DataResult<ProviderSeries>> => {
+    const movieId = /^movie:(\d+)$/.exec(externalId);
+    if (movieId) {
+        const movie = await getTmdbMovie(Number(movieId[1]));
+        if (movie.kind === "error") return movie;
+        const item = movie.data;
+        return dataSuccess({
+            providerId: "tmdb", externalId, malId: null,
+            titles: { primary: item.title, english: item.title, native: item.originalTitle, romaji: null },
+            synonyms: [], synopsis: item.synopsis, score: item.score, ageRating: item.ageRating,
+            year: item.year, genres: item.genres, studio: item.studio,
+        });
+    }
     const id = parseExternalId(externalId);
     if (id === null) return dataFailure("invalid_response");
 
@@ -119,13 +132,14 @@ const getSeries = async (externalId: string): Promise<DataResult<ProviderSeries>
 };
 
 const getArtwork = async (externalId: string): Promise<DataResult<ProviderArtwork[]>> => {
-    const id = parseExternalId(externalId);
-    if (id === null) return dataFailure("invalid_response");
+    const match = /^(tv|movie):(\d+)$/.exec(externalId);
+    if (!match || !Number.isSafeInteger(Number(match[2])) || Number(match[2]) < 1) return dataFailure("invalid_response");
+    const [, kind, id] = match;
 
     const [baseUrlResult, imagesResponse] = await Promise.all([
         getTmdbImageBaseUrl(),
         fetchTmdbResult(
-            `/tv/${id}/images?include_image_language=en,ja,null`,
+            `/${kind}/${id}/images?include_image_language=pl,en,ja,null`,
             (value) => validateTmdbImagesResponse(value).ok,
         ),
     ]);

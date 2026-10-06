@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-05T00:00:00Z",
+  "title": "Design System: Nocturna admin",
+  "extensions": {
+    "motion": [
+      { "name": "control-transition", "value": "background-color 160ms, border-color 160ms", "purpose": "Admin button state changes; disabled under prefers-reduced-motion." }
+    ],
+    "breakpoints": [
+      { "name": "mobile-max", "value": "640px" },
+      { "name": "compact-max", "value": "900px" },
+      { "name": "wide-min", "value": "1500px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary action",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Explicit chapter save action.",
+      "html": "<button class=\"ds-primary\">Zapisz zmiany</button>",
+      "css": ".ds-primary{min-height:44px;padding:10px 16px;border:1px solid transparent;border-radius:10px;font:600 14px/1.4 var(--font-geist-sans, sans-serif);background:var(--nx-accent,#B9A0FF);color:var(--nx-on-accent,#15121C);cursor:pointer;transition:background-color 160ms,border-color 160ms}.ds-primary:hover{background:var(--primary-hover,#D1C2FF)}.ds-primary:focus-visible{outline:2px solid var(--nx-accent,#B9A0FF);outline-offset:4px}.ds-primary:disabled{opacity:.5;cursor:not-allowed}@media(prefers-reduced-motion:reduce){.ds-primary{transition:none}}"
+    },
+    {
+      "name": "Secondary action",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Bordered search or supporting action.",
+      "html": "<button class=\"ds-secondary\">Szukaj</button>",
+      "css": ".ds-secondary{min-height:44px;padding:10px 16px;border:1px solid var(--nx-border,#332E3C);border-radius:10px;font:600 14px/1.4 var(--font-geist-sans,sans-serif);background:var(--nx-panel,#15121C);color:var(--nx-text,#F3F0EA);cursor:pointer;transition:background-color 160ms,border-color 160ms}.ds-secondary:hover{background:var(--nx-raised,#23202A);border-color:var(--nx-text-2,#A39EAB)}.ds-secondary:focus-visible{outline:2px solid var(--nx-accent,#B9A0FF);outline-offset:4px}.ds-secondary:disabled{opacity:.5;cursor:not-allowed}@media(prefers-reduced-motion:reduce){.ds-secondary{transition:none}}"
+    },
+    {
+      "name": "Timestamp input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Labeled chapter timestamp with tabular digits.",
+      "html": "<label class=\"ds-field\">Początek<input class=\"ds-time\" value=\"00:30\" aria-describedby=\"ds-time-help\"><small id=\"ds-time-help\">Minuty:sekundy, np. 01:30.</small></label>",
+      "css": ".ds-field{display:grid;gap:8px;color:var(--nx-text,#F3F0EA);font:500 13px var(--font-geist-sans,sans-serif)}.ds-field small{color:var(--nx-text-2,#A39EAB)}.ds-time{min-width:0;min-height:44px;padding:14px;border:1px solid var(--nx-border,#332E3C);border-radius:10px;background:var(--nx-bg,#07070A);color:var(--nx-text,#F3F0EA);font:500 24px/1.4 var(--font-geist-mono,monospace);font-variant-numeric:tabular-nums;caret-color:var(--nx-accent,#B9A0FF)}.ds-time:hover{border-color:var(--nx-text-2,#A39EAB)}.ds-time:focus-visible{outline:2px solid var(--nx-accent,#B9A0FF);outline-offset:4px}.ds-time[aria-invalid=true]{border-color:var(--nx-critical,#FF6F61)}.ds-time:disabled{opacity:.55}@media(max-width:640px){.ds-time{font-size:20px;padding:12px 8px}}"
+    },
+    {
+      "name": "Admin navigation",
+      "kind": "nav",
+      "description": "Horizontally scrollable task links with an active underline.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Panel administracyjny\"><a href=\"/admin\">Przegląd</a><a href=\"/admin/upload\" aria-current=\"page\">Materiały i grafiki</a><a href=\"/admin/chapters\">Pomijanie i rozdziały</a></nav>",
+      "css": ".ds-nav{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--nx-border,#332E3C);font:14px var(--font-geist-sans,sans-serif)}.ds-nav a{display:flex;align-items:center;flex-shrink:0;padding:12px 15px;min-height:48px;border-bottom:2px solid transparent;color:var(--nx-text-2,#A39EAB);text-decoration:none}.ds-nav a:hover{color:var(--nx-text,#F3F0EA);background:var(--nx-panel,#15121C)}.ds-nav a[aria-current=page]{color:var(--nx-text,#F3F0EA);border-bottom-color:var(--nx-accent,#B9A0FF)}.ds-nav a:focus-visible{outline:2px solid var(--nx-accent,#B9A0FF);outline-offset:4px}@media(max-width:640px){.ds-nav a{padding:12px}}"
+    },
+    {
+      "name": "Chapter type choice",
+      "kind": "chip",
+      "description": "Pressed state identifies the chapter range being edited.",
+      "html": "<button class=\"ds-choice\" aria-pressed=\"true\">Czołówka</button>",
+      "css": ".ds-choice{min-height:44px;padding:10px 14px;border:1px solid var(--nx-border,#332E3C);border-radius:10px;background:transparent;color:var(--nx-text,#F3F0EA);font:13px var(--font-geist-sans,sans-serif);cursor:pointer}.ds-choice[aria-pressed=true]{border-color:var(--nx-accent,#B9A0FF);color:var(--nx-accent,#B9A0FF);background:var(--nx-raised,#23202A)}.ds-choice:hover{background:var(--nx-raised,#23202A)}.ds-choice:focus-visible{outline:2px solid var(--nx-accent,#B9A0FF);outline-offset:4px}"
+    }
+  ],
+  "narrative": {
+    "overview": "This is a local record of the implemented admin boundary, not an app-wide brand specification. The interface prioritizes operating the library: choose a material, match its title, inspect artwork, and deliberately commit an artwork change. Chapter editing uses readable timestamps and plain Polish feedback.",
+    "dos": [
+      "Do preserve the shared nx palette and admin typography.",
+      "Do keep all search results reachable and distinguish draft artwork from saved artwork.",
+      "Do explain the result and next useful action in plain Polish.",
+      "Do preserve visible keyboard focus, busy states, and reduced-motion support."
+    ],
+    "donts": [
+      "Don't promote this local workflow reference into an app-wide brand commitment.",
+      "Don't imply that a failed or partial operation completed successfully.",
+      "Don't make technical identifiers the main route through routine material editing."
+    ]
+  }
+}

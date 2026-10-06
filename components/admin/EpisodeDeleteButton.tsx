@@ -19,10 +19,10 @@ const EpisodeDeleteButton = ({ seriesKey, episodeKey }: EpisodeDeleteButtonProps
     const handleDelete = () => {
         setError(null);
         startTransition(async () => {
-            const result = await deleteAdminMediaAction(seriesKey, episodeKey);
+            const result = await deleteAdminMediaAction(seriesKey, episodeKey).catch(() => ({ kind: "error" as const }));
 
             if (result.kind !== "success") {
-                setError("Nie udało się usunąć.");
+                setError("Nie udało się usunąć pliku. Spróbuj ponownie.");
                 return;
             }
 
@@ -34,7 +34,8 @@ const EpisodeDeleteButton = ({ seriesKey, episodeKey }: EpisodeDeleteButtonProps
     if (isConfirming) {
         return (
             <span className="flex flex-wrap items-center justify-end gap-2">
-                {error && <span className="text-xs text-nx-critical">{error}</span>}
+                <span className="text-xs text-nx-text-2">Usunąć plik wideo z serwera i magazynu?</span>
+                {error && <span role="alert" className="text-xs text-nx-critical">{error}</span>}
                 <button
                     type="button"
                     onClick={() => setIsConfirming(false)}
@@ -49,7 +50,7 @@ const EpisodeDeleteButton = ({ seriesKey, episodeKey }: EpisodeDeleteButtonProps
                     disabled={isPending}
                     className="cursor-pointer rounded-full border border-nx-critical bg-nx-critical/10 px-3 py-1.5 text-xs font-semibold text-nx-critical outline-none transition-colors duration-140 hover:bg-nx-critical/20 disabled:cursor-wait disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nx-critical"
                 >
-                    {isPending ? "Usuwanie…" : "Na pewno usuń"}
+                    {isPending ? "Usuwanie…" : "Usuń plik wideo"}
                 </button>
             </span>
         );

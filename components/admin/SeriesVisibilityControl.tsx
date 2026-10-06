@@ -41,7 +41,7 @@ const SeriesVisibilityControl = ({ seriesKey, visibility }: SeriesVisibilityCont
 
             if (result.kind !== "success") {
                 setValue(previous);
-                setError("Nie udało się zapisać.");
+                setError("Nie zmieniono dostępu. Spróbuj ponownie.");
                 return;
             }
 
@@ -51,7 +51,7 @@ const SeriesVisibilityControl = ({ seriesKey, visibility }: SeriesVisibilityCont
 
     return (
         <span className="flex flex-wrap items-center justify-end gap-2">
-            {error && <span className="text-xs text-nx-critical">{error}</span>}
+            {error && <span role="alert" className="text-xs text-nx-critical">{error}</span>}
             <label htmlFor={selectId} className="sr-only">
                 Poziom dostępu dla {seriesKey}
             </label>

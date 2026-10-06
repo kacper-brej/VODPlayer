@@ -1,4 +1,6 @@
 import { ChevronDown } from "lucide-react";
+import Link from "next/link";
+import s from "@/components/admin/admin.module.css";
 import { DataErrorState, DataState } from "@/components/data/DataState";
 import { getAdminLibraryAction } from "@/lib/admin/adminActions";
 import SeriesVisibilityControl from "@/components/admin/SeriesVisibilityControl";
@@ -43,18 +45,14 @@ const AdminLibraryPage = async () => {
     const totalEpisodes = series.reduce((total, item) => total + item.episodeCount, 0);
 
     return (
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-7 px-4 py-8 pb-12 sm:px-8 sm:py-10 sm:pb-16">
+        <div className={`${s.page} flex flex-col gap-7`}>
             <div className="max-w-3xl">
-                <p className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-nx-accent">
-                    Zasoby lokalne
-                </p>
                 <h1 className="mt-2 font-display text-[36px] leading-[1.05] tracking-[-0.03em] text-nx-text sm:text-[42px]">
                     Biblioteka
                 </h1>
                 <p className="mt-3 text-sm leading-6 text-nx-text-2 [font-variant-numeric:tabular-nums]">
-                    Na serwerze są {series.length} {pluralize(series.length, "serial", "seriale", "seriali")} i{" "}
-                    {totalEpisodes} {pluralize(totalEpisodes, "odcinek", "odcinki", "odcinków")}. Status migracji do
-                    Backblaze B2 będzie dostępny po utworzeniu rejestru mediów.
+                    W bibliotece: {series.length} {pluralize(series.length, "tytuł", "tytuły", "tytułów")} i{" "}
+                    {totalEpisodes} {pluralize(totalEpisodes, "plik wideo", "pliki wideo", "plików wideo")}. Wybierz tytuł, aby zobaczyć odcinki i zmienić dostęp.
                 </p>
             </div>
 
@@ -62,7 +60,7 @@ const AdminLibraryPage = async () => {
                 <DataState
                     kind="empty"
                     title="Biblioteka jest pusta"
-                    description="Dodaj pierwszy materiał w zakładce Wyślij plik."
+                    description="Przejdź do zakładki Materiały i grafiki, aby dodać pierwszy film lub odcinek."
                 />
             )}
 
@@ -91,6 +89,7 @@ const AdminLibraryPage = async () => {
                             </summary>
 
                             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-nx-border px-5 py-3">
+                                <Link href={`/admin/chapters?series=${encodeURIComponent(item.seriesKey)}`} className={s.quiet}>Ustaw pomijanie</Link>
                                 <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-nx-text-2">
                                     Dostęp do materiału
                                 </span>

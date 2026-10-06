@@ -5,9 +5,9 @@ import { HardDriveDownload, RefreshCw } from "lucide-react";
 import type { LibraryEntry, LibraryEntryState } from "@/lib/media/libraryRegistration";
 
 const STATE_LABEL: Record<LibraryEntryState, string> = {
-    new: "Nowy na dysku",
-    registered: "Zarejestrowany",
-    hls: "Ma asset HLS",
+    new: "Do dodania",
+    registered: "Dodany do biblioteki",
+    hls: "Przygotowany do odtwarzania",
     orphaned: "Brak pliku na dysku",
 };
 
@@ -77,7 +77,7 @@ export const LibraryScanPanel = () => {
             if (!response.ok) {
                 setError(payload?.error ?? "Nie udało się zarejestrować odcinków.");
             } else {
-                setNotice(`Zarejestrowano: ${payload?.inserted ?? 0}. Pominięto: ${payload?.skipped ?? 0}. Podpięte podglądy: ${payload?.previewsLinked ?? 0}.`);
+                setNotice(`Dodano do biblioteki: ${payload?.inserted ?? 0}. Już dodane lub pominięte: ${payload?.skipped ?? 0}. Połączono z podglądem: ${payload?.previewsLinked ?? 0}.`);
                 await load();
             }
         } catch {
@@ -116,7 +116,7 @@ export const LibraryScanPanel = () => {
                     className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full bg-nx-accent px-5 text-sm font-semibold text-nx-on-accent outline-none transition-[filter,opacity] duration-140 hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent disabled:cursor-not-allowed disabled:opacity-50"
                 >
                     <HardDriveDownload className="size-4" aria-hidden="true" />
-                    Zarejestruj zaznaczone ({selected.size})
+                    Dodaj do biblioteki ({selected.size})
                 </button>
                 {registrable.length > 0 && (
                     <button

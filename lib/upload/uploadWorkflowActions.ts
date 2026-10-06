@@ -17,6 +17,7 @@ import type {
     UploadWorkflowSetup,
 } from "@/lib/upload/uploadWorkflowTypes";
 import { listMetadataReview } from "@/lib/seriesMetadata/metadataReviewService";
+import { searchAdminTmdb } from "@/lib/metadata/searchAdminTmdb";
 
 const MAX_SEARCH_LENGTH = 100;
 
@@ -73,7 +74,7 @@ export const getUploadWorkflowSetup = async (): Promise<UploadWorkflowSetup> => 
     };
 };
 
-export const searchMetadataAction = async (query: string): Promise<DataResult<MetadataSearchOption[]>> => {
+export const searchMetadataAction = async (query: string, source: "tmdb" | "anime" = "tmdb"): Promise<DataResult<MetadataSearchOption[]>> => {
     const auth = await requireAdmin();
     if (auth.kind === "error") return auth;
 
@@ -82,7 +83,7 @@ export const searchMetadataAction = async (query: string): Promise<DataResult<Me
         return dataEmpty([]);
     }
 
-    const result = await searchIdentityCandidates(normalized);
+    const result = source === "anime" ? await searchIdentityCandidates(normalized) : await searchAdminTmdb(normalized);
     if (result.kind === "error") return result;
 
     const items: MetadataSearchOption[] = result.data.map((candidate) => ({

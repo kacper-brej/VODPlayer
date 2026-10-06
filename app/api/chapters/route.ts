@@ -43,10 +43,10 @@ export const POST = async (request: Request) => {
     if (!result.ok) {
         const status = result.code === "server" ? 500 : 422;
         const message = result.code === "overlap"
-            ? "Zakres rozdziału nakłada się z innym rozdziałem tego odcinka."
+            ? "Ten fragment nachodzi na inny zapisany zakres. Sprawdź początek i koniec, także w pozostałych odcinkach, jeśli zmieniasz całą serię."
             : result.code === "server"
-                ? "Nie udało się zapisać rozdziałów."
-                : "Nieprawidłowe dane rozdziału.";
+                ? "Nie udało się zapisać czasów. Spróbuj ponownie za chwilę."
+                : "Sprawdź czasy: koniec musi wypadać po początku i mieścić się w długości materiału. Przy zmianie całej serii zakres musi pasować do każdego odcinka.";
         return NextResponse.json({ error: message }, { status });
     }
 

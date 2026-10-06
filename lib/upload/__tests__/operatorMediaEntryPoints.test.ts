@@ -15,13 +15,11 @@ describe("operator media entry points", () => {
         expect(emptyStates).toContain('href="/admin/upload"');
     });
 
-    it("pokazuje polecenie uruchamiane z katalogu głównego", () => {
+    it("kieruje do istniejącego importu i nie pokazuje polecenia nieobecnego transkodera", () => {
         const workflow = source("components/upload/UploadWorkflow.tsx");
-        const transcodePackage = JSON.parse(source("tools/transcode/package.json")) as {
-            scripts?: Record<string, string>;
-        };
-
-        expect(workflow).toContain("npm --prefix tools/transcode run transcode --");
-        expect(transcodePackage.scripts?.transcode).toBeTruthy();
+        expect(workflow).toContain('href="/admin/library-scan"');
+        expect(workflow).toContain("Przesyłanie wideo przez przeglądarkę nie jest dostępne.");
+        expect(workflow).not.toContain("npm --prefix tools/transcode");
+        expect(source("app/(app)/admin/library-scan/page.tsx")).toContain("LibraryScanPanel");
     });
 });

@@ -11,9 +11,7 @@ const AdminLayout = async ({ children }: Readonly<{ children: React.ReactNode }>
 
     return (
         <section className="relative">
-            <div className="mx-auto w-full max-w-5xl px-4 pt-8 sm:px-8 sm:pt-10">
-                <AdminSectionNav />
-            </div>
+            <AdminSectionNav />
             {children}
         </section>
     );

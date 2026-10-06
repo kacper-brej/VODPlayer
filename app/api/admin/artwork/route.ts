@@ -41,21 +41,20 @@ export const POST = async (request: Request) => {
     }
 
     if (file.size < 1 || file.size > ARTWORK_MAX_INPUT_BYTES) {
-        return json({ error: "Wybierz plik JPG, PNG lub WebP do 8 MB." }, 422);
+        return json({ error: "Wybierz zdjęcie JPG, PNG lub WebP do 30 MB." }, 422);
     }
 
     try {
         const result = await saveManualArtwork(seriesKey, kind, Buffer.from(await file.arrayBuffer()));
         if (!result.ok) {
             if (result.code === "invalid") {
-                return json({ error: "Plik nie jest poprawną grafiką JPG, PNG lub WebP do 8 MB." }, 415);
+                return json({ error: "Nie można odczytać zdjęcia. Wybierz JPG, PNG lub WebP do 30 MB i 40 megapikseli." }, 415);
             }
             if (result.code === "invalid_dimensions") {
-                const expected = kind === "poster" ? "pionowy" : "poziomy";
-                return json({ error: `Dla rodzaju ${kind} wymagany jest obraz ${expected}.` }, 422);
+                return json({ error: kind === "poster" ? "Plakat powinien być pionowy. Poziome zdjęcie możesz dodać jako baner." : "Baner powinien być poziomy. Wybierz zdjęcie szersze niż wyższe." }, 422);
             }
-            if (result.code === "not_found") return json({ error: "Nieznany serial." }, 404);
-            if (result.code === "storage") return json({ error: "Nie udało się zapisać grafiki w B2." }, 502);
+            if (result.code === "not_found") return json({ error: "Tego materiału nie ma już w bibliotece. Odśwież listę i wybierz go ponownie." }, 404);
+            if (result.code === "storage") return json({ error: "Magazyn plików nie odpowiada. Spróbuj wysłać zdjęcie ponownie za chwilę." }, 502);
             return json({ error: "Nie udało się zapisać grafiki." }, 500);
         }
 

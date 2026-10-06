@@ -1,271 +1,171 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Save, Trash2 } from "lucide-react";
-import type {
-    AdminLibrarySeries,
-    EpisodeChapter,
-    EpisodeChapterType,
-} from "@/lib/core/contracts";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Check, Pencil, Save, Trash2 } from "lucide-react";
+import type { AdminLibrarySeries, EpisodeChapter, EpisodeChapterType } from "@/lib/core/contracts";
+import { formatChapterTime, parseChapterTime } from "@/lib/chapters/chapterTime";
+import AdminFeedback from "./AdminFeedback";
+import s from "./admin.module.css";
 
-const CHAPTER_TYPES: { value: EpisodeChapterType; label: string }[] = [
-    { value: "intro", label: "Intro" },
-    { value: "recap", label: "Recap" },
-    { value: "outro", label: "Outro" },
+const TYPES: { value: EpisodeChapterType; label: string; hint: string }[] = [
+    { value: "intro", label: "Czołówka", hint: "W tym fragmencie widz zobaczy przycisk „Pomiń czołówkę”." },
+    { value: "recap", label: "Przypomnienie", hint: "Zaznacz streszczenie wydarzeń z poprzedniego odcinka." },
+    { value: "outro", label: "Napisy końcowe", hint: "Zaznacz fragment z napisami, który widz może pominąć." },
 ];
-
-const typeLabel = (type: EpisodeChapterType) =>
-    CHAPTER_TYPES.find((item) => item.value === type)?.label ?? type;
-
-const formatTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const remainder = seconds % 60;
-
-    return hours > 0
-        ? `${hours}:${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`
-        : `${minutes}:${String(remainder).padStart(2, "0")}`;
-};
-
-const isEpisodeChapter = (value: unknown): value is EpisodeChapter => {
+const labelFor = (type: EpisodeChapterType) => TYPES.find((item) => item.value === type)?.label ?? type;
+const validChapter = (value: unknown): value is EpisodeChapter => {
     if (!value || typeof value !== "object") return false;
-    const chapter = value as Record<string, unknown>;
-    return (chapter.type === "intro" || chapter.type === "outro" || chapter.type === "recap")
-        && typeof chapter.startSeconds === "number"
-        && typeof chapter.endSeconds === "number";
+    const item = value as Record<string, unknown>;
+    return TYPES.some((type) => type.value === item.type)
+        && typeof item.startSeconds === "number" && Number.isFinite(item.startSeconds)
+        && typeof item.endSeconds === "number" && Number.isFinite(item.endSeconds);
 };
-
 const responseMessage = async (response: Response, fallback: string) => {
-    const payload = await response.json().catch(() => null) as { error?: unknown } | null;
-    return typeof payload?.error === "string" ? payload.error : fallback;
+    if (response.status === 401) return "Sesja wygasła. Zaloguj się ponownie, aby zapisać zmiany.";
+    const data = await response.json().catch(() => null) as { error?: unknown } | null;
+    return typeof data?.error === "string" ? data.error : fallback;
 };
 
-const ChapterEditor = ({ series }: { series: AdminLibrarySeries[] }) => {
-    const [seriesKey, setSeriesKey] = useState(series[0]?.seriesKey ?? "");
-    const selectedSeries = useMemo(
-        () => series.find((item) => item.seriesKey === seriesKey) ?? series[0] ?? null,
-        [series, seriesKey],
-    );
-    const [episodeKey, setEpisodeKey] = useState(selectedSeries?.episodes[0]?.episodeKey ?? "");
-    const selectedEpisode = selectedSeries?.episodes.find((item) => item.episodeKey === episodeKey)
-        ?? selectedSeries?.episodes[0]
-        ?? null;
+function EpisodeChapters({ series, episodeKey, onBusy }: { series: AdminLibrarySeries; episodeKey: string; onBusy: (busy: boolean) => void }) {
+    const episode = series.episodes.find((item) => item.episodeKey === episodeKey)!;
     const [chapters, setChapters] = useState<EpisodeChapter[]>([]);
-    const [chapterType, setChapterType] = useState<EpisodeChapterType>("intro");
-    const [startSeconds, setStartSeconds] = useState("0");
-    const [endSeconds, setEndSeconds] = useState("90");
+    const [type, setType] = useState<EpisodeChapterType>("intro");
+    const [startTime, setStartTime] = useState("00:00");
+    const [endTime, setEndTime] = useState("01:30");
     const [applyToSeries, setApplyToSeries] = useState(false);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [message, setMessage] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [reloadToken, setReloadToken] = useState(0);
+    const [reload, setReload] = useState(0);
+    const [deleteType, setDeleteType] = useState<EpisodeChapterType | null>(null);
+    const mutationLock = useRef(false);
+    const initialTimesLoaded = useRef(false);
+    const duration = episode.durationSeconds;
+    const start = parseChapterTime(startTime);
+    const end = parseChapterTime(endTime);
+    const rangeValid = start !== null && end !== null && start < end && (duration === null || end <= duration);
+    const existing = chapters.find((chapter) => chapter.type === type);
 
     useEffect(() => {
-        if (!selectedSeries || !selectedEpisode) return;
-
         const controller = new AbortController();
-        const params = new URLSearchParams({
-            series: selectedSeries.seriesKey,
-            episode: selectedEpisode.episodeKey,
-        });
-
-        fetch(`/api/chapters?${params.toString()}`, {
-            signal: controller.signal,
-            cache: "no-store",
-        }).then(async (response) => {
-            if (!response.ok) throw new Error(await responseMessage(response, "Nie udało się wczytać rozdziałów."));
-            const payload: unknown = await response.json();
-            if (!Array.isArray(payload) || !payload.every(isEpisodeChapter)) {
-                throw new Error("Serwer zwrócił nieprawidłowe dane rozdziałów.");
+        const params = new URLSearchParams({ series: series.seriesKey, episode: episodeKey });
+        fetch(`/api/chapters?${params}`, { signal: controller.signal, cache: "no-store" }).then(async (response) => {
+            if (!response.ok) throw new Error(await responseMessage(response, "Nie udało się wczytać zapisanych czasów. Spróbuj ponownie."));
+            const data: unknown = await response.json();
+            if (!Array.isArray(data) || !data.every(validChapter)) throw new Error("Nie udało się odczytać zapisanych czasów. Spróbuj ponownie.");
+            if (!controller.signal.aborted) {
+                setChapters(data); setLoadError(null);
+                if (!initialTimesLoaded.current) {
+                    const intro = data.find((chapter) => chapter.type === "intro");
+                    if (intro) {
+                        setStartTime(formatChapterTime(intro.startSeconds));
+                        setEndTime(formatChapterTime(intro.endSeconds));
+                    }
+                    initialTimesLoaded.current = true;
+                }
             }
-            setChapters(payload);
-        }).catch((requestError: unknown) => {
-            if (requestError instanceof DOMException && requestError.name === "AbortError") return;
-            setError(requestError instanceof Error ? requestError.message : "Nie udało się wczytać rozdziałów.");
-        }).finally(() => {
-            if (!controller.signal.aborted) setLoading(false);
-        });
-
+        }).catch((reason: unknown) => {
+            if (controller.signal.aborted) return;
+            setLoadError(reason instanceof Error ? reason.message : "Nie udało się wczytać zapisanych czasów.");
+        }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
         return () => controller.abort();
-    }, [selectedEpisode, selectedSeries, reloadToken]);
+    }, [series.seriesKey, episodeKey, reload]);
 
-    const selectSeries = (nextSeriesKey: string) => {
-        const nextSeries = series.find((item) => item.seriesKey === nextSeriesKey) ?? null;
-        setSeriesKey(nextSeriesKey);
-        setEpisodeKey(nextSeries?.episodes[0]?.episodeKey ?? "");
-        setLoading(true);
-        setMessage(null);
-        setError(null);
+    const changeType = (next: EpisodeChapterType) => {
+        setType(next);
+        const saved = chapters.find((chapter) => chapter.type === next);
+        setStartTime(formatChapterTime(saved?.startSeconds ?? 0));
+        setEndTime(formatChapterTime(saved?.endSeconds ?? 90));
+        setMessage(null); setError(null); setDeleteType(null);
     };
 
-    const selectEpisode = (nextEpisodeKey: string) => {
-        setEpisodeKey(nextEpisodeKey);
-        setLoading(true);
-        setMessage(null);
-        setError(null);
-    };
-
-    const saveChapter = async (event: FormEvent<HTMLFormElement>) => {
+    const save = async (event: FormEvent) => {
         event.preventDefault();
-        if (!selectedSeries || !selectedEpisode) return;
-
-        const start = Number(startSeconds);
-        const end = Number(endSeconds);
-        setSaving(true);
-        setMessage(null);
-        setError(null);
-
+        if (mutationLock.current || loading || loadError) return;
+        setMessage(null); setError(null);
+        if (start === null || end === null) { setError("Wpisz czas jako minuty:sekundy, np. 01:30. Dla dłuższego filmu możesz użyć 1:05:20."); return; }
+        if (start >= end) { setError("Koniec musi wypadać po początku zaznaczonego fragmentu."); return; }
+        if (duration !== null && end > duration) { setError(`Materiał kończy się o ${formatChapterTime(duration)}. Wpisz wcześniejszy koniec fragmentu.`); return; }
+        if (chapters.some((chapter) => chapter.type !== type && start < chapter.endSeconds && chapter.startSeconds < end)) { setError("Ten fragment nachodzi na inny zapisany zakres. Zmień początek lub koniec."); return; }
+        mutationLock.current = true; setSaving(true); onBusy(true);
         try {
             const response = await fetch("/api/chapters", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    series: selectedSeries.seriesKey,
-                    episode: selectedEpisode.episodeKey,
-                    type: chapterType,
-                    startSeconds: start,
-                    endSeconds: end,
-                    applyToSeries,
-                }),
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ series: series.seriesKey, episode: episodeKey, type, startSeconds: start, endSeconds: end, applyToSeries }),
             });
-            if (!response.ok) throw new Error(await responseMessage(response, "Nie udało się zapisać rozdziału."));
-            const payload = await response.json() as { affectedEpisodes?: unknown };
-            const affected = typeof payload.affectedEpisodes === "number" ? payload.affectedEpisodes : 1;
-            setMessage(`Zapisano zakres dla ${affected} ${affected === 1 ? "odcinka" : "odcinków"}.`);
-            setLoading(true);
-            setReloadToken((value) => value + 1);
-        } catch (requestError) {
-            setError(requestError instanceof Error ? requestError.message : "Nie udało się zapisać rozdziału.");
-        } finally {
-            setSaving(false);
-        }
+            if (!response.ok) throw new Error(await responseMessage(response, "Nie udało się zapisać czasu. Spróbuj ponownie."));
+            setMessage(applyToSeries ? "Zapisano domyślne czasy dla serii. Ręczne poprawki w innych odcinkach zostały zachowane." : `Zapisano: ${labelFor(type).toLowerCase()}, ${formatChapterTime(start)} do ${formatChapterTime(end)}.`);
+            setLoading(true); setReload((value) => value + 1);
+        } catch (reason) { setError(reason instanceof Error ? reason.message : "Nie udało się zapisać czasu. Spróbuj ponownie."); }
+        finally { mutationLock.current = false; setSaving(false); onBusy(false); }
     };
 
-    const deleteChapter = async (type: EpisodeChapterType) => {
-        if (!selectedSeries || !selectedEpisode) return;
-        setSaving(true);
-        setMessage(null);
-        setError(null);
-        const params = new URLSearchParams({
-            series: selectedSeries.seriesKey,
-            episode: selectedEpisode.episodeKey,
-            type,
-        });
-
+    const remove = async (chapterType: EpisodeChapterType) => {
+        if (mutationLock.current) return;
+        mutationLock.current = true; setSaving(true); onBusy(true); setError(null); setMessage(null);
         try {
-            const response = await fetch(`/api/chapters?${params.toString()}`, { method: "DELETE" });
-            if (!response.ok) throw new Error(await responseMessage(response, "Nie udało się usunąć rozdziału."));
-            setMessage(`Usunięto ${typeLabel(type).toLocaleLowerCase("pl-PL")} z wybranego odcinka.`);
-            setLoading(true);
-            setReloadToken((value) => value + 1);
-        } catch (requestError) {
-            setError(requestError instanceof Error ? requestError.message : "Nie udało się usunąć rozdziału.");
-        } finally {
-            setSaving(false);
-        }
+            const params = new URLSearchParams({ series: series.seriesKey, episode: episodeKey, type: chapterType });
+            const response = await fetch(`/api/chapters?${params}`, { method: "DELETE" });
+            if (!response.ok) throw new Error(await responseMessage(response, "Nie udało się usunąć zakresu. Spróbuj ponownie."));
+            setMessage("Usunięto indywidualne ustawienie tego odcinka. Jeśli seria ma domyślny zakres, zostanie użyty poniżej.");
+            setDeleteType(null); setLoading(true); setReload((value) => value + 1);
+        } catch (reason) { setError(reason instanceof Error ? reason.message : "Nie udało się usunąć zakresu."); }
+        finally { mutationLock.current = false; setSaving(false); onBusy(false); }
     };
 
-    const editChapter = (chapter: EpisodeChapter) => {
-        setChapterType(chapter.type);
-        setStartSeconds(String(chapter.startSeconds));
-        setEndSeconds(String(chapter.endSeconds));
-        setMessage(null);
-        setError(null);
-    };
-
-    const duration = selectedEpisode?.durationSeconds ?? null;
-
-    return (
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
-            <section className="rounded-[var(--r-m)] border border-nx-border bg-nx-panel p-5 shadow-[var(--sh-2)]" aria-labelledby="chapter-target-heading">
-                <h2 id="chapter-target-heading" className="font-display text-[24px] leading-none tracking-[-0.02em] text-nx-text">
-                    Wybierz materiał
-                </h2>
-                <div className="mt-5 grid gap-4">
-                    <label>
-                        <span className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-nx-text-2">Serial</span>
-                        <select value={selectedSeries?.seriesKey ?? ""} onChange={(event) => selectSeries(event.target.value)} className="min-h-11 w-full cursor-pointer rounded-[var(--r-s)] border border-nx-border bg-nx-bg px-3 text-sm text-nx-text outline-none transition-colors duration-140 hover:border-nx-accent hover:bg-nx-raised/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nx-accent">
-                            {series.map((item) => <option key={item.seriesKey} value={item.seriesKey}>{item.seriesKey}</option>)}
-                        </select>
-                    </label>
-                    <label>
-                        <span className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-nx-text-2">Odcinek</span>
-                        <select value={selectedEpisode?.episodeKey ?? ""} onChange={(event) => selectEpisode(event.target.value)} className="min-h-11 w-full cursor-pointer rounded-[var(--r-s)] border border-nx-border bg-nx-bg px-3 text-sm text-nx-text outline-none transition-colors duration-140 hover:border-nx-accent hover:bg-nx-raised/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nx-accent">
-                            {selectedSeries?.episodes.map((episode) => (
-                                <option key={episode.episodeKey} value={episode.episodeKey}>
-                                    {episode.title ?? episode.episodeKey}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
+    return <div className={s.stack}>
+        <form className={s.chapterForm} onSubmit={save}>
+            <div><h2>Co widz może pominąć?</h2><p className={s.description}>Przepisz czas widoczny w odtwarzaczu. Nie musisz przeliczać go na sekundy.</p></div>
+            {loadError && <AdminFeedback tone="error">{loadError} <button type="button" className={s.quiet} onClick={() => { setLoading(true); setReload((value) => value + 1); }}>Wczytaj ponownie</button></AdminFeedback>}
+            <fieldset disabled={loading || saving || Boolean(loadError)} className={s.stack}>
+                <legend className="sr-only">Rodzaj i czas pomijanego fragmentu</legend>
+                <div className={s.typeChoices}>{TYPES.map((item) => <button type="button" key={item.value} aria-pressed={type === item.value} onClick={() => changeType(item.value)} className={s.typeChoice}>{item.label}</button>)}</div>
+                <p className={s.muted}>{TYPES.find((item) => item.value === type)?.hint}</p>
+                <div className={s.timeFields}>
+                    <label className={s.field}>Początek<input className={s.input} type="text" inputMode="text" spellCheck={false} autoComplete="off" required value={startTime} onChange={(event) => setStartTime(event.target.value)} onBlur={() => { if (start !== null) setStartTime(formatChapterTime(start)); }} placeholder="00:30" aria-describedby="chapter-time-help" aria-invalid={start === null} /></label>
+                    <label className={s.field}>Koniec<input className={s.input} type="text" inputMode="text" spellCheck={false} autoComplete="off" required value={endTime} onChange={(event) => setEndTime(event.target.value)} onBlur={() => { if (end !== null) setEndTime(formatChapterTime(end)); }} placeholder="02:00" aria-describedby="chapter-time-help" aria-invalid={end === null} /></label>
                 </div>
+                <p id="chapter-time-help" className={s.muted}>Minuty:sekundy, np. 01:30. Godzina filmu: 1:00:00 lub 60:00.</p>
+                {rangeValid && <div className={s.stack}>
+                    {duration !== null && duration > 0 && <div className={s.timeline} aria-hidden="true"><span style={{ left: `${start! / duration * 100}%`, width: `${(end! - start!) / duration * 100}%` }} /></div>}
+                    <p className={s.muted}>Pomijany fragment: <span className="text-nx-text">{formatChapterTime(start!)} do {formatChapterTime(end!)}</span> ({formatChapterTime(end! - start!)}).</p>
+                </div>}
+                <label className={s.check}><input type="checkbox" checked={applyToSeries} onChange={(event) => setApplyToSeries(event.target.checked)} /><span>Użyj tych czasów dla całej serii<small>Dotyczy także kolejnych odcinków. Zachowa ręczne poprawki ustawione osobno.</small></span></label>
+            </fieldset>
+            <div className={s.between}><button className={s.button} disabled={saving || loading || Boolean(loadError)}><Save size={17} aria-hidden="true" />{saving ? "Zapisywanie…" : existing ? "Zapisz zmiany" : "Dodaj zakres"}</button>{duration !== null && <span className={s.muted}>Długość materiału: {formatChapterTime(duration)}</span>}</div>
+            {error && <AdminFeedback tone="error">{error}</AdminFeedback>}
+            {message && <AdminFeedback tone="success">{message}</AdminFeedback>}
+        </form>
+        <section aria-labelledby="saved-chapters"><h3 id="saved-chapters">Zapisane zakresy</h3>
+            {loading ? <p role="status" className="mt-3 text-sm text-nx-text-2">Wczytywanie czasów…</p> : !loadError && chapters.length === 0 ? <p className="mt-3 text-sm text-nx-text-2">Jeszcze nic nie ustawiono. Dodaj pierwszy fragment powyżej.</p> : !loadError && <ul className={s.chapterList}>
+                {chapters.map((chapter) => <li className={s.chapterRow} key={chapter.type}>
+                    <button type="button" disabled={saving} onClick={() => changeType(chapter.type)} aria-label={`Edytuj: ${labelFor(chapter.type)}`}><strong>{labelFor(chapter.type)}</strong><span>{formatChapterTime(chapter.startSeconds)} do {formatChapterTime(chapter.endSeconds)}</span></button>
+                    {deleteType === chapter.type ? <div className={s.row}><button type="button" className={s.danger} disabled={saving} onClick={() => void remove(chapter.type)}><Check size={15} aria-hidden="true" />Usuń</button><button type="button" className={s.quiet} disabled={saving} onClick={() => setDeleteType(null)}>Anuluj</button></div> : <><button type="button" className={s.quiet} disabled={saving} aria-label={`Zmień czas: ${labelFor(chapter.type)}`} onClick={() => changeType(chapter.type)}><Pencil size={16} aria-hidden="true" /></button><button type="button" className={s.quiet} disabled={saving} aria-label={`Usuń: ${labelFor(chapter.type)}`} onClick={() => setDeleteType(chapter.type)}><Trash2 size={16} aria-hidden="true" /></button></>}
+                </li>)}
+            </ul>}
+        </section>
+    </div>;
+}
 
-                <div className="mt-6 border-t border-nx-border pt-5">
-                    <div className="flex items-center justify-between gap-3">
-                        <h3 className="text-sm font-semibold text-nx-text">Aktywne zakresy</h3>
-                        {duration !== null && <span className="font-mono text-[10px] text-nx-text-2">CZAS {formatTime(duration)}</span>}
-                    </div>
-                    {loading ? (
-                        <p className="mt-4 text-sm text-nx-text-2">Wczytywanie…</p>
-                    ) : chapters.length === 0 ? (
-                        <p className="mt-4 text-sm leading-6 text-nx-text-2">Brak zapisanych rozdziałów dla tego odcinka.</p>
-                    ) : (
-                        <ul className="mt-3 grid gap-2">
-                            {chapters.map((chapter) => (
-                                <li key={chapter.type} className="flex flex-wrap items-center gap-3 rounded-[var(--r-s)] border border-nx-border bg-nx-bg px-3 py-3 transition-[border-color,background-color] duration-140 hover:border-nx-text-2/40 hover:bg-nx-raised/35">
-                                    <button type="button" onClick={() => editChapter(chapter)} className="min-w-0 flex-1 cursor-pointer rounded-[var(--r-s)] text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nx-accent">
-                                        <span className="block text-sm font-semibold text-nx-text">{typeLabel(chapter.type)}</span>
-                                        <span className="mt-1 block font-mono text-[10px] text-nx-text-2">{formatTime(chapter.startSeconds)} - {formatTime(chapter.endSeconds)}</span>
-                                    </button>
-                                    <button type="button" onClick={() => deleteChapter(chapter.type)} disabled={saving} aria-label={`Usuń ${typeLabel(chapter.type)} z odcinka`} className="flex size-11 cursor-pointer items-center justify-center rounded-full border border-nx-border text-nx-text-2 outline-none transition-colors duration-140 hover:border-danger/50 hover:bg-nx-critical/10 hover:text-danger focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger disabled:cursor-wait disabled:opacity-55">
-                                        <Trash2 size={16} aria-hidden="true" />
-                                    </button>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </div>
-            </section>
-
-            <form onSubmit={saveChapter} className="rounded-[var(--r-m)] border border-nx-border bg-nx-panel p-5 shadow-[var(--sh-2)]">
-                <h2 className="font-display text-[24px] leading-none tracking-[-0.02em] text-nx-text">Ustaw zakres</h2>
-                <p className="mt-2 text-sm leading-6 text-nx-text-2">Czasy podawaj jako pełne sekundy od początku odcinka.</p>
-
-                <div className="mt-5 grid gap-4 sm:grid-cols-3">
-                    <label>
-                        <span className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-nx-text-2">Typ</span>
-                        <select value={chapterType} onChange={(event) => setChapterType(event.target.value as EpisodeChapterType)} className="min-h-11 w-full cursor-pointer rounded-[var(--r-s)] border border-nx-border bg-nx-bg px-3 text-sm text-nx-text outline-none transition-colors duration-140 hover:border-nx-accent hover:bg-nx-raised/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nx-accent">
-                            {CHAPTER_TYPES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                        </select>
-                    </label>
-                    <label>
-                        <span className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-nx-text-2">Początek</span>
-                        <input type="number" min={0} max={duration ?? undefined} step={1} required value={startSeconds} onChange={(event) => setStartSeconds(event.target.value)} className="min-h-11 w-full rounded-[var(--r-s)] border border-nx-border bg-nx-bg px-3 text-sm text-nx-text outline-none transition-colors duration-140 hover:border-nx-text-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nx-accent" />
-                    </label>
-                    <label>
-                        <span className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-nx-text-2">Koniec</span>
-                        <input type="number" min={1} max={duration ?? undefined} step={1} required value={endSeconds} onChange={(event) => setEndSeconds(event.target.value)} className="min-h-11 w-full rounded-[var(--r-s)] border border-nx-border bg-nx-bg px-3 text-sm text-nx-text outline-none transition-colors duration-140 hover:border-nx-text-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nx-accent" />
-                    </label>
-                </div>
-
-                <label className="mt-5 flex min-h-11 cursor-pointer items-start gap-3 rounded-[var(--r-s)] border border-nx-border bg-nx-bg px-4 py-3 transition-[border-color,background-color] duration-140 hover:border-nx-accent/60 hover:bg-nx-raised/40 focus-within:border-nx-accent">
-                    <input type="checkbox" checked={applyToSeries} onChange={(event) => setApplyToSeries(event.target.checked)} className="mt-0.5 size-5 shrink-0 cursor-pointer rounded border-nx-border bg-nx-bg accent-nx-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nx-accent" />
-                    <span>
-                        <span className="block text-sm font-semibold text-nx-text">Zastosuj do całej serii</span>
-                        <span className="mt-1 block text-xs leading-5 text-nx-text-2">Ustawi wartość domyślną i zachowa istniejące ręczne korekty odcinków.</span>
-                    </span>
-                </label>
-
-                <button type="submit" disabled={saving || !selectedEpisode} className="mt-6 inline-flex min-h-12 cursor-pointer items-center gap-2 rounded-full bg-nx-accent px-6 text-sm font-semibold text-nx-on-accent outline-none transition-[filter,opacity] duration-140 hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-nx-accent disabled:cursor-wait disabled:opacity-55">
-                    <Save size={17} aria-hidden="true" />
-                    {saving ? "Zapisywanie…" : "Zapisz zakres"}
-                </button>
-                {message && <p role="status" aria-live="polite" className="mt-4 text-sm text-nx-text-2">{message}</p>}
-                {error && <p role="alert" className="mt-4 text-sm text-danger">{error}</p>}
-            </form>
-        </div>
-    );
-};
-
-export default ChapterEditor;
+export default function ChapterEditor({ series, initialSeriesKey }: { series: AdminLibrarySeries[]; initialSeriesKey?: string }) {
+    const [seriesKey, setSeriesKey] = useState(series.find((item) => item.seriesKey === initialSeriesKey)?.seriesKey ?? series[0]?.seriesKey ?? "");
+    const selectedSeries = series.find((item) => item.seriesKey === seriesKey) ?? series[0];
+    const [episodeKey, setEpisodeKey] = useState(selectedSeries?.episodes[0]?.episodeKey ?? "");
+    const [busy, setBusy] = useState(false);
+    const selectedEpisode = selectedSeries?.episodes.find((item) => item.episodeKey === episodeKey) ?? selectedSeries?.episodes[0];
+    if (!selectedSeries || !selectedEpisode) return <p className={s.muted}>Dodaj materiał, aby ustawić pomijane fragmenty.</p>;
+    return <div className={s.chapterLayout}>
+        <section className={s.chapterTarget} aria-labelledby="chapter-target">
+            <div><h2 id="chapter-target">Wybierz materiał</h2><p className={s.description}>Czasy zapiszesz dla wybranego filmu lub odcinka.</p></div>
+            <label className={s.field}>Film lub serial<select className={s.input} disabled={busy} value={selectedSeries.seriesKey} onChange={(event) => {
+                setSeriesKey(event.target.value);
+                setEpisodeKey(series.find((item) => item.seriesKey === event.target.value)?.episodes[0]?.episodeKey ?? "");
+            }}>{series.map((item) => <option key={item.seriesKey} value={item.seriesKey}>{item.seriesKey}</option>)}</select></label>
+            <label className={s.field}>Odcinek lub plik<select className={s.input} disabled={busy} value={selectedEpisode.episodeKey} onChange={(event) => setEpisodeKey(event.target.value)}>{selectedSeries.episodes.map((item) => <option key={item.episodeKey} value={item.episodeKey}>{item.title ?? item.episodeKey}</option>)}</select></label>
+            <p className={s.muted}>Każdy rodzaj fragmentu ma jeden zakres. Kliknij zapisany zakres, jeśli chcesz poprawić jego czas.</p>
+        </section>
+        <EpisodeChapters key={`${selectedSeries.seriesKey}/${selectedEpisode.episodeKey}`} series={selectedSeries} episodeKey={selectedEpisode.episodeKey} onBusy={setBusy} />
+    </div>;
+}

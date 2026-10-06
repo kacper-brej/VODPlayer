@@ -1,7 +1,8 @@
 import "server-only";
 
-export const ARTWORK_MAX_INPUT_BYTES = 8 * 1024 * 1024;
-export const ARTWORK_MAX_INPUT_PIXELS = 40_000_000;
+import { ARTWORK_MAX_INPUT_BYTES } from "./artworkLimits";
+export { ARTWORK_MAX_INPUT_BYTES, ARTWORK_MAX_INPUT_PIXELS } from "./artworkLimits";
+const ARTWORK_MAX_DOWNLOAD_BYTES = 8 * 1024 * 1024;
 export const ARTWORK_FETCH_TIMEOUT_MS = 8_000;
 export const ARTWORK_MAX_REDIRECTS = 3;
 
@@ -106,7 +107,7 @@ export const downloadArtwork = async (
     options: DownloadArtworkOptions = {},
 ): Promise<Buffer> => {
     const fetchImplementation = options.fetchImplementation ?? fetch;
-    const maxBytes = Math.min(options.maxBytes ?? ARTWORK_MAX_INPUT_BYTES, ARTWORK_MAX_INPUT_BYTES);
+    const maxBytes = Math.min(options.maxBytes ?? ARTWORK_MAX_DOWNLOAD_BYTES, ARTWORK_MAX_DOWNLOAD_BYTES);
     const timeoutMs = options.timeoutMs ?? ARTWORK_FETCH_TIMEOUT_MS;
     const maxRedirects = Math.min(options.maxRedirects ?? ARTWORK_MAX_REDIRECTS, ARTWORK_MAX_REDIRECTS);
     let currentUrl = validateArtworkSourceUrl(source);

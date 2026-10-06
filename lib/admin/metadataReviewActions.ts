@@ -15,6 +15,40 @@ import {
 } from "@/lib/upload/uploadWorkflowActions";
 import { CATALOG_TAG } from "@/lib/core/vodConfig";
 import { saveReviewDecision, selectSeriesArtwork, undoManualSeriesMetadata } from "@/lib/seriesMetadata/seriesMetadataService";
+import { getSeriesMetadata } from "@/lib/seriesMetadata/seriesMetadataService";
+import { getProvider } from "@/lib/metadata/registry";
+import { searchAdminTmdb, uniqueTmdbMatch } from "@/lib/metadata/searchAdminTmdb";
+
+export const autoFillTmdbAction = async (seriesKey: string): Promise<DataResult<{ status: "saved" | "choose" | "not-found" }>> => {
+    const user = await getSessionUser();
+    if (!user) return dataFailure("unauthorized", 401);
+    if (user.role !== "admin") return dataFailure("forbidden", 403);
+    if (!validKey(seriesKey)) return dataFailure("invalid_response");
+    try {
+        const existing = await getSeriesMetadata(seriesKey);
+        let externalId = existing.externalIds.tmdb;
+        if (!externalId) {
+            const result = await searchAdminTmdb(seriesKey);
+            if (result.kind === "error") return result;
+            const match = uniqueTmdbMatch(seriesKey, result.data);
+            if (!match) return dataSuccess({ status: result.data.length ? "choose" : "not-found" });
+            externalId = match.externalId;
+        }
+        const provider = getProvider("tmdb");
+        if (!provider?.getArtwork) return dataFailure("server");
+        const [details, artwork] = await Promise.all([provider.getSeries(externalId), provider.getArtwork(externalId)]);
+        if (details.kind === "error") return details;
+        if (artwork.kind === "error") return artwork;
+        const saved = await persistSeriesIdentity(seriesKey, "tmdb", externalId, details.data, artwork.data, "auto");
+        if (!saved) return dataFailure("server");
+        await saveReviewDecision(seriesKey, { state: "pending", reason: null });
+        updateTag(CATALOG_TAG);
+        return dataSuccess({ status: "saved" });
+    } catch (error) {
+        console.error("autoFillTmdbAction failed", error);
+        return dataFailure("server");
+    }
+};
 
 const validKey = (seriesKey: string) => seriesKey.trim() !== "" && seriesKey.length <= 255;
 
@@ -60,8 +94,9 @@ export const setMetadataReviewDecisionAction = async (
     reason: MetadataReviewReason | null,
 ) => {
     if (!validKey(seriesKey)) return dataFailure("invalid_response");
-    if (reason === "missing-poster") return dataFailure("invalid_response");
-    return withAdminMutation(() => saveReviewDecision(seriesKey, { state, reason }));
+    if (state !== "pending" && state !== "skipped") return dataFailure("invalid_response");
+    const savedReason = reason === "missing-poster" ? null : reason;
+    return withAdminMutation(() => saveReviewDecision(seriesKey, { state, reason: savedReason }));
 };
 
 export const selectSeriesArtworkAction = async (seriesKey: string, artworkId: number) => {
