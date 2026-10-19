@@ -46,5 +46,16 @@ describe("performance transport", () => {
         expect(vi.getTimerCount()).toBe(0);
         client.flushPerformanceSamples();
         expect(navigator.sendBeacon).not.toHaveBeenCalled();
+        const { beginEpisodeSwitchMeasurement } = await import("../episodeSwitchMeasurements");
+        expect(beginEpisodeSwitchMeasurement("hls")).toBeUndefined();
+    });
+
+    it("sends episode timing with only the bounded load label", async () => {
+        const client = await import("../client");
+        client.reportPerformanceSample({ id: "switch-1", name: "PLAYER_EPISODE_SWITCH", value: 350, delivery: "hls", load: "prefetched" });
+        client.flushPerformanceSamples();
+        const body = await (vi.mocked(navigator.sendBeacon).mock.calls[0][1] as Blob).text();
+        expect(JSON.parse(body)).toEqual([{ id: "switch-1", name: "PLAYER_EPISODE_SWITCH", value: 350, delivery: "hls", load: "prefetched", page: "watch", device: "mobile" }]);
+        expect(body).not.toContain("secret");
     });
 });

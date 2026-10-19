@@ -1,9 +1,11 @@
 import type { getPerformanceStore } from "@/lib/performance/store";
 import type { DbMetricSnapshot } from "@/lib/db/metrics";
+import { isCountMetric } from "@/lib/performance/contracts";
 
 const names: Record<string, string> = {
     LCP: "Główna treść", INP: "Reakcja na kliknięcie", CLS: "Przesunięcia układu", FCP: "Pierwsza treść", TTFB: "Odpowiedź serwera",
     PLAYER_STARTUP: "Start filmu", PLAYER_SEEK: "Przewijanie filmu", PLAYER_BUFFER: "Przerwa na buforowanie", PLAYER_ERROR: "Błąd odtwarzania",
+    PLAYER_EPISODE_DATA: "Dane kolejnego odcinka", PLAYER_EPISODE_SWITCH: "Przełączenie do obrazu", PLAYER_EPISODE_ERROR: "Błąd wczytania odcinka",
 };
 const pages: Record<string, string> = { home: "Główna", catalog: "Katalog", series: "Serial", watch: "Odtwarzacz", library: "Biblioteka", settings: "Ustawienia", other: "Pozostałe" };
 const format = (value: number, name: string) => name === "CLS" ? value.toFixed(3) : `${Math.round(value).toLocaleString("pl-PL")} ms`;
@@ -18,11 +20,11 @@ export default function PerformanceOverview({ snapshot, database }: { snapshot: 
                 <table className="w-full min-w-[680px] text-left text-sm text-nx-text">
                     <caption className="sr-only">Szybkość strony i odtwarzacza</caption>
                     <thead className="bg-nx-panel"><tr>{["Pomiar", "Strona", "Urządzenie", "Źródło", "Próbki", "P50", "P75", "P95"].map((label) => <th key={label} scope="col" className="px-3 py-3">{label}</th>)}</tr></thead>
-                    <tbody>{snapshot.rows.map((row) => <tr key={`${row.name}:${row.page}:${row.device}:${row.delivery}`} className="border-t border-nx-border">
-                        <th scope="row" className="px-3 py-3 font-medium">{names[row.name]}</th>
+                    <tbody>{snapshot.rows.map((row) => <tr key={`${row.name}:${row.page}:${row.device}:${row.delivery}:${row.load ?? ""}`} className="border-t border-nx-border">
+                        <th scope="row" className="px-3 py-3 font-medium">{names[row.name]}{row.load && <span className="block text-xs font-normal text-nx-text-2">{row.load === "prefetched" ? "Z wcześniejszego przygotowania" : "Zwykłe pobranie"}</span>}</th>
                         <td className="px-3 py-3">{pages[row.page]}</td><td className="px-3 py-3">{row.device === "mobile" ? "Telefon" : "Duży ekran"}</td>
                         <td className="px-3 py-3">{row.delivery === "page" ? "Strona" : row.delivery.toUpperCase()}</td><td className="px-3 py-3">{row.count}</td>
-                        {[row.p50, row.p75, row.p95].map((value, index) => <td key={index} className="whitespace-nowrap px-3 py-3">{row.name === "PLAYER_ERROR" ? "—" : format(value, row.name)}</td>)}
+                        {[row.p50, row.p75, row.p95].map((value, index) => <td key={index} className="whitespace-nowrap px-3 py-3">{isCountMetric(row.name) ? "—" : format(value, row.name)}</td>)}
                     </tr>)}</tbody>
                 </table>
             </div>}

@@ -48,6 +48,7 @@ interface PlayerControlsProps {
     episodeNumber?: number;
     onBack?: () => void;
     onNextEpisode?: () => void;
+    onPrefetchNextEpisode?: () => void;
     onPreviousEpisode?: () => void;
     onSeekFeedback?: (seconds: number) => void;
     chapters?: EpisodeChapter[];
@@ -269,6 +270,7 @@ const PlayerControls = ({
     episodeNumber,
     onBack,
     onNextEpisode,
+    onPrefetchNextEpisode,
     onPreviousEpisode,
     onSeekFeedback,
     chapters = [],
@@ -471,7 +473,9 @@ const PlayerControls = ({
 
                         <button
                             type="button"
-                            onPointerDown={(event) => event.stopPropagation()}
+                            onPointerEnter={(event) => { if (event.pointerType === "mouse") onPrefetchNextEpisode?.(); }}
+                            onFocus={onPrefetchNextEpisode}
+                            onPointerDown={(event) => { event.stopPropagation(); if (event.isPrimary && event.button === 0) onPrefetchNextEpisode?.(); }}
                             onClick={onNextEpisode}
                             className="np-control"
                             aria-label={onNextEpisode ? "Następny odcinek" : "To ostatni odcinek"}

@@ -3,12 +3,15 @@ import { DatabaseError } from "@/lib/db/errors";
 import { findReadyHlsAsset, type HlsRendition } from "@/lib/player/hlsRepository";
 import { presignedObjectUrl, fetchObjectText, B2ConfigError } from "@/lib/player/b2Storage";
 import { signHlsManifestRequest, type HlsVariant } from "@/lib/player/hlsSigning";
+import { createSignedPlaylistCache } from "@/lib/player/signedPlaylistCache";
 
 export const HLS_MANIFEST_PATH = "/api/hls";
 
 const MEDIA_PLAYLIST_CACHE_TTL_MS = 60 * 60 * 1000;
 const MEDIA_PLAYLIST_CACHE_MAX_ENTRIES = 128;
 const PRESIGN_CONCURRENCY = 32;
+const SIGNED_PLAYLIST_REUSE_MS = 60_000;
+const SEGMENT_EXPIRY_MARGIN_MS = 120_000;
 const INIT_SEGMENT_FILENAME = "init.mp4";
 const INIT_MAP_PREFIX = `#EXT-X-MAP:URI="${INIT_SEGMENT_FILENAME}"`;
 
@@ -20,6 +23,9 @@ interface CachedMediaPlaylistTemplate {
 const mediaPlaylistCache = new Map<string, CachedMediaPlaylistTemplate>();
 const mediaPlaylistRequests = new Map<string, Promise<string | null>>();
 const mediaPlaylistRewrites = new Map<string, Promise<string | null>>();
+const signedPlaylistCache = createSignedPlaylistCache();
+let cacheGeneration = 0;
+type PlaylistCacheStatus = "hit" | "miss" | "shared" | "bypass";
 
 export const segmentPresignTtlSeconds = (durationSeconds: number | null): number =>
     Math.min(7200, Math.max(900, Math.ceil(durationSeconds ?? 1800) + 600));
@@ -70,15 +76,19 @@ const loadMediaPlaylistTemplate = async (cacheKey: string, playlistKey: string):
     const pending = mediaPlaylistRequests.get(cacheKey);
     if (pending) return pending;
 
+    const generation = cacheGeneration;
     const request = fetchObjectText(playlistKey).then((body) => {
         if (body === null) return null;
+        if (generation !== cacheGeneration) return body;
         if (mediaPlaylistCache.size >= MEDIA_PLAYLIST_CACHE_MAX_ENTRIES) {
             const oldestKey = mediaPlaylistCache.keys().next().value;
             if (oldestKey !== undefined) mediaPlaylistCache.delete(oldestKey);
         }
         mediaPlaylistCache.set(cacheKey, { body, expiresAt: Date.now() + MEDIA_PLAYLIST_CACHE_TTL_MS });
         return body;
-    }).finally(() => mediaPlaylistRequests.delete(cacheKey));
+    }).finally(() => {
+        if (mediaPlaylistRequests.get(cacheKey) === request) mediaPlaylistRequests.delete(cacheKey);
+    });
 
     mediaPlaylistRequests.set(cacheKey, request);
     return request;
@@ -107,39 +117,58 @@ const presignLines = async (lines: string[], playlistDirectory: string, ttlSecon
     return rewritten;
 };
 
-export const rewriteMediaPlaylist = async (
+const loadRewrittenMediaPlaylist = async (
     playlistKey: string,
     templateCacheKey: string,
     durationSeconds: number | null,
-): Promise<string | null> => {
+): Promise<{ body: string | null; cache: PlaylistCacheStatus }> => {
     const ttlSeconds = segmentPresignTtlSeconds(durationSeconds);
     const requestKey = JSON.stringify([templateCacheKey, playlistKey, ttlSeconds]);
+    const cached = signedPlaylistCache.get(requestKey);
+    if (cached !== null) return { body: cached, cache: "hit" };
     const pending = mediaPlaylistRewrites.get(requestKey);
-    if (pending) return pending;
+    if (pending) return { body: await pending, cache: "shared" };
 
+    const generation = cacheGeneration;
     const request = (async () => {
-        const original = await loadMediaPlaylistTemplate(templateCacheKey, playlistKey);
+        const original = await loadMediaPlaylistTemplate(JSON.stringify([templateCacheKey, playlistKey]), playlistKey);
         if (original === null) return null;
 
         const playlistDirectory = playlistKey.slice(0, playlistKey.lastIndexOf("/"));
+        // Start the clock before the first signature, never after the last one.
+        const signedAt = Date.now();
         const rewritten = await presignLines(original.split("\n"), playlistDirectory, ttlSeconds);
-        return rewritten.join("\n");
+        const body = rewritten.join("\n");
+        if (generation === cacheGeneration && /^#EXT-X-ENDLIST\r?$/m.test(original)) {
+            signedPlaylistCache.set(requestKey, body, signedAt + Math.min(
+                SIGNED_PLAYLIST_REUSE_MS, ttlSeconds * 1000 - SEGMENT_EXPIRY_MARGIN_MS,
+            ));
+        }
+        return body;
     })().finally(() => {
         if (mediaPlaylistRewrites.get(requestKey) === request) mediaPlaylistRewrites.delete(requestKey);
     });
 
     mediaPlaylistRewrites.set(requestKey, request);
-    return request;
+    return { body: await request, cache: "miss" };
 };
 
+export const rewriteMediaPlaylist = async (
+    playlistKey: string,
+    templateCacheKey: string,
+    durationSeconds: number | null,
+): Promise<string | null> => (await loadRewrittenMediaPlaylist(playlistKey, templateCacheKey, durationSeconds)).body;
+
 export const clearMediaPlaylistCache = (): void => {
+    cacheGeneration += 1;
+    signedPlaylistCache.clear();
     mediaPlaylistCache.clear();
     mediaPlaylistRequests.clear();
     mediaPlaylistRewrites.clear();
 };
 
 export type ManifestResult =
-    | { ok: true; body: string }
+    | { ok: true; body: string; cache: PlaylistCacheStatus }
     | { ok: false; code: "not_found" | "variant_not_found" | "storage" | "server" };
 
 export const buildManifest = async (
@@ -159,6 +188,7 @@ export const buildManifest = async (
         if (variant === "master") {
             return {
                 ok: true,
+                cache: "bypass",
                 body: buildMasterPlaylist(asset.id, asset.version, seriesKey, episodeKey, renditions, expiresAt, manifestPath),
             };
         }
@@ -166,14 +196,14 @@ export const buildManifest = async (
         const matching = renditions.find((rendition) => String(rendition.height) === variant);
         if (!matching) return { ok: false, code: "variant_not_found" };
 
-        const body = await rewriteMediaPlaylist(
+        const { body, cache } = await loadRewrittenMediaPlaylist(
             matching.playlistKey,
             `${asset.id}:${asset.version}:${matching.height}`,
             asset.durationSeconds,
         );
         if (body === null) return { ok: false, code: "storage" };
 
-        return { ok: true, body };
+        return { ok: true, body, cache };
     } catch (error) {
         if (error instanceof B2ConfigError) {
             console.error("buildManifest: brak lub nieprawidlowa konfiguracja B2");

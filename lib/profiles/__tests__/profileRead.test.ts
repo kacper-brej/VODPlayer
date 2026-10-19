@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { withRequestReadScope } from "@/lib/http/requestReadScope";
 
 vi.mock("react", async () => {
     const { createRequire } = await import("node:module");
@@ -104,6 +105,20 @@ afterEach(() => {
 });
 
 describe("profile reads during server rendering", () => {
+    it("shares one profile read in a watch API request without an RSC dispatcher", async () => {
+        internals.A = null;
+        await withRequestReadScope(async () => {
+            await Promise.all([getSettings(1, "Kacper"), getProgressSnapshot(1, "Kacper", ["Naruto"])]);
+        });
+        expect(mocks.profiles.isProfileOwnedByUser).toHaveBeenCalledExactlyOnceWith(5, 1);
+        expect(mocks.settings.getProfileSettingsRow).toHaveBeenCalledWith(5);
+        expect(mocks.progress.loadProgressSnapshot).toHaveBeenCalledWith(5, ["Naruto"]);
+        mocks.selectedProfileId.mockResolvedValue("9");
+        await withRequestReadScope(() => getSettings(1, "Kacper"));
+        expect(mocks.profiles.isProfileOwnedByUser).toHaveBeenLastCalledWith(9, 1);
+        expect(mocks.profiles.isProfileOwnedByUser).toHaveBeenCalledTimes(2);
+    });
+
     it("shares one cookie and ownership lookup across concurrent read services", async () => {
         await readProfileData();
 

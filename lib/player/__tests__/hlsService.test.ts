@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { DatabaseError } from "@/lib/db/errors";
 
 process.env.VIDEO_SIGNING_SECRET = process.env.VIDEO_SIGNING_SECRET ?? "test-video-secret-do-not-use-in-prod";
@@ -24,6 +24,7 @@ beforeEach(() => {
     vi.clearAllMocks();
     clearMediaPlaylistCache();
 });
+afterEach(() => vi.useRealTimers());
 
 describe("buildMasterPlaylist", () => {
     it("naglowek EXTM3U i wersja HLS", () => {
@@ -71,7 +72,79 @@ describe("buildMasterPlaylist", () => {
 });
 
 describe("rewriteMediaPlaylist", () => {
-    it("shares signing work only between simultaneous requests for the same rendition", async () => {
+    it("reuses signed VOD playlists for 60 seconds without extending the cache on a hit", async () => {
+        vi.useFakeTimers();
+        fetchObjectText.mockResolvedValue("#EXTM3U\n000.m4s\n#EXT-X-ENDLIST\r\n");
+        presignedObjectUrl.mockResolvedValueOnce("first-url").mockResolvedValue("fresh-url");
+        const args = ["media/x/index.m3u8", "42:7:720", 1800] as const;
+        expect(await rewriteMediaPlaylist(...args)).toContain("first-url");
+        await vi.advanceTimersByTimeAsync(59_999);
+        expect(await rewriteMediaPlaylist(...args)).toContain("first-url");
+        expect(presignedObjectUrl).toHaveBeenCalledOnce();
+        await vi.advanceTimersByTimeAsync(1);
+        expect(await rewriteMediaPlaylist(...args)).toContain("fresh-url");
+        expect(presignedObjectUrl).toHaveBeenCalledTimes(2);
+        expect(fetchObjectText).toHaveBeenCalledOnce();
+    });
+
+    it("isolates signed cache entries by path, version, rendition and signing lifetime", async () => {
+        fetchObjectText.mockResolvedValue("000.m4s\n#EXT-X-ENDLIST\n");
+        presignedObjectUrl.mockImplementation(async (key: string, ttl: number) => `${key}:${ttl}`);
+        const inputs: Array<[string, string, number]> = [
+            ["media/v7/720/index.m3u8", "42:7:720", 1800],
+            ["media/v8/720/index.m3u8", "42:8:720", 1800],
+            ["media/v7/480/index.m3u8", "42:7:480", 1800],
+            ["media/replaced/720/index.m3u8", "42:7:720", 1800],
+            ["media/v7/720/index.m3u8", "42:7:720", 3600],
+        ];
+        for (const input of inputs) await rewriteMediaPlaylist(...input);
+        for (const input of inputs) await rewriteMediaPlaylist(...input);
+        expect(presignedObjectUrl).toHaveBeenCalledTimes(5);
+        expect(fetchObjectText).toHaveBeenCalledTimes(4);
+    });
+
+    it("does not retain a playlist whose signing already consumed the reuse window", async () => {
+        vi.useFakeTimers();
+        fetchObjectText.mockResolvedValue("000.m4s\n#EXT-X-ENDLIST\n");
+        presignedObjectUrl.mockImplementationOnce(async () => {
+            vi.setSystemTime(Date.now() + 60_000);
+            return "old-url";
+        }).mockResolvedValue("fresh-url");
+        const args = ["media/x/index.m3u8", "42:7:720", 1800] as const;
+        await rewriteMediaPlaylist(...args);
+        expect(await rewriteMediaPlaylist(...args)).toContain("fresh-url");
+        expect(presignedObjectUrl).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not repopulate a cleared cache from an older in-flight rewrite", async () => {
+        fetchObjectText.mockResolvedValue("000.m4s\n#EXT-X-ENDLIST\n");
+        let finishOld!: (value: string) => void;
+        presignedObjectUrl.mockImplementationOnce(() => new Promise<string>((resolve) => { finishOld = resolve; }))
+            .mockResolvedValue("new-url");
+        const args = ["media/x/index.m3u8", "42:7:720", 1800] as const;
+        const oldRequest = rewriteMediaPlaylist(...args);
+        await vi.waitFor(() => expect(presignedObjectUrl).toHaveBeenCalledOnce());
+        clearMediaPlaylistCache();
+        expect(await rewriteMediaPlaylist(...args)).toContain("new-url");
+        finishOld("old-url");
+        await oldRequest;
+        expect(await rewriteMediaPlaylist(...args)).toContain("new-url");
+        expect(presignedObjectUrl).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not cache missing VOD playlists or failed signatures", async () => {
+        const args = ["media/x/index.m3u8", "42:7:720", 1800] as const;
+        fetchObjectText.mockResolvedValueOnce(null).mockResolvedValue("000.m4s\n#EXT-X-ENDLIST\n");
+        expect(await rewriteMediaPlaylist(...args)).toBeNull();
+        presignedObjectUrl.mockRejectedValueOnce(new Error("signing failed"));
+        await expect(rewriteMediaPlaylist(...args)).rejects.toThrow("signing failed");
+        presignedObjectUrl.mockResolvedValue("recovered-url");
+        expect(await rewriteMediaPlaylist(...args)).toContain("recovered-url");
+        expect(await rewriteMediaPlaylist(...args)).toContain("recovered-url");
+        expect(presignedObjectUrl).toHaveBeenCalledTimes(2);
+    });
+
+    it("shares simultaneous work but does not retain signed playlists without ENDLIST", async () => {
         fetchObjectText.mockResolvedValue('#EXT-X-MAP:URI="init.mp4"\n#EXTINF:6.0,\n000.m4s\n');
         presignedObjectUrl.mockImplementation(async (key: string) => `signed:${key}`);
         const args = ["media/x/720/index.m3u8", "42:7:720", 1800] as const;
@@ -205,13 +278,16 @@ describe("rewriteMediaPlaylist", () => {
 describe("buildManifest — orkiestracja", () => {
     it("checks asset availability for every viewer even when signing is shared", async () => {
         findReadyHlsAsset.mockResolvedValue(readyAsset([{ height: 720, width: 1280, bitrateKbps: 2500, playlistKey: "media/x/index.m3u8" }]));
-        fetchObjectText.mockResolvedValue("#EXTINF:6.0,\n000.m4s\n");
+        fetchObjectText.mockResolvedValue("#EXTINF:6.0,\n000.m4s\n#EXT-X-ENDLIST\n");
         presignedObjectUrl.mockResolvedValue("signed-url");
         const args = [42, 7, "X", "01.mp4", "720", 1999999999, "/api/hls"] as const;
 
         await Promise.all([buildManifest(...args), buildManifest(...args)]);
         expect(findReadyHlsAsset).toHaveBeenCalledTimes(2);
         expect(presignedObjectUrl).toHaveBeenCalledOnce();
+
+        expect(await buildManifest(...args)).toMatchObject({ ok: true, cache: "hit" });
+        expect(findReadyHlsAsset).toHaveBeenCalledTimes(3);
 
         findReadyHlsAsset.mockResolvedValue(null);
         expect(await buildManifest(...args)).toEqual({ ok: false, code: "not_found" });
@@ -247,7 +323,7 @@ describe("buildManifest — orkiestracja", () => {
         presignedObjectUrl.mockResolvedValue("signed-url");
 
         const result = await buildManifest(42, 7, "Frieren", "01.mp4", "720", 1999999999, "/api/hls");
-        expect(result).toEqual({ ok: true, body: expect.stringContaining("signed-url") });
+        expect(result).toEqual({ ok: true, body: expect.stringContaining("signed-url"), cache: "miss" });
     });
 
     it("playlista niedostepna w B2 -> storage", async () => {

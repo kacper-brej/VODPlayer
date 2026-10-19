@@ -18,6 +18,7 @@ export interface WatchData {
     autoplayNext: boolean;
     skipIntroPrompt: boolean;
     defaultVolume: number;
+    reduceData?: boolean;
     isDemo?: boolean;
     trackProgress?: boolean;
     partyCode?: string;

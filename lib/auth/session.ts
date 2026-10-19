@@ -26,6 +26,7 @@ import {
 } from "@/lib/auth/sessionCookie";
 import { DatabaseError } from "@/lib/db/errors";
 import { withTransaction } from "@/lib/db/transaction";
+import { reuseRequestRead } from "@/lib/http/requestReadScope";
 
 declare global {
     var __nocturnaSessionCleanupAt: number | undefined;
@@ -131,7 +132,7 @@ export const logout = async (): Promise<LogoutResult> => {
     return { ok: true };
 };
 
-export const getSessionUser = cache(async (): Promise<AuthUser | null> => {
+export const getSessionUser = cache((): Promise<AuthUser | null> => reuseRequestRead("session-user", async () => {
     const cookieValue = await readSessionCookieValue();
     if (!cookieValue) return null;
 
@@ -144,7 +145,7 @@ export const getSessionUser = cache(async (): Promise<AuthUser | null> => {
         console.error("getSessionUser: blad bazy przy weryfikacji sesji", error);
         return null;
     }
-});
+}));
 
 export const requireUser = async (): Promise<AuthUser> => {
     const user = await getSessionUser();

@@ -39,8 +39,10 @@ import { requestPlaybackToggle } from '@/lib/player/controlledPlayback';
 import type { PlaybackSource } from '@/lib/player/videoAccess';
 import { buildHlsConfig } from '@/lib/player/videoPlayerConfig';
 import { loadHlsLibrary } from '@/lib/player/loadHlsLibrary';
+import { NEXT_EPISODE_PREFETCH_WINDOW_SECONDS } from '@/lib/player/nextEpisodePrefetch';
 import { createProgressQueue } from '@/lib/player/progressQueue';
 import { usePlaybackMeasurements } from '@/lib/performance/usePlaybackMeasurements';
+import type { EpisodeSwitchMeasurement } from '@/lib/performance/episodeSwitchMeasurements';
 import {
     HLS_REFRESH_BACKOFF_MS,
     HLS_REFRESH_MAX_ATTEMPTS,
@@ -98,6 +100,7 @@ export interface VideoPlayerSync {
 }
 
 export interface VideoPlayerProps {
+    episodeSwitchMeasurement?: EpisodeSwitchMeasurement;
     playback: PlaybackSource;
     seriesKey: string;
     episodeKey: string;
@@ -112,6 +115,7 @@ export interface VideoPlayerProps {
     nextEpisodeTitle?: string;
     onBack?: () => void | Promise<void>;
     onNextEpisode?: () => void;
+    onPrefetchNextEpisode?: () => void;
     onPreviousEpisode?: () => void;
     onProgressUpdate?: (currentTime: number, duration: number) => void | Promise<void>;
     startTime?: number;
@@ -144,6 +148,7 @@ const isEditableTarget = (target: EventTarget | null) => {
 };
 
 export const VideoPlayer = ({
+    episodeSwitchMeasurement,
     playback,
     seriesKey,
     episodeKey,
@@ -158,6 +163,7 @@ export const VideoPlayer = ({
     nextEpisodeTitle,
     onBack,
     onNextEpisode,
+    onPrefetchNextEpisode,
     onPreviousEpisode,
     onProgressUpdate,
     startTime = 0,
@@ -219,7 +225,7 @@ export const VideoPlayer = ({
     const partyStarted = sync?.partyStarted ?? false;
     const visiblePartyPanelOpen = partyStarted && partyPanelOpen;
 
-    usePlaybackMeasurements(playerRef, `${seriesKey}/${episodeKey}:${mediaInstanceKey}`, playback.kind, Boolean(sync));
+    usePlaybackMeasurements(playerRef, `${seriesKey}/${episodeKey}:${mediaInstanceKey}`, playback.kind, Boolean(sync), episodeSwitchMeasurement);
 
     useEffect(() => {
         syncRef.current = sync;
@@ -512,6 +518,11 @@ export const VideoPlayer = ({
         if (uiSecond !== lastUiSecondRef.current) {
             lastUiSecondRef.current = uiSecond;
             setCurrentTime(time);
+            const remaining = durationRef.current - time;
+            if (!sync && autoplayNext && remaining > 0 && remaining <= NEXT_EPISODE_PREFETCH_WINDOW_SECONDS
+                && playerRef.current && !playerRef.current.paused && !playerRef.current.state.seeking) {
+                onPrefetchNextEpisode?.();
+            }
         }
 
         if (onProgressUpdate && Math.abs(time - lastQueuedTimeRef.current) >= PROGRESS_SAVE_INTERVAL_SECONDS) {
@@ -923,6 +934,7 @@ export const VideoPlayer = ({
                     episodeNumber={episodeNumber}
                     onBack={onBack ? handleBackWithFlush : undefined}
                     onNextEpisode={onNextEpisode ? handleNextEpisodeRequest : undefined}
+                    onPrefetchNextEpisode={!sync ? onPrefetchNextEpisode : undefined}
                     onPreviousEpisode={onPreviousEpisode ? handlePreviousEpisodeWithFlush : undefined}
                     onSeekFeedback={showSeekFeedback}
                     chapters={chapters}

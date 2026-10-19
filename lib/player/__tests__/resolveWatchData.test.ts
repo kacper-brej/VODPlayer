@@ -30,7 +30,7 @@ describe("shared watch data", () => {
         mocks.demo.mockResolvedValue(null);
         mocks.progress.mockResolvedValue({ kind: "success", data: { episodes: { "2.mp4": { positionSeconds: 32 } } } });
         mocks.chapters.mockResolvedValue({ kind: "success", data: [{ type: "intro", startSeconds: 0, endSeconds: 20 }] });
-        mocks.settings.mockResolvedValue({ kind: "success", data: { autoplayNext: false, skipIntroPrompt: true, defaultVolume: 65 } });
+        mocks.settings.mockResolvedValue({ kind: "success", data: { autoplayNext: false, skipIntroPrompt: true, defaultVolume: 65, reduceData: true } });
         mocks.playback.mockReturnValue({ kind: "file", src: "/signed/episode", expiresAt: 100 });
     });
 
@@ -38,7 +38,7 @@ describe("shared watch data", () => {
         const result = await resolveWatchData("1", episode);
         expect(result).toMatchObject({ kind: "success", data: {
             fileName: "2.mp4", currentEpisode: 2, startTime: 27, previousEpisodeKey: "1.mp4",
-            nextEpisodeKey: "3.mp4", autoplayNext: false, defaultVolume: 65,
+            nextEpisodeKey: "3.mp4", autoplayNext: false, defaultVolume: 65, reduceData: true,
             chapters: [{ type: "intro", endSeconds: 20 }],
         } });
         expect(mocks.chapters).toHaveBeenCalledWith("series", "2.mp4");

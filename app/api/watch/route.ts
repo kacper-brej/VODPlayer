@@ -1,5 +1,7 @@
 import { requireSessionRoute } from "@/lib/http/routeAuth";
 import { resolveWatchData } from "@/lib/player/resolveWatchData";
+import { withRequestReadScope } from "@/lib/http/requestReadScope";
+import { withServerTiming } from "@/lib/http/serverTiming";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,8 +11,8 @@ const json = (body: unknown, status = 200) => Response.json(body, {
     headers: { "Cache-Control": "private, no-store" },
 });
 
-export const GET = async (request: Request) => {
-    const gate = await requireSessionRoute();
+export const GET = (request: Request) => withRequestReadScope(() => withServerTiming(async (timing) => {
+    const gate = await timing.measure("session", requireSessionRoute);
     if (!gate.ok) return gate.response;
 
     const params = new URL(request.url).searchParams;
@@ -22,7 +24,7 @@ export const GET = async (request: Request) => {
 
     try {
         // Use the same access checks, demo fallback and resume data as the watch page.
-        const result = await resolveWatchData(id, ep);
+        const result = await timing.measure("watch_data", () => resolveWatchData(id, ep));
         if (result.kind === "not-found") return json({ error: "Nie znaleziono serialu." }, 404);
         if (result.kind === "error") return json({ error: result.message }, result.status);
         if (result.kind === "data-error") {
@@ -33,4 +35,4 @@ export const GET = async (request: Request) => {
     } catch {
         return json({ error: "Nie udało się wczytać odcinka. Spróbuj ponownie." }, 503);
     }
-};
+}));

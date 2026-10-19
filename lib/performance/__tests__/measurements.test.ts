@@ -29,6 +29,27 @@ describe("performance reports", () => {
         expect(store.snapshot().rows[0]).toMatchObject({ count: 2, p50: 1000, p75: 3000, p95: 3000 });
     });
 
+    it("validates the bounded episode-load dimension and strips private fields", () => {
+        const valid = sample({ name: "PLAYER_EPISODE_SWITCH", page: "watch", delivery: "hls", load: "prefetched" });
+        expect(parsePerformanceBatch([{ ...valid, episodeKey: "private", url: "private" }])).toEqual([valid]);
+        expect(parsePerformanceBatch([{ ...valid, load: "arbitrary" }])).toBeNull();
+        expect(parsePerformanceBatch([{ ...valid, load: undefined }])).toBeNull();
+        expect(parsePerformanceBatch([sample({ load: "network" })])).toBeNull();
+        expect(parsePerformanceBatch([sample({ name: "PLAYER_EPISODE_ERROR", page: "watch", delivery: "file", value: 2 })])).toBeNull();
+        expect(parsePerformanceBatch([sample({ name: "PLAYER_EPISODE_ERROR", page: "watch", delivery: "file", value: 1 })])).not.toBeNull();
+    });
+
+    it("keeps warm and cold switching percentiles separate without losing legacy samples", () => {
+        const store = createPerformanceStore(() => 100);
+        const base = sample({ name: "PLAYER_EPISODE_SWITCH", page: "watch", delivery: "hls" });
+        store.record([sample(), { ...base, load: "prefetched", value: 200 }, { ...base, load: "network", value: 700 }]);
+        expect(store.snapshot().rows.map(({ name, load, p50 }) => ({ name, load, p50 }))).toEqual([
+            { name: "LCP", load: undefined, p50: 2000 },
+            { name: "PLAYER_EPISODE_SWITCH", load: "prefetched", p50: 200 },
+            { name: "PLAYER_EPISODE_SWITCH", load: "network", p50: 700 },
+        ]);
+    });
+
     it("bounds retained samples, splits delivery types and removes expired samples", () => {
         let time = 0;
         const store = createPerformanceStore(() => time);

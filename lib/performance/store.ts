@@ -26,11 +26,11 @@ export const createPerformanceStore = (now = Date.now) => {
         },
         record(samples: PerformanceSample[]) {
             for (const sample of samples) {
-                const { name, page, device, delivery } = sample;
-                const key = `${page}:${device}:${delivery}:${name}`;
+                const { name, page, device, delivery, load } = sample;
+                const key = `${page}:${device}:${delivery}:${name}:${load ?? ""}`;
                 let bucket = buckets.get(key);
                 if (!bucket) {
-                    bucket = { labels: { name, page, device, delivery }, samples: new Map() };
+                    bucket = { labels: { name, page, device, delivery, ...(load ? { load } : {}) }, samples: new Map() };
                     buckets.set(key, bucket);
                 }
                 prune(bucket.samples);

@@ -84,9 +84,23 @@ describe("GET /api/hls", () => {
     it("przekazuje zweryfikowana tozsamosc do pojedynczego odczytu manifestu", async () => {
         getSessionUser.mockResolvedValue({ id: 1 });
         verifyHlsManifestSignature.mockReturnValue(true);
-        buildManifest.mockResolvedValue({ ok: true, body: "#EXTM3U\n" });
+        buildManifest.mockResolvedValue({ ok: true, body: "#EXTM3U\n", cache: "bypass" });
         const response = await GET(request());
         expect(response.status).toBe(200);
+        expect(response.headers.get("cache-control")).toBe("no-store");
+        expect(response.headers.get("server-timing")).toMatch(/session;dur=.*access;dur=.*manifest;dur=.*playlist_cache;desc="bypass".*total;dur=/);
         expect(buildManifest).toHaveBeenCalledWith(42, 7, "Test", "01.mp4", "master", 1999999999, "/api/hls");
+    });
+
+    it("rechecks access before serving even a warm signed playlist", async () => {
+        getSessionUser.mockResolvedValue({ id: 1 });
+        verifyHlsManifestSignature.mockReturnValue(true);
+        buildManifest.mockResolvedValue({ ok: true, body: "#EXTM3U\n", cache: "hit" });
+        expect((await GET(request())).headers.get("server-timing")).toContain('playlist_cache;desc="hit"');
+        canStreamSeries.mockResolvedValue(false);
+        expect((await GET(request())).status).toBe(403);
+        getSessionUser.mockResolvedValue(null);
+        expect((await GET(request())).status).toBe(401);
+        expect(buildManifest).toHaveBeenCalledOnce();
     });
 });

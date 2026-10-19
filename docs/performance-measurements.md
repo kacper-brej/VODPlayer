@@ -13,7 +13,18 @@ Paczki są wysyłane co 15 sekund, po opuszczeniu odtwarzacza lub ukryciu strony
 - `PLAYER_SEEK`: czas od `seeking` do `seeked` po rozpoczęciu filmu.
 - `PLAYER_BUFFER`: ukończona przerwa pomiędzy `waiting` a powrotem obrazu. Pauza, przewijanie i ukryta karta przerywają pomiar. Liczba próbek oznacza liczbę ukończonych przerw, nie udział czasu buforowania w całym filmie.
 - `PLAYER_ERROR`: zdarzenia błędu zwykłego odtwarzacza; kolejne powtórzenia są scalane do wznowienia obrazu. To licznik zdarzeń, nie odsetek nieudanych sesji.
+- `PLAYER_EPISODE_DATA`: czas od żądania zmiany odcinka (przycisk, automatyczne przejście lub ponowienie) do gotowych danych. Obejmuje oczekiwanie na `/api/watch` i odczyt odpowiedzi albo pozostałe oczekiwanie na wcześniejsze przygotowanie. Nie obejmuje czasu spekulacyjnego pobierania przed żądaniem zmiany.
+- `PLAYER_EPISODE_SWITCH`: czas od tego samego żądania zmiany do pierwszej klatki nowego odcinka. Obejmuje także pobieranie danych, którego wcześniej nie uwzględniał pomiar startu filmu przy zmianie źródła. Bez `requestVideoFrameCallback` końcem jest `playing`. Te przejścia nie trafiają już do `PLAYER_STARTUP`, dlatego nie należy porównywać jego dawnych i nowych percentyli jako identycznej populacji.
+- Oba pomiary odcinków mają etykietę `load`: `prefetched` (wykorzystane gotowe lub trwające przygotowanie) albo `network` (zwykłe pobranie, także po nieudanym przygotowaniu). Panel liczy ich percentyle osobno. Etykieta nie oznacza trafienia w cache HLS.
+- `PLAYER_EPISODE_ERROR`: pojedynczy błąd lub timeout pobierania danych przy próbie zmiany odcinka. Nie obejmuje błędów spekulacyjnego przygotowania ani błędów dekodowania wideo. Liczba to zdarzenia, nie odsetek nieudanych zmian.
+- Ukrycie karty, opuszczenie odtwarzacza, pauza, odmowa autoplay lub błąd odtwarzacza przed pierwszą klatką wykluczają próbę z czasu udanego przełączenia. Poprawnie zebrany wcześniejszy pomiar danych pozostaje. Nieudane i porzucone przejścia nie mają czasu do pierwszej klatki, więc sama mediana czasów nie opisuje niezawodności.
 - Wspólne oglądanie korzysta z dotychczasowej, osobnej telemetrii.
+
+### Czasy serwera
+
+Odpowiedzi `/api/watch` i `/api/hls` zawierają nagłówek `Server-Timing`. W narzędziach przeglądarki można odczytać czas `session`, odpowiednio `watch_data` albo `access` i `manifest`, oraz `total`. Dla udanej odpowiedzi HLS pole `playlist_cache` ma jedną z wartości: `hit` (gotowa podpisana playlista), `shared` (dołączenie do trwającego podpisywania), `miss` (podpisywanie w tym żądaniu) lub `bypass` (playlista główna). Etykiety nie zawierają kluczy materiałów, kont, podpisów ani zapytań SQL.
+
+To czasy serwerowej obsługi konkretnego żądania, bez opóźnienia sieci i dekodowania obrazu; nie są automatycznie agregowane w tabeli wyników. Błąd dostępu nie pomija kontroli przez cache i pokazuje jedynie wykonane etapy. Nagłówki nie zmieniają polityki `no-store`.
 
 Panel przechowuje do 512 najnowszych próbek na grupę z ostatnich 24 godzin w pamięci procesu. Restart usuwa dane, a wiele instancji ma osobne wyniki. To nie jest trwały raport całego wdrożenia. `PERFORMANCE_LOGS=1` zapisuje przyjęte próbki jako wiersze JSON z `event=performance` w logach serwera. Przy agregowaniu logów należy aktualizować próbki według `name`, `id`, kategorii strony, urządzenia i źródła. Do historii całego wdrożenia potrzebny jest działający zbieracz logów i ustalona retencja.
 

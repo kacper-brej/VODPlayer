@@ -1,4 +1,4 @@
-import { MAX_BATCH_SIZE, pageGroup, type PerformanceSample } from "./contracts";
+import { isCountMetric, MAX_BATCH_SIZE, pageGroup, type PerformanceSample } from "./contracts";
 
 const queue = new Map<string, PerformanceSample>();
 let enabled: boolean | undefined;
@@ -33,9 +33,9 @@ export const flushPerformanceSamples = () => {
     } catch {}
 };
 
-export const reportPerformanceSample = (sample: Pick<PerformanceSample, "id" | "name" | "value"> & { delivery?: "file" | "hls" }) => {
+export const reportPerformanceSample = (sample: Pick<PerformanceSample, "id" | "name" | "value" | "load"> & { delivery?: "file" | "hls" }) => {
     if (!performanceSamplingEnabled() || !Number.isFinite(sample.value) || sample.value < 0) return;
-    if (sample.value > (sample.name === "CLS" ? 100 : sample.name === "PLAYER_ERROR" ? 1 : 600_000)) return;
+    if (sample.value > (sample.name === "CLS" ? 100 : isCountMetric(sample.name) ? 1 : 600_000)) return;
     capturePerformanceContext();
     const page = sample.delivery ? "watch" : initialPage!;
     const entry: PerformanceSample = { ...sample, page, device: device!, delivery: sample.delivery ?? "page" };

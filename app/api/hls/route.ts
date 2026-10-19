@@ -2,6 +2,7 @@ import { getSessionUser } from "@/lib/auth/session";
 import { buildManifest, HLS_MANIFEST_PATH } from "@/lib/player/hlsService";
 import { verifyHlsManifestSignature, isHlsVariant } from "@/lib/player/hlsSigning";
 import { canStreamSeries } from "@/lib/access/entitlements";
+import { withServerTiming } from "@/lib/http/serverTiming";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,8 +13,8 @@ const fail = (status: number, message: string) =>
         headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
     });
 
-export const GET = async (request: Request) => {
-    const user = await getSessionUser();
+export const GET = (request: Request) => withServerTiming(async (timing) => {
+    const user = await timing.measure("session", getSessionUser);
     if (!user) return fail(401, "Brak autoryzacji.");
 
     const { searchParams } = new URL(request.url);
@@ -47,14 +48,14 @@ export const GET = async (request: Request) => {
     if (expiresAt < Math.floor(Date.now() / 1000)) return fail(410, "Adres materiału wygasł.");
 
     try {
-        if (!await canStreamSeries(user, seriesKey)) return fail(403, "Brak dostępu do materiału.");
+        if (!await timing.measure("access", () => canStreamSeries(user, seriesKey))) return fail(403, "Brak dostępu do materiału.");
     } catch {
         return fail(500, "Błąd serwera.");
     }
 
-    const result = await buildManifest(
+    const result = await timing.measure("manifest", () => buildManifest(
         assetId, assetVersion, seriesKey, episodeKey, variant, expiresAt, HLS_MANIFEST_PATH,
-    );
+    ));
 
     if (!result.ok) {
         if (result.code === "not_found") return fail(404, "Materiał niedostępny.");
@@ -63,6 +64,7 @@ export const GET = async (request: Request) => {
         return fail(500, "Błąd serwera.");
     }
 
+    timing.playlistCache(result.cache);
     return new Response(result.body, {
         status: 200,
         headers: {
@@ -71,4 +73,4 @@ export const GET = async (request: Request) => {
             "X-Content-Type-Options": "nosniff",
         },
     });
-};
+});

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { withRequestReadScope } from "@/lib/http/requestReadScope";
 
 const findUserForLogin = vi.fn();
 vi.mock("@/lib/auth/userRepository", () => ({ findUserForLogin }));
@@ -191,6 +192,32 @@ describe("logout", () => {
 });
 
 describe("getSessionUser", () => {
+    it("shares the watch request's session lookup, but rechecks revoked sessions on the next request", async () => {
+        readSessionCookieValue.mockResolvedValue("jwt-value");
+        verifySessionCookieValue.mockResolvedValue("raw-token");
+        findSessionUser.mockResolvedValue(VIEWER);
+        await withRequestReadScope(async () => {
+            await requireUser();
+            expect(await Promise.all(Array.from({ length: 4 }, () => getSessionUser()))).toEqual(Array(4).fill(VIEWER));
+        });
+        expect(readSessionCookieValue).toHaveBeenCalledTimes(1);
+        expect(verifySessionCookieValue).toHaveBeenCalledTimes(1);
+        expect(findSessionUser).toHaveBeenCalledTimes(1);
+        findSessionUser.mockResolvedValue(null);
+        await expect(withRequestReadScope(requireUser)).rejects.toMatchObject({ httpStatus: 401 });
+        expect(findSessionUser).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps uncached behaviour outside an opted-in read request", async () => {
+        readSessionCookieValue.mockResolvedValue("jwt-value");
+        verifySessionCookieValue.mockResolvedValue("raw-token");
+        findSessionUser.mockResolvedValue(VIEWER);
+        await getSessionUser();
+        findSessionUser.mockResolvedValue(null);
+        expect(await getSessionUser()).toBeNull();
+        expect(findSessionUser).toHaveBeenCalledTimes(2);
+    });
+
     it("brak ciasteczka -> null", async () => {
         readSessionCookieValue.mockResolvedValue(null);
         await expect(getSessionUser()).resolves.toBeNull();

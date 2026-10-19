@@ -10,6 +10,8 @@ import { partyWatchPath, seriesPath, watchPath } from "@/lib/core/routes";
 import type { WatchData } from "@/lib/player/watchData";
 import { startPartyForEpisode } from "@/lib/party/startPartyForEpisode";
 import type { VideoPlayerProps } from "@/components/video/VideoPlayer";
+import { createNextEpisodePrefetch, watchDataUrl } from "@/lib/player/nextEpisodePrefetch";
+import { beginEpisodeSwitchMeasurement, type EpisodeSwitchMeasurement } from "@/lib/performance/episodeSwitchMeasurements";
 
 const PartyVideoPlayer = dynamic(() => import("@/components/video/PartyVideoPlayer"), {
     ssr: false,
@@ -51,6 +53,7 @@ const WatchClient = (initialData: WatchClientProps) => {
         autoplayNext,
         skipIntroPrompt,
         defaultVolume,
+        reduceData = false,
         isDemo = false,
         trackProgress = true,
         partyCode,
@@ -70,6 +73,40 @@ const WatchClient = (initialData: WatchClientProps) => {
     const requestedEpisodeRef = useRef<string | null>(null);
     const [episodeLoading, setEpisodeLoading] = useState(false);
     const [episodeError, setEpisodeError] = useState<string | null>(null);
+    const [nextPrefetch] = useState(createNextEpisodePrefetch);
+    const switchMeasurementRef = useRef<EpisodeSwitchMeasurement | undefined>(undefined);
+    const [episodeMeasurement, setEpisodeMeasurement] = useState<{ identity: string; measurement: EpisodeSwitchMeasurement }>();
+
+    useEffect(() => {
+        const hidden = () => {
+            if (document.visibilityState === "hidden") switchMeasurementRef.current?.cancel();
+        };
+        document.addEventListener("visibilitychange", hidden);
+        return () => {
+            switchMeasurementRef.current?.cancel();
+            document.removeEventListener("visibilitychange", hidden);
+        };
+    }, [initialData.seriesKey, initialData.fileName, initialData.playback.src, initialData.partyCode]);
+
+    useEffect(() => {
+        const clear = () => nextPrefetch.clear();
+        const onVisibilityChange = () => { if (document.visibilityState !== "visible") clear(); };
+        document.addEventListener("visibilitychange", onVisibilityChange);
+        window.addEventListener("pagehide", clear);
+        window.addEventListener("blur", clear);
+        return () => {
+            clear();
+            document.removeEventListener("visibilitychange", onVisibilityChange);
+            window.removeEventListener("pagehide", clear);
+            window.removeEventListener("blur", clear);
+        };
+    }, [nextPrefetch, seriesKey, fileName, partyCode, reduceData, initialData]);
+
+    const prepareNextEpisode = useCallback(() => {
+        if (!partyCode && !isDemo && !reduceData && nextEpisodeKey && !isNavigatingRef.current) {
+            void nextPrefetch.prepare(seriesId, nextEpisodeKey);
+        }
+    }, [partyCode, isDemo, reduceData, nextEpisodeKey, nextPrefetch, seriesId]);
 
     useEffect(() => () => {
         const request = episodeRequestRef.current;
@@ -84,18 +121,28 @@ const WatchClient = (initialData: WatchClientProps) => {
         requestedEpisodeRef.current = episodeKey;
         const controller = new AbortController();
         episodeRequestRef.current = controller;
+        switchMeasurementRef.current?.cancel();
+        const measurement = !partyCode && !isDemo ? beginEpisodeSwitchMeasurement(playback.kind) : undefined;
+        switchMeasurementRef.current = measurement;
         const timeout = window.setTimeout(() => controller.abort(), 15000);
         setEpisodeLoading(true);
         setEpisodeError(null);
         try {
-            const params = new URLSearchParams({ id: String(seriesId), ep: episodeKey });
-            const response = await fetch(`/api/watch?${params}`, {
-                cache: "no-store",
-                signal: controller.signal,
-            });
-            if (!response.ok) throw new Error("episode-load-failed");
-            const next: WatchData = await response.json();
+            let next = !partyCode && !reduceData ? await nextPrefetch.take(seriesId, episodeKey, controller.signal) : null;
+            const prefetched = next !== null;
+            if (controller.signal.aborted) throw new Error("episode-load-aborted");
+            if (!next) {
+                nextPrefetch.clear();
+                const response = await fetch(watchDataUrl(seriesId, episodeKey), {
+                    cache: "no-store",
+                    signal: controller.signal,
+                });
+                if (!response.ok) throw new Error("episode-load-failed");
+                next = await response.json() as WatchData;
+            }
             if (controller.signal.aborted) return;
+            measurement?.dataReady(next.playback.kind, prefetched);
+            setEpisodeMeasurement(measurement ? { identity: `${next.seriesKey}/${next.fileName}`, measurement } : undefined);
             setData({ ...next, partyCode, trackProgress });
             // Keep the player mounted and update the address without an RSC navigation.
             window.history.replaceState(null, "", partyCode
@@ -103,6 +150,7 @@ const WatchClient = (initialData: WatchClientProps) => {
                 : watchPath(next.seriesId, next.fileName));
         } catch {
             if (episodeRequestRef.current === controller) {
+                measurement?.failData();
                 setEpisodeError("Nie udało się wczytać odcinka. Spróbuj ponownie.");
             }
         } finally {
@@ -113,7 +161,7 @@ const WatchClient = (initialData: WatchClientProps) => {
                 setEpisodeLoading(false);
             }
         }
-    }, [partyCode, seriesId, trackProgress]);
+    }, [partyCode, seriesId, trackProgress, nextPrefetch, reduceData, isDemo, playback.kind]);
 
     useEffect(() => {
         isNavigatingRef.current = false;
@@ -180,6 +228,7 @@ const WatchClient = (initialData: WatchClientProps) => {
 
     const playerProps: VideoPlayerProps = {
         playback,
+        episodeSwitchMeasurement: episodeMeasurement?.identity === `${seriesKey}/${fileName}` ? episodeMeasurement.measurement : undefined,
         seriesKey,
         episodeKey: fileName,
         title: seriesTitle,
@@ -192,6 +241,7 @@ const WatchClient = (initialData: WatchClientProps) => {
         nextEpisodeTitle,
         onBack: handleBack,
         onNextEpisode: handleNextEpisode,
+        onPrefetchNextEpisode: nextEpisodeKey && !partyCode && !isDemo && !reduceData ? prepareNextEpisode : undefined,
         onPreviousEpisode: previousEpisodeKey ? handlePreviousEpisode : undefined,
         onProgressUpdate: handleProgressUpdate,
         startTime,

@@ -60,7 +60,9 @@ describe("kontrolowany benchmark manifestu typowego odcinka", () => {
         expect(warm.ok).toBe(true);
         expect(findReadyHlsAsset).toHaveBeenCalledTimes(2);
         expect(fetchObjectText).toHaveBeenCalledTimes(1);
-        expect(presignedObjectUrl).toHaveBeenCalledTimes((SEGMENTS + 1) * 2);
+        expect(presignedObjectUrl).toHaveBeenCalledTimes(SEGMENTS + 1);
+        expect(cold).toMatchObject({ cache: "miss" });
+        expect(warm).toMatchObject({ cache: "hit" });
 
         const body = cold.ok ? cold.body : "";
         console.info("HLS_BENCHMARK", JSON.stringify({
@@ -70,7 +72,8 @@ describe("kontrolowany benchmark manifestu typowego odcinka", () => {
             mysqlQueriesPerRequest: 1,
             coldB2Gets: 1,
             warmB2Gets: 0,
-            presignsPerRequest: SEGMENTS + 1,
+            coldPresigns: SEGMENTS + 1,
+            warmPresigns: 0,
             bodyBytes: Buffer.byteLength(body),
             manifestTtlSeconds: 90,
             segmentTtlSeconds: 2100,
